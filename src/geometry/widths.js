@@ -13,6 +13,7 @@
 // The curve is a monotone cubic (Fritsch–Carlson): it is smooth, so the edges
 // do not bend at smooth points, and between two points it never goes beyond
 // their values. Without any point widths, it is the source's width all along.
+// A closed centerline has no ends: its curve goes round the loop.
 
 import { distance, pointAt } from "./bezier.js";
 
@@ -63,6 +64,7 @@ export function widthProfile(contour, segments, style) {
       let value = pointHalfWidth(contour.points[pointIndex]?.values, side);
       if (
         value === undefined &&
+        !contour.isClosed &&
         (pointIndex === firstIndex || pointIndex === lastIndex)
       ) {
         value = defaultHalf;
@@ -70,6 +72,13 @@ export function widthProfile(contour, segments, style) {
       if (value !== undefined) {
         knots.push({ x: position, y: value });
       }
+    }
+    if (contour.isClosed && knots.length) {
+      // Round the loop: the knots repeated a loop's length before and after
+      knots.push(
+        ...knots.map(({ x, y }) => ({ x: x - total, y })),
+        ...knots.map(({ x, y }) => ({ x: x + total, y }))
+      );
     }
     curves[side] = monotoneCubic(knots, defaultHalf);
   }

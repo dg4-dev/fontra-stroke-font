@@ -12,7 +12,7 @@
 // for glyphs with open contours those layers draw it and the placeholder
 // layers do not.
 
-import { hasOpenContours, strokeGlyph } from "./glyph-strokes.js";
+import { glyphHasCenterlines, strokeGlyph } from "./glyph-strokes.js";
 import { appendContour } from "./stroke-layer.js";
 
 // Fontra's layers that draw glyph.flattenedPath2d of other glyphs
@@ -110,16 +110,10 @@ function withFilter(definition, wrap) {
  * Whether a glyph of the text is drawn with stroked shapes: it or one of its
  * components has open contours, and the setting is on.
  */
-export function makeStrokedTest(settings) {
-  return (positionedGlyph) => {
-    const glyph = positionedGlyph?.glyph;
-    return (
-      !!glyph &&
-      !!settings.get("otherGlyphs") &&
-      (hasOpenContours(glyph.path) ||
-        (glyph.components ?? []).some((c) => hasOpenContours(c.path)))
-    );
-  };
+export function makeStrokedTest(settings, componentGlyphs) {
+  return (positionedGlyph) =>
+    !!settings.get("otherGlyphs") &&
+    glyphHasCenterlines(positionedGlyph, componentGlyphs);
 }
 
 /**
@@ -135,18 +129,19 @@ export function makeGlyphExpander(settings, componentGlyphs) {
       return null;
     }
     const components = glyph.components ?? [];
-    if (
-      !hasOpenContours(glyph.path) &&
-      !components.some((c) => hasOpenContours(c.path))
-    ) {
+    if (!glyphHasCenterlines(positionedGlyph, componentGlyphs)) {
       return null;
     }
     const location = model?.getLocationForGlyph?.(positionedGlyph.glyphName);
-    const { outlines } = strokeGlyph(positionedGlyph, location, componentGlyphs);
+    const { outlines, strokedClosed } = strokeGlyph(
+      positionedGlyph,
+      location,
+      componentGlyphs
+    );
     const path2d = new Path2D();
-    drawClosedContours(path2d, glyph.path);
-    for (const component of components) {
-      drawClosedContours(path2d, component.path);
+    drawClosedContours(path2d, glyph.path, strokedClosed.own);
+    for (const [index, component] of components.entries()) {
+      drawClosedContours(path2d, component.path, strokedClosed.components.get(index));
     }
     for (const contour of outlines) {
       appendContour(path2d, contour);
@@ -156,9 +151,10 @@ export function makeGlyphExpander(settings, componentGlyphs) {
   };
 }
 
-function drawClosedContours(path2d, path) {
+// The closed contours that are outlines (not those stroked as centerlines)
+function drawClosedContours(path2d, path, stroked) {
   for (const [index, contour] of (path?.contourInfo ?? []).entries()) {
-    if (contour.isClosed) {
+    if (contour.isClosed && !stroked?.has(index)) {
       path.drawContourToPath2d(path2d, index);
     }
   }

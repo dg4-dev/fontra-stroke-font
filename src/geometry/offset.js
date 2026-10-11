@@ -6,6 +6,12 @@
 // (see widths.js); an edge is the centerline moved along its normal by the
 // half width of its side at that place.
 //
+// A closed centerline (a loop, as in o or D) has no caps, and a join at its
+// start when that is a corner. A loop without any corner is stroked as two
+// closed edges running in opposite directions (the outer one and the hole);
+// those are the only contours not built counter-clockwise, and since the hole
+// lies inside the outer edge, the loop never cancels anything out.
+//
 // The result is a set of closed contours that overlap and are meant to be
 // filled together with the nonzero rule:
 // - one band per run of segments between two corners (or ends),
@@ -69,8 +75,9 @@ const SAME_PARAMETER = 1e-9;
 /**
  * Stroke an open centerline.
  *
- * @param {{points: object[], isClosed: boolean}} contour unpacked contour; closed
- *   contours are not centerlines and give no result. On-curve points may have
+ * @param {{points: object[], isClosed: boolean}} contour unpacked contour; a
+ *   closed one is stroked as a loop (the caller decides which closed contours
+ *   are centerlines). On-curve points may have
  *   `values`: their own widths, join and miter limit (sanitized, see
  *   stroke-data.js)
  * @param {{width: number, cap: string, join: string, miterLimit: number}} style
@@ -90,16 +97,13 @@ const SAME_PARAMETER = 1e-9;
 export function strokeOffsetContour(contour, style, options = {}) {
   const tolerance = options.tolerance ?? DEFAULT_TOLERANCE;
   const maxSubdivisions = options.maxSubdivisions ?? MAX_SUBDIVISIONS;
-  const segments = contour.isClosed ? [] : centerlineSegments(contour);
+  const segments = centerlineSegments(contour);
   const result = {
     contours: [],
     layout: { segments: segments.map(() => null) },
     twists: [],
     layoutMismatch: false,
   };
-  if (contour.isClosed) {
-    return result;
-  }
   const profile = widthProfile(contour, segments, style);
   // (A lone point has no segments; its own width decides below)
   if (!(profile.max > 0) && segments.length) {
@@ -170,29 +174,53 @@ export function strokeOffsetContour(contour, style, options = {}) {
     return result;
   }
 
-  // Split into runs at the corners. A smooth point does not make a corner.
-  let run = [usable[0]];
-  for (let k = 1; k < usable.length; k++) {
-    const previous = usable[k - 1];
-    const current = usable[k];
-    const isAdjacent = current.index === previous.index + 1;
-    if (isAdjacent && previous.segment.endSmooth) {
+  // A smooth point does not make a corner
+  const continues = (previous, current) =>
+    (current.index === previous.index + 1 ||
+      (contour.isClosed &&
+        current.index === 0 &&
+        previous.index === segments.length - 1)) &&
+    previous.segment.endSmooth;
+  const join = (previous, current) =>
+    joinShape(
+      current.segment.points[0],
+      previous.endTangent,
+      current.startTangent,
+      { left: current.widths.left(0), right: current.widths.right(0) },
+      cornerStyle(contour.points[current.segment.startIndex]?.values, style)
+    );
+
+  let ordered = usable;
+  if (contour.isClosed) {
+    // Start the runs at a corner, so that no run is cut at the contour's start
+    const k = usable.findIndex((item, i) => !continues(usable.at(i - 1), item));
+    if (k < 0) {
+      result.contours.push(...ringContours(usable));
+      return result;
+    }
+    ordered = [...usable.slice(k), ...usable.slice(0, k)];
+  }
+
+  // Split into runs at the corners
+  let run = [ordered[0]];
+  for (let k = 1; k < ordered.length; k++) {
+    const previous = ordered[k - 1];
+    const current = ordered[k];
+    if (continues(previous, current)) {
       run.push(current);
       continue;
     }
     result.contours.push(...runContours(run));
-    result.contours.push(
-      joinShape(
-        current.segment.points[0],
-        previous.endTangent,
-        current.startTangent,
-        { left: current.widths.left(0), right: current.widths.right(0) },
-        cornerStyle(contour.points[current.segment.startIndex]?.values, style)
-      )
-    );
+    result.contours.push(join(previous, current));
     run = [current];
   }
   result.contours.push(...runContours(run));
+
+  if (contour.isClosed) {
+    // The corner where the loop comes back to its first run
+    result.contours.push(join(ordered.at(-1), ordered[0]));
+    return result;
+  }
 
   const first = usable[0];
   const last = usable.at(-1);
@@ -409,6 +437,43 @@ function runContours(run) {
     left.push(...item.left.map(copyPiece));
   }
   return [bandContour(right, left, joints)];
+}
+
+// A loop without corners: the right edge forwards and the left edge backwards,
+// each closed on its own
+function ringContours(items) {
+  const right = items.flatMap((item) => item.right.map(copyPiece));
+  const left = items.flatMap((item) => item.left.map(copyPiece));
+  const meetAll = (pieces, starts) => {
+    for (const start of starts) {
+      meetHalfway(pieces.at(start - 1), pieces[start]);
+    }
+  };
+  const starts = (side) => {
+    const result = [];
+    let count = 0;
+    for (const item of items) {
+      result.push(count);
+      count += item[side].length;
+    }
+    return result;
+  };
+  meetAll(right, starts("right"));
+  meetAll(left, starts("left"));
+  const outline = (pieces) => {
+    const points = [onCurve(pieces[0].points[0])];
+    for (const piece of pieces) {
+      appendPiece(points, piece.points);
+    }
+    // The last point is the first one again; the contour closes by itself
+    points.pop();
+    return { points, isClosed: true };
+  };
+  const reversed = left.toReversed().map((piece) => ({
+    type: piece.type,
+    points: piece.points.toReversed(),
+  }));
+  return [outline(right), outline(reversed)];
 }
 
 // Right edge forwards, then left edge backwards

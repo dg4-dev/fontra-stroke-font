@@ -16,7 +16,7 @@ import { centerlineSegments } from "./geometry/centerline.js";
 import { widthProfile } from "./geometry/widths.js";
 import { pathPoints, samePointStructure } from "./path-points.js";
 import {
-  SHARED_OFFSET_KEYS,
+  SHARED_POINT_KEYS,
   getGlyphStroke,
   makePointIdentifier,
   pointHalfWidths,
@@ -37,23 +37,45 @@ export function selectedPointIndices(selection) {
 }
 
 /**
- * The on-curve points of open contours among the given points.
- * @returns {{pointIndex: number, contourIndex: number, contourPointIndex: number}[]}
+ * The on-curve points among the given points, with their contours. Points of
+ * closed contours are included: a closed contour can be made a centerline.
+ * @returns {{pointIndex: number, contourIndex: number, contourPointIndex: number,
+ *   isClosed: boolean}[]}
  */
 export function centerlinePoints(path, pointIndices) {
   const wanted = new Set(pointIndices);
   const result = [];
   for (const [contourIndex, contour] of pathPoints(path).entries()) {
-    if (path.contourInfo[contourIndex].isClosed) {
-      continue;
-    }
+    const isClosed = !!path.contourInfo[contourIndex].isClosed;
     for (const [contourPointIndex, point] of contour.entries()) {
       if (point.onCurve && wanted.has(point.pointIndex)) {
-        result.push({ pointIndex: point.pointIndex, contourIndex, contourPointIndex });
+        result.push({
+          pointIndex: point.pointIndex,
+          contourIndex,
+          contourPointIndex,
+          isClosed,
+        });
       }
     }
   }
   return result;
+}
+
+/**
+ * The on-curve points of the closed contours that the given points are on:
+ * the points that mark such a contour as a centerline.
+ */
+export function closedContourPoints(path, pointIndices) {
+  const contours = new Set(
+    centerlinePoints(path, pointIndices)
+      .filter((point) => point.isClosed)
+      .map((point) => point.contourIndex)
+  );
+  return pathPoints(path)
+    .filter((contour, contourIndex) => contours.has(contourIndex))
+    .flatMap((contour) =>
+      contour.filter((point) => point.onCurve).map((point) => point.pointIndex)
+    );
 }
 
 /**
@@ -121,6 +143,19 @@ export function describeSelectedPoints(positionedGlyph, location, selection) {
   }
   const { style, points } = measured;
   const { atSource, varGlyph } = findStrokeSource(positionedGlyph, location);
+  // Whether the closed contours of the selected points are centerlines:
+  // undefined without closed contours, null when some are and some are not
+  const closed = new Map();
+  for (const point of points.filter((p) => p.isClosed)) {
+    const values = style.points?.[point.contourIndex];
+    closed.set(point.contourIndex, !!values?.some((v) => v?.centerline));
+  }
+  const closedStates = [...closed.values()];
+  const closedCenterline = !closedStates.length
+    ? undefined
+    : closedStates.every((state) => state === closedStates[0])
+      ? closedStates[0]
+      : null;
   const common = (get) => {
     const values = points.map(get);
     return values.every((value) => value === values[0]) ? values[0] : undefined;
@@ -138,6 +173,7 @@ export function describeSelectedPoints(positionedGlyph, location, selection) {
       join: common((point) => point.values?.join ?? ""),
       miterLimit: common((point) => point.values?.miterLimit ?? ""),
     },
+    closedCenterline,
     sourceStyle: style,
   };
 }
@@ -247,7 +283,7 @@ export function editPointValues(
       const own = {};
       const shared = {};
       for (const [key, value] of Object.entries(values)) {
-        (SHARED_OFFSET_KEYS.includes(key) ? shared : own)[key] = value;
+        (SHARED_POINT_KEYS.includes(key) ? shared : own)[key] = value;
       }
       add(sourceIndex, pointIndex, own);
       if (

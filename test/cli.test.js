@@ -303,3 +303,44 @@ test("points are stroked with their own widths", () => {
   ).outline[0].contour;
   assert.equal(Math.max(...dot.points.map((p) => p.x)), 250);
 });
+
+test("closed contours marked as centerlines are stroked, in every source", () => {
+  const folder = tempFolder();
+  const out = tempFolder();
+  // Mark the square of o as a centerline in the default source (Light) only
+  const lib = `<lib><dict><key>xyz.fontra.glyph.source.customData</key>
+      <dict><key>xyz.dg4.stroke</key><dict><key>points</key><dict>
+        <key>s1</key><dict><key>centerline</key><true/></dict>
+      </dict></dict></dict></dict></lib>`;
+  for (const [path, text] of Object.entries(snapshot(fixtures))) {
+    const target = join(folder, path);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      path.endsWith(join("Test-Light.ufo", "glyphs", "o.glif"))
+        ? text
+            .replace(
+              '<point x="100" y="0" type="line"/>',
+              '<point x="100" y="0" type="line" identifier="s1"/>'
+            )
+            .replace("</outline>", `</outline>${lib}`)
+        : text
+    );
+  }
+  const report = expandDesignspace(
+    join(folder, "designspace", "Test.designspace"),
+    out
+  );
+  assert.deepEqual(report.warnings, []);
+  const outlines = ["Test-Light.ufo", "Test-Bold.ufo"].map(
+    (ufo) => readGlif(readFileSync(join(out, ufo, "glyphs", "o.glif"), "utf-8")).outline
+  );
+  // 4 bands and 4 joins instead of the square
+  for (const outline of outlines) {
+    assert.equal(outline.length, 8);
+  }
+  assert.equal(
+    outlineSignature(outlines[0].map((item) => item.contour)),
+    outlineSignature(outlines[1].map((item) => item.contour))
+  );
+});

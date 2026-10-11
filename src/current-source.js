@@ -18,6 +18,7 @@ import {
   getGlyphStroke,
   getSourceStroke,
   offsetStyleInGlyph,
+  SHARED_POINT_KEYS,
   pointHalfWidths,
   resolveOffsetStyle,
   resolvePointValues,
@@ -137,12 +138,13 @@ export function sourcePointValues(varGlyph, sourceIndex, defaultIndex, path) {
   return values.some((contour) => contour.some(Boolean)) ? values : undefined;
 }
 
-// The joins of points come from the default source, as cap and join do
+// The joins of points, and which closed contours are centerlines, come from
+// the default source, as cap and join do
 function applyDefaultJoins(values, varGlyph, defaultIndex, path) {
   const source = varGlyph?.sources?.[defaultIndex];
   if (
     !hasPointValues(source?.customData) &&
-    !values.some((c) => c.some((v) => v?.join))
+    !values.some((c) => c.some((v) => SHARED_POINT_KEYS.some((key) => v?.[key])))
   ) {
     return;
   }
@@ -153,19 +155,25 @@ function applyDefaultJoins(values, varGlyph, defaultIndex, path) {
     : undefined;
   for (const [c, contour] of values.entries()) {
     for (const [i, own] of contour.entries()) {
-      const join = defaults?.[c]?.[i]?.join;
-      if (own?.join === join) {
+      const shared = defaults?.[c]?.[i];
+      if (SHARED_POINT_KEYS.every((key) => own?.[key] === shared?.[key])) {
         continue;
       }
       const next = { ...own };
-      if (join === undefined) {
-        delete next.join;
-      } else {
-        next.join = join;
+      for (const key of SHARED_POINT_KEYS) {
+        if (shared?.[key] === undefined) {
+          delete next[key];
+        } else {
+          next[key] = shared[key];
+        }
       }
       contour[i] = Object.keys(next).length ? next : undefined;
     }
   }
+}
+
+function emptyPointValues(path) {
+  return pathPoints(path).map((contour) => contour.map(() => undefined));
 }
 
 /**
@@ -211,17 +219,21 @@ export function interpolateStroke(varGlyph, location, path, defaultIndex) {
         sanitizeOffsetValue(key, instance[i]),
       ])
     );
-    if (!pointPart) {
+    if (!path) {
       return { numbers };
     }
-    const points = pointPart.build(instance.slice(INTERPOLATED_OFFSET_KEYS.length));
+    const points = pointPart
+      ? pointPart.build(instance.slice(INTERPOLATED_OFFSET_KEYS.length))
+      : emptyPointValues(path);
     applyDefaultJoins(
       points,
       varGlyph,
       defaultIndex ?? defaultSourceIndex(varGlyph),
       path
     );
-    return { numbers, points };
+    return points.some((contour) => contour.some(Boolean))
+      ? { numbers, points }
+      : { numbers };
   } catch (e) {
     return null;
   }
@@ -248,7 +260,7 @@ function pointVectors(varGlyph, sources, styles, path) {
   const entries = [];
   const numContours = perSource[0].path.contourInfo.length;
   for (const [c, contour] of pathPoints(path).entries()) {
-    if (c >= numContours || path.contourInfo[c].isClosed) {
+    if (c >= numContours) {
       continue;
     }
     for (const [i, point] of contour.entries()) {
@@ -300,6 +312,16 @@ function pointVectors(varGlyph, sources, styles, path) {
     return points;
   };
   return { vectors, build };
+}
+
+/**
+ * Whether any closed contour of a glyph is marked as a centerline (in its
+ * default source, which decides it for all sources).
+ */
+export function hasClosedCenterlines(varGlyph) {
+  const source = varGlyph?.sources?.[defaultSourceIndex(varGlyph)];
+  const { points } = getSourceStroke(source?.customData);
+  return Object.values(points).some((values) => values?.centerline === true);
 }
 
 function hasPointValues(customData) {

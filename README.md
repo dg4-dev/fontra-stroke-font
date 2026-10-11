@@ -4,7 +4,7 @@ A [Fontra](https://github.com/fontra/fontra) plugin for designing stroke fonts: 
 
 Open contours are stroked with a width: one per source, and optionally per point, different on each side. The values are changed in a sidebar panel or by dragging handles on the canvas, and are interpolated between sources; a command-line tool turns the centerlines into outlines for building fonts. Pen nibs and live corners come in later versions; the plan is in the issues, and the changes per version in [CHANGELOG.md](CHANGELOG.md).
 
-- **In the editor**: open contours are centerlines. The plugin draws the stroked shape on top of them as a preview; the font sources keep the centerlines
+- **In the editor**: open contours are centerlines, and so are the closed contours you mark as such (the loops of o, 0, D, Q). The plugin draws the stroked shape on top of them as a preview; the font sources keep the centerlines
 - **Ways to stroke**: a width (per point, optionally different on each side) with caps, joins and a miter limit; or a pen nib (ellipse, rectangle or flat pen) with its size and angle per point
 - **Live corners**: round a corner of the centerline without changing the centerline itself
 - **On the canvas**: drag handles to change widths, nibs and corner radii
@@ -47,7 +47,9 @@ After registering, reopen the glyph editor to load the plugin.
 
 ## Usage
 
-Draw an open contour (with the pen tool, end a contour without closing it) in the glyph being edited. The plugin fills its stroked shape in translucent blue under the centerline. The preview follows while you drag points and handles. Closed contours are ordinary outlines and are not stroked; a glyph can mix both.
+Draw an open contour (with the pen tool, end a contour without closing it) in the glyph being edited. The plugin fills its stroked shape in translucent blue under the centerline. The preview follows while you drag points and handles.
+
+A closed contour is an ordinary outline, unless it is marked as a centerline: then it is stroked as a loop, as for the bowls of o, 0, D or Q. To mark it, select one of its points and check "Stroke the closed contour as a centerline" in the panel (or use the context menu of the stroke width tool). A loop has no caps; a loop without corners is a ring, and one with corners gets a join at each of them. The mark is kept on the on-curve points of the contour, so it stays when the contour's start point changes or points are added or removed; like joins, it is the same in all sources and saved in the default source. A glyph can mix centerlines and outlines.
 
 The other glyphs of the text are drawn with their stroked shapes too, as they will look in the font. Open contours inside components are stroked too, with the values of the component's own glyph at the component's location, including the widths of its points (left and right are swapped when the component is flipped, so each side stays where it is in the glyph). The width is not scaled when the component is.
 
@@ -78,7 +80,7 @@ A lone on-curve point becomes a dot with round or square caps, as in SVG.
 An on-curve point of a centerline can have a width of its own, the same on both sides or different on each side (left and right, looking along the contour), and a corner point can have its own join and miter limit.
 
 - Between points, the width follows a smooth curve along the length of the centerline through the points that have a width (a monotone cubic: between two points it never goes beyond their widths, and the edges do not bend at smooth points)
-- An end of a centerline without a width of its own has the source's width
+- An end of a centerline without a width of its own has the source's width. A loop (a closed centerline) has no ends: its widths go round it from the points that have one, so one point's width makes the whole loop that wide
 - A point in the middle without a width of its own has the width of that curve at its place. So adding a point to a centerline (splitting a segment) does not change the stroke, and removing a point without a width does not either
 
 **In the panel**, select points of centerlines: the fields under the source's values show the width, left and right widths, join and miter limit the stroke has at those points, and change them for all of them at once. "Clear point values" removes the selected points' own values.
@@ -136,10 +138,11 @@ The values go in each source's `customData`, so that they can vary along the axe
 | `cap` | width | `butt`, `round` or `square`. Only the default source's is used |
 | `join` | width | `miter`, `round` or `bevel`. Only the default source's is used |
 | `miterLimit` | width | 1 or more |
+| `centerline` | both | `true` on the on-curve points of a closed contour that is stroked as a centerline. Points only; only the default source's is used |
 | `major`, `minor`, `angle` | nib | Size of the nib and its angle in degrees (0 is horizontal, counter-clockwise), stored in `[0, 180)` |
 | `cornerRadius` | both | Radius of a live corner |
 
-The width method's `defaults` and `points` (`width`, `left`, `right`, `join`, `miterLimit`) are read and written. The nib method and `cornerRadius` are not used yet; the format is fixed already so that data made now keeps working in later versions.
+The width method's `defaults` and `points` (`width`, `left`, `right`, `join`, `miterLimit`) are read and written, and `centerline: true` on the on-curve points of a closed contour that is stroked as a centerline (only the default source's marks count). The nib method and `cornerRadius` are not used yet; the format is fixed already so that data made now keeps working in later versions.
 
 For points, a missing width works differently from the other values: a point in the middle of a centerline without a width takes the width between the points around it that have one, rather than the source's (see [Widths per point](#widths-per-point)). Between sources, points are matched by their index in the glyph's path, not by identifier, since each source's layer has identifiers of its own; so per-point values are only interpolated between sources with the same points.
 
@@ -153,7 +156,7 @@ The font sources keep the centerlines. Before building, make a copy of the font 
 npx --yes github:dg4-dev/fontra-stroke-font expand MyFamily.designspace -o build/expanded
 ```
 
-This needs [Node.js](https://nodejs.org/) 22 or later; nothing else is installed. It copies the designspace and its UFOs into `build/expanded` and, in every glyph, replaces each open contour with its stroked outline (closed contours and components stay as they are). The input files are not changed. The output folder must not be the folder of the designspace. Options: `--tolerance N` (the largest distance in font units between a stroked edge and the exact one, default 0.5) and `--quiet`.
+This needs [Node.js](https://nodejs.org/) 22 or later; nothing else is installed. It copies the designspace and its UFOs into `build/expanded` and, in every glyph, replaces each centerline (each open contour, and each closed contour marked as a centerline) with its stroked outline (the other closed contours and components stay as they are). The input files are not changed. The output folder must not be the folder of the designspace. Options: `--tolerance N` (the largest distance in font units between a stroked edge and the exact one, default 0.5) and `--quiet`.
 
 It prints:
 

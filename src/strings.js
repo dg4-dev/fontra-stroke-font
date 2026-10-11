@@ -56,10 +56,10 @@ export const strings = {
     "tool.title": "Stroke widths: drag the handles on the edges of points",
     "setting.handles": "Show width handles with other tools too",
     "menu.pointJoin": "Join of the point",
+    "points.closedCenterline": "Stroke the closed contour as a centerline",
+    "undo.closedCenterline": "Change stroked closed contours",
     "panel.hint":
-      "Open contours are centerlines, stroked with these values. Closed contours " +
-      "stay as they are. The values belong to the source being edited and are " +
-      "saved with the font.",
+      "Open contours are centerlines, stroked with these values. A closed contour is an ordinary outline, unless it is marked as a centerline (select one of its points). The values belong to the source being edited and are saved with the font.",
   },
   "ja": {
     "sidebar.tab": "ストロークフォント",
@@ -108,9 +108,10 @@ export const strings = {
     "tool.title": "ストロークの太さ（点の縁のハンドルをドラッグ）",
     "setting.handles": "ほかのツールでも太さのハンドルを表示",
     "menu.pointJoin": "点の角の形",
+    "points.closedCenterline": "閉じた輪郭も中心線としてなぞる",
+    "undo.closedCenterline": "閉じた輪郭をなぞるかの変更",
     "panel.hint":
-      "閉じていない輪郭を中心線として、これらの値でなぞります。閉じた輪郭はそのままです。" +
-      "値は編集中のソースのもので、フォントに保存されます。",
+      "閉じていない輪郭を中心線として、これらの値でなぞります。閉じた輪郭は普通の輪郭ですが、中心線としてなぞる印を付けることもできます（輪郭の点を選んでください）。値は編集中のソースのもので、フォントに保存されます。",
   },
   "zh-CN": {
     "sidebar.tab": "笔画字体",
@@ -156,9 +157,10 @@ export const strings = {
     "tool.title": "笔画宽度(拖动点边缘的手柄)",
     "setting.handles": "使用其他工具时也显示宽度手柄",
     "menu.pointJoin": "点的转角",
+    "points.closedCenterline": "将闭合轮廓作为中心线描边",
+    "undo.closedCenterline": "修改闭合轮廓的描边",
     "panel.hint":
-      "未闭合的轮廓作为中心线,按这些数值描绘笔画。闭合的轮廓保持不变。" +
-      "这些数值属于正在编辑的源,并随字体保存。",
+      "开放轮廓是中心线,用这些值描边。闭合轮廓是普通轮廓,也可以标记为中心线(请选择它的点)。这些值属于正在编辑的源,并随字体一起保存。",
   },
   "zh-TW": {
     "sidebar.tab": "筆畫字型",
@@ -204,9 +206,10 @@ export const strings = {
     "tool.title": "筆畫寬度(拖曳點邊緣的控點)",
     "setting.handles": "使用其他工具時也顯示寬度控點",
     "menu.pointJoin": "點的轉角",
+    "points.closedCenterline": "將閉合輪廓作為中心線描邊",
+    "undo.closedCenterline": "修改閉合輪廓的描邊",
     "panel.hint":
-      "未封閉的輪廓作為中心線,依這些數值描繪筆畫。封閉的輪廓保持不變。" +
-      "這些數值屬於正在編輯的源,並隨字型儲存。",
+      "開放輪廓是中心線,用這些值描邊。閉合輪廓是一般輪廓,也可以標記為中心線(請選取它的點)。這些值屬於正在編輯的源,並隨字型一起儲存。",
   },
   "de": {
     "sidebar.tab": "Strichschrift",
@@ -255,10 +258,10 @@ export const strings = {
     "tool.title": "Strichbreiten: Anfasser an den Kanten der Punkte ziehen",
     "setting.handles": "Breitenanfasser auch bei anderen Werkzeugen anzeigen",
     "menu.pointJoin": "Ecke des Punkts",
+    "points.closedCenterline": "Geschlossene Kontur als Mittellinie ziehen",
+    "undo.closedCenterline": "Geschlossene Mittellinien ändern",
     "panel.hint":
-      "Offene Konturen sind Mittellinien und werden mit diesen Werten " +
-      "nachgezogen. Geschlossene Konturen bleiben, wie sie sind. Die Werte " +
-      "gehören zur bearbeiteten Source und werden mit dem Font gespeichert.",
+      "Offene Konturen sind Mittellinien und werden mit diesen Werten gezogen. Eine geschlossene Kontur ist eine gewöhnliche Kontur, außer sie ist als Mittellinie markiert (wähle einen ihrer Punkte aus). Die Werte gehören zur bearbeiteten Source und werden mit der Schrift gespeichert.",
   },
   "nl": {
     "sidebar.tab": "Lijnfont",
@@ -307,10 +310,10 @@ export const strings = {
     "tool.title": "Lijnbreedtes: sleep de grepen aan de randen van punten",
     "setting.handles": "Breedtegrepen ook bij ander gereedschap tonen",
     "menu.pointJoin": "Hoek van het punt",
+    "points.closedCenterline": "Gesloten contour als middellijn trekken",
+    "undo.closedCenterline": "Gesloten middellijnen wijzigen",
     "panel.hint":
-      "Open contouren zijn middenlijnen en worden met deze waarden getrokken. " +
-      "Gesloten contouren blijven zoals ze zijn. De waarden horen bij de source " +
-      "die je bewerkt en worden met het font opgeslagen.",
+      "Open contouren zijn middellijnen en worden met deze waarden getrokken. Een gesloten contour is een gewone contour, tenzij hij als middellijn is gemarkeerd (selecteer een van zijn punten). De waarden horen bij de source die wordt bewerkt en worden met het font opgeslagen.",
   },
   "fr": {
     "sidebar.tab": "Police à traits",
@@ -360,10 +363,10 @@ export const strings = {
       "Épaisseurs du trait : faites glisser les poignées sur les bords des points",
     "setting.handles": "Afficher les poignées d’épaisseur avec les autres outils aussi",
     "menu.pointJoin": "Jointure du point",
+    "points.closedCenterline": "Tracer le contour fermé comme ligne centrale",
+    "undo.closedCenterline": "Modifier les lignes centrales fermées",
     "panel.hint":
-      "Les contours ouverts sont des lignes médianes, tracées avec ces valeurs. " +
-      "Les contours fermés restent tels quels. Les valeurs appartiennent à la " +
-      "source en cours d’édition et sont enregistrées avec la police.",
+      "Les contours ouverts sont des lignes centrales, tracées avec ces valeurs. Un contour fermé est un contour ordinaire, sauf s’il est marqué comme ligne centrale (sélectionnez un de ses points). Les valeurs appartiennent à la source en cours d’édition et sont enregistrées avec la fonte.",
   },
   "it": {
     "sidebar.tab": "Font a tratto",
@@ -413,10 +416,10 @@ export const strings = {
     "setting.handles":
       "Mostra le maniglie dello spessore anche con gli altri strumenti",
     "menu.pointJoin": "Angolo del punto",
+    "points.closedCenterline": "Traccia il contorno chiuso come linea centrale",
+    "undo.closedCenterline": "Modifica le linee centrali chiuse",
     "panel.hint":
-      "I contorni aperti sono linee centrali, tracciate con questi valori. I " +
-      "contorni chiusi restano come sono. I valori appartengono alla sorgente " +
-      "in modifica e vengono salvati con il font.",
+      "I contorni aperti sono linee centrali, tracciate con questi valori. Un contorno chiuso è un contorno normale, a meno che non sia segnato come linea centrale (seleziona uno dei suoi punti). I valori appartengono alla sorgente in modifica e vengono salvati con il font.",
   },
   "es-ES": {
     "sidebar.tab": "Fuente de trazos",
@@ -466,10 +469,10 @@ export const strings = {
       "Grosores del trazo: arrastra los tiradores de los bordes de los puntos",
     "setting.handles": "Mostrar los tiradores de grosor también con otras herramientas",
     "menu.pointJoin": "Esquina del punto",
+    "points.closedCenterline": "Trazar el contorno cerrado como línea central",
+    "undo.closedCenterline": "Cambiar las líneas centrales cerradas",
     "panel.hint":
-      "Los contornos abiertos son líneas centrales, trazadas con estos valores. " +
-      "Los contornos cerrados quedan como están. Los valores pertenecen a la " +
-      "matriz que se está editando y se guardan con la tipografía.",
+      "Los contornos abiertos son líneas centrales, trazadas con estos valores. Un contorno cerrado es un contorno normal, salvo que esté marcado como línea central (selecciona uno de sus puntos). Los valores pertenecen a la matriz que se está editando y se guardan con la tipografía.",
   },
   "es-419": {
     "sidebar.tab": "Fuente de trazos",
@@ -519,10 +522,10 @@ export const strings = {
       "Grosores del trazo: arrastra los tiradores de los bordes de los puntos",
     "setting.handles": "Mostrar los tiradores de grosor también con otras herramientas",
     "menu.pointJoin": "Esquina del punto",
+    "points.closedCenterline": "Trazar el contorno cerrado como línea central",
+    "undo.closedCenterline": "Cambiar las líneas centrales cerradas",
     "panel.hint":
-      "Los contornos abiertos son líneas centrales, trazadas con estos valores. " +
-      "Los contornos cerrados quedan como están. Los valores pertenecen a la " +
-      "matriz que se está editando y se guardan con la tipografía.",
+      "Los contornos abiertos son líneas centrales, trazadas con estos valores. Un contorno cerrado es un contorno normal, salvo que esté marcado como línea central (selecciona uno de sus puntos). Los valores pertenecen a la matriz que se está editando y se guardan con la tipografía.",
   },
   "pt-BR": {
     "sidebar.tab": "Fonte de traços",
@@ -571,10 +574,10 @@ export const strings = {
     "tool.title": "Espessuras do traço: arraste as alças nas bordas dos pontos",
     "setting.handles": "Mostrar as alças de espessura também com outras ferramentas",
     "menu.pointJoin": "Canto do ponto",
+    "points.closedCenterline": "Traçar o contorno fechado como linha central",
+    "undo.closedCenterline": "Alterar as linhas centrais fechadas",
     "panel.hint":
-      "Contornos abertos são linhas centrais, traçadas com estes valores. " +
-      "Contornos fechados ficam como estão. Os valores pertencem à matriz em " +
-      "edição e são salvos com a tipografia.",
+      "Contornos abertos são linhas centrais, traçadas com estes valores. Um contorno fechado é um contorno comum, a menos que esteja marcado como linha central (selecione um de seus pontos). Os valores pertencem à matriz em edição e são salvos com a fonte.",
   },
   "pt-PT": {
     "sidebar.tab": "Tipo de traços",
@@ -623,10 +626,10 @@ export const strings = {
     "tool.title": "Espessuras do traço: arraste as pegas nos limites dos pontos",
     "setting.handles": "Mostrar as pegas de espessura também com outras ferramentas",
     "menu.pointJoin": "Canto do ponto",
+    "points.closedCenterline": "Traçar o contorno fechado como linha central",
+    "undo.closedCenterline": "Alterar as linhas centrais fechadas",
     "panel.hint":
-      "Os contornos abertos são linhas centrais, traçadas com estes valores. " +
-      "Os contornos fechados ficam como estão. Os valores pertencem à matriz em " +
-      "edição e são guardados com o tipo de letra.",
+      "Contornos abertos são linhas centrais, traçadas com estes valores. Um contorno fechado é um contorno comum, a não ser que esteja marcado como linha central (selecione um dos seus pontos). Os valores pertencem à matriz em edição e são guardados com o tipo de letra.",
   },
   "ru": {
     "sidebar.tab": "Штриховой шрифт",
@@ -674,10 +677,10 @@ export const strings = {
     "tool.title": "Толщина обводки: перетаскивайте маркеры на краях точек",
     "setting.handles": "Показывать маркеры толщины и в других инструментах",
     "menu.pointJoin": "Угол точки",
+    "points.closedCenterline": "Обводить замкнутый контур как среднюю линию",
+    "undo.closedCenterline": "Изменение замкнутых средних линий",
     "panel.hint":
-      "Незамкнутые контуры — это средние линии, обводимые с этими значениями. " +
-      "Замкнутые контуры остаются как есть. Значения относятся к " +
-      "редактируемому мастеру и сохраняются вместе со шрифтом.",
+      "Открытые контуры — это средние линии, обводимые с этими значениями. Замкнутый контур — обычный контур, если он не отмечен как средняя линия (выберите одну из его точек). Значения относятся к редактируемому мастеру и сохраняются вместе со шрифтом.",
   },
 };
 

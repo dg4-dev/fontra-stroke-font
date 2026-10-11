@@ -4,6 +4,7 @@
 import { describeStrokeSource } from "./current-source.js";
 import {
   CLEARED_POINT_VALUES,
+  closedContourPoints,
   describeSelectedPoints,
   editPointValues,
   editingSourceIndices,
@@ -230,6 +231,21 @@ export function definePanelElement() {
         { type: "button", onclick: () => this._clearPointValues() },
         t("points.clear")
       );
+      this._closedCheckbox = el("input", {
+        type: "checkbox",
+        id: "stroke-font-point-closedCenterline",
+        onchange: (event) => this._setClosedCenterline(event.target.checked),
+      });
+      this._closedRow = el(
+        "div",
+        { class: "row" },
+        this._closedCheckbox,
+        el(
+          "label",
+          { for: "stroke-font-point-closedCenterline" },
+          t("points.closedCenterline")
+        )
+      );
 
       const panel = el(
         "div",
@@ -252,6 +268,7 @@ export function definePanelElement() {
         el("hr"),
         this._pointsLabel,
         this._pointsNote,
+        this._closedRow,
         this._pointFields,
         this._clearButton,
         el("hr"),
@@ -424,6 +441,12 @@ export function definePanelElement() {
           : "";
       this._pointFields.hidden = !state;
       this._clearButton.hidden = !state;
+      // Only for points on closed contours; mixed when some of those contours
+      // are centerlines and some are not
+      this._closedRow.hidden = state?.closedCenterline === undefined;
+      this._closedCheckbox.checked = state?.closedCenterline === true;
+      this._closedCheckbox.indeterminate = state?.closedCenterline === null;
+      this._closedCheckbox.disabled = !editable;
       this._clearButton.disabled = !editable || !state.stored;
       this._pointFields.setAttribute("aria-disabled", String(!editable));
       for (const input of this._pointFields.querySelectorAll("[data-key]")) {
@@ -481,9 +504,24 @@ export function definePanelElement() {
       await this._editPoints(() => CLEARED_POINT_VALUES, t("undo.pointClear"));
     }
 
-    async _editPoints(makeValues, undoLabel) {
+    async _setClosedCenterline(on) {
+      const path =
+        this.sceneController.sceneModel?.getSelectedPositionedGlyph?.()?.glyph?.path;
+      const pointIndices = closedContourPoints(
+        path,
+        selectedPointIndices(this.sceneController.selection)
+      );
+      await this._editPoints(
+        () => ({ centerline: on ? true : undefined }),
+        t("undo.closedCenterline"),
+        pointIndices
+      );
+    }
+
+    async _editPoints(makeValues, undoLabel, points) {
       const sourceState = this._state;
-      const pointIndices = selectedPointIndices(this.sceneController.selection);
+      const pointIndices =
+        points ?? selectedPointIndices(this.sceneController.selection);
       const varGlyph =
         this.sceneController.sceneModel?.getSelectedPositionedGlyph?.()?.varGlyph;
       const sourceIndices = editingSourceIndices(
