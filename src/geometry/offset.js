@@ -2,6 +2,10 @@
 // to the left and to the right. No Fontra or DOM dependencies; the preview and
 // the CLI both use this module.
 //
+// The width can change along the centerline and differ between the two sides
+// (see widths.js); an edge is the centerline moved along its normal by the
+// half width of its side at that place.
+//
 // The result is a set of closed contours that overlap and are meant to be
 // filled together with the nonzero rule:
 // - one band per run of segments between two corners (or ends),
@@ -49,6 +53,7 @@ import {
 import { centerlineSegments } from "./centerline.js";
 import { hermitePiece } from "./fit.js";
 import { evoluteCusps, findTwistZones, sharpestBend } from "./twist.js";
+import { widthProfile } from "./widths.js";
 
 /** Largest distance (font units) between a fitted edge and the exact one. */
 export const DEFAULT_TOLERANCE = 0.5;
@@ -61,11 +66,14 @@ const KAPPA = 0.5522847498307936;
 const SAME_PARAMETER = 1e-9;
 
 /**
- * Stroke an open centerline with a constant width.
+ * Stroke an open centerline.
  *
  * @param {{points: object[], isClosed: boolean}} contour unpacked contour; closed
- *   contours are not centerlines and give no result
+ *   contours are not centerlines and give no result. On-curve points may have
+ *   `values`: their own widths, join and miter limit (sanitized, see
+ *   stroke-data.js)
  * @param {{width: number, cap: string, join: string, miterLimit: number}} style
+ *   the source's values
  * @param {object} [options]
  * @param {number} [options.tolerance] see DEFAULT_TOLERANCE
  * @param {number} [options.maxSubdivisions] see MAX_SUBDIVISIONS
@@ -88,8 +96,11 @@ export function strokeOffsetContour(contour, style, options = {}) {
     twists: [],
     layoutMismatch: false,
   };
-  const half = style.width / 2;
-  if (contour.isClosed || !(half > 0)) {
+  if (contour.isClosed) {
+    return result;
+  }
+  const profile = widthProfile(contour, segments, style);
+  if (!(profile.max > 0)) {
     return result;
   }
   let forced = options.layout;
@@ -106,10 +117,15 @@ export function strokeOffsetContour(contour, style, options = {}) {
       }
       continue;
     }
-    const built = buildSegment(segment, half, forced?.segments[index], {
-      tolerance,
-      maxSubdivisions,
-    });
+    const built = buildSegment(
+      segment,
+      profile.segments[index],
+      forced?.segments[index],
+      {
+        tolerance,
+        maxSubdivisions,
+      }
+    );
     if (built.mismatch) {
       result.layoutMismatch = true;
     }
@@ -124,6 +140,7 @@ export function strokeOffsetContour(contour, style, options = {}) {
     usable.push({
       index,
       segment,
+      widths: profile.segments[index],
       left: built.left,
       right: built.right,
       startTangent: startTangent(segment),
@@ -133,9 +150,19 @@ export function strokeOffsetContour(contour, style, options = {}) {
 
   if (!usable.length) {
     // A lone point (or points on top of each other): a dot, as in SVG
-    const point = contour.points.find((p) => !p.type);
-    if (point) {
-      result.contours.push(...dotShapes(point, half, style.cap));
+    const pointIndex = contour.points.findIndex((p) => !p.type);
+    if (pointIndex >= 0) {
+      const widths = profile.atPoint(pointIndex) ?? {
+        left: style.width / 2,
+        right: style.width / 2,
+      };
+      result.contours.push(
+        ...dotShapes(
+          contour.points[pointIndex],
+          (widths.left + widths.right) / 2,
+          style.cap
+        )
+      );
     }
     return result;
   }
@@ -156,8 +183,8 @@ export function strokeOffsetContour(contour, style, options = {}) {
         current.segment.points[0],
         previous.endTangent,
         current.startTangent,
-        half,
-        style
+        { left: current.widths.left(0), right: current.widths.right(0) },
+        cornerStyle(contour.points[current.segment.startIndex]?.values, style)
       )
     );
     run = [current];
@@ -166,16 +193,30 @@ export function strokeOffsetContour(contour, style, options = {}) {
 
   const first = usable[0];
   const last = usable.at(-1);
+  // Looking outwards from the start, its left is the right of the centerline
   result.contours.push(
     ...capShapes(
       first.segment.points[0],
       scale(first.startTangent, -1),
-      half,
+      { left: first.widths.right(0), right: first.widths.left(0) },
       style.cap
     ),
-    ...capShapes(last.segment.points.at(-1), last.endTangent, half, style.cap)
+    ...capShapes(
+      last.segment.points.at(-1),
+      last.endTangent,
+      { left: last.widths.left(1), right: last.widths.right(1) },
+      style.cap
+    )
   );
   return result;
+}
+
+/** The join and miter limit of a corner: the point's own, or the source's. */
+export function cornerStyle(values, style) {
+  return {
+    join: values?.join ?? style.join,
+    miterLimit: values?.miterLimit ?? style.miterLimit,
+  };
 }
 
 // --- Segments: the two edges ----------------------------------------------------
@@ -184,29 +225,46 @@ export function strokeOffsetContour(contour, style, options = {}) {
  * The left and right edges of one segment, as lists of pieces, with the
  * layout used, the twist zones found, and whether a given layout could not be
  * followed.
+ * @param {object} widths the half widths along the segment (see widths.js)
  */
-function buildSegment(segment, half, forcedLayout, fitOptions) {
-  if (segment.type === "line") {
-    const normal = leftNormal(startTangent(segment));
-    const edge = (d) => [
-      { type: "line", points: segment.points.map((p) => add(p, scale(normal, d))) },
-    ];
-    const sideLayout = { breaks: [], pieces: [1] };
-    return {
-      left: edge(half),
-      right: edge(-half),
-      layout: { left: sideLayout, right: { ...sideLayout, pieces: [1] } },
-      zones: [],
-      mismatch: !!forcedLayout && !isLineLayout(forcedLayout),
-    };
-  }
-  const zones = findTwistZones(segment, half);
+function buildSegment(segment, widths, forcedLayout, fitOptions) {
+  const zones =
+    segment.type === "line"
+      ? []
+      : findTwistZones(segment, (side, t) => widths[side](t));
   const result = { layout: {}, zones, mismatch: false };
   for (const side of ["left", "right"]) {
+    const distance = widths[side];
     let forced = forcedLayout?.[side];
     if (forced && !validBreaks(forced.breaks)) {
       result.mismatch = true;
       forced = undefined;
+    }
+    if (segment.type === "line") {
+      // A line keeps straight edges while its width does not change. When it
+      // changes in any source, all sources fit curves (see compatible.js).
+      let straight = forced ? forced.line === true : widths.constant[side];
+      if (straight && !widths.constant[side]) {
+        result.mismatch = true;
+        straight = false;
+      }
+      if (forced && forced.breaks.length) {
+        result.mismatch = true;
+        forced = { ...forced, breaks: [] };
+      }
+      if (straight) {
+        const sign = side === "left" ? 1 : -1;
+        const normal = leftNormal(startTangent(segment));
+        const d = distance(0);
+        result[side] = [
+          {
+            type: "line",
+            points: segment.points.map((p) => add(p, scale(normal, sign * d))),
+          },
+        ];
+        result.layout[side] = { breaks: [], pieces: [1], line: true };
+        continue;
+      }
     }
     const breaks =
       forced?.breaks ??
@@ -221,7 +279,7 @@ function buildSegment(segment, half, forcedLayout, fitOptions) {
       const fit = fitEdge(
         segment,
         side,
-        half,
+        distance,
         bounds[i],
         bounds[i + 1],
         forced?.pieces?.[i],
@@ -234,12 +292,6 @@ function buildSegment(segment, half, forcedLayout, fitOptions) {
     result.layout[side] = { breaks, pieces: counts };
   }
   return result;
-}
-
-function isLineLayout(layout) {
-  return ["left", "right"].every(
-    (side) => !layout[side]?.breaks?.length && (layout[side]?.pieces?.[0] ?? 1) === 1
-  );
 }
 
 function validBreaks(breaks) {
@@ -277,11 +329,14 @@ export function mergeBreaks(breaks) {
 /**
  * A point on the edge: half the width from the centerline, but no farther
  * than the radius of the bend towards that side.
+ * @param {number | ((t: number) => number)} half the half width of the side,
+ *   or a function giving it along the segment
  */
 export function edgePoint(segment, side, half, t) {
   const sign = side === "left" ? 1 : -1;
   const bend = sign * curvatureAt(segment, t);
-  const distance = bend * half > 1 ? 1 / bend : half;
+  const d = typeof half === "function" ? half(t) : half;
+  const distance = bend * d > 1 ? 1 / bend : d;
   return add(
     pointAt(segment, t),
     scale(leftNormal(tangentAt(segment, t)), sign * distance)
@@ -395,32 +450,74 @@ function appendPiece(points, piecePoints) {
 
 /**
  * The shape that fills the outer side of a corner. Every corner gets one, with
- * the same points whatever the angle, so that sources stay compatible: a
- * circle for round joins, otherwise four points (the corner, the two outer
- * edge ends and the miter tip, which is halfway between the edge ends when
- * the corner is beveled).
+ * the same points whatever the angle, so that sources stay compatible: a fan
+ * of two quarter-circle-like arcs for round joins, otherwise four points (the
+ * corner, the two outer edge ends and the miter tip, which is halfway between
+ * the edge ends when the corner is beveled).
  * @param {{x: number, y: number}} point the corner
  * @param {{x: number, y: number}} tangentIn unit tangent arriving at the corner
  * @param {{x: number, y: number}} tangentOut unit tangent leaving the corner
+ * @param {number | {left: number, right: number}} half the half widths at the
+ *   corner (left and right of the centerline)
+ * @param {{join: string, miterLimit: number}} style
  */
 export function joinShape(point, tangentIn, tangentOut, half, style) {
-  if (style.join === "round") {
-    return circleContour(point, half);
-  }
   const turnsRight = cross(tangentIn, tangentOut) < 0;
   // The outer side is on the right when turning left, and on the left when
   // turning right.
-  const side = turnsRight ? half : -half;
+  const outer = typeof half === "number" ? half : turnsRight ? half.left : half.right;
+  const side = turnsRight ? outer : -outer;
   const normalIn = leftNormal(tangentIn);
   const normalOut = leftNormal(tangentOut);
   const a = add(point, scale(normalIn, side));
   const b = add(point, scale(normalOut, side));
+  // Counter-clockwise: from the corner to one edge end, around the outside to
+  // the other
+  const [from, to] = turnsRight ? [b, a] : [a, b];
+  if (style.join === "round") {
+    const turn = Math.acos(Math.min(1, Math.max(-1, dot(tangentIn, tangentOut))));
+    return fanContour(point, from, to, turn, outer);
+  }
   const cosTurn = dot(tangentIn, tangentOut);
   const tip =
     style.join === "miter" && miterRatio(tangentIn, tangentOut) <= style.miterLimit
       ? add(point, scale(add(normalIn, normalOut), side / (1 + cosTurn)))
       : lerp(a, b, 0.5);
-  return polygonContour(turnsRight ? [point, b, tip, a] : [point, a, tip, b]);
+  return polygonContour([point, from, tip, to]);
+}
+
+/**
+ * The corner, and an arc around it from one point to another,
+ * counter-clockwise over the given angle, drawn with two cubics.
+ */
+function fanContour(center, from, to, angle, radius) {
+  const middle = add(center, rotate(sub(from, center), angle / 2));
+  // Handle length of a cubic arc over half the angle
+  const k = (4 / 3) * Math.tan(angle / 8);
+  // Counter-clockwise tangent at a point of the arc, as long as the radius
+  const tangent = (p) => {
+    const r = sub(p, center);
+    return { x: -r.y, y: r.x };
+  };
+  return {
+    points: [
+      onCurve(center),
+      onCurve(from),
+      offCurve(add(from, scale(tangent(from), k))),
+      offCurve(sub(middle, scale(tangent(middle), k))),
+      onCurve(middle),
+      offCurve(add(middle, scale(tangent(middle), k))),
+      offCurve(sub(to, scale(tangent(to), k))),
+      onCurve(to),
+    ],
+    isClosed: true,
+  };
+}
+
+function rotate(v, angle) {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  return { x: v.x * c - v.y * s, y: v.x * s + v.y * c };
 }
 
 /**
@@ -439,21 +536,28 @@ export function miterRatio(tangentIn, tangentOut) {
  * The shape added at an end of the centerline.
  * @param {{x: number, y: number}} point the end point
  * @param {{x: number, y: number}} outward unit vector pointing away from the line
+ * @param {number | {left: number, right: number}} half the half widths at the
+ *   end, left and right as seen looking outwards
  */
 export function capShapes(point, outward, half, cap) {
+  const left = typeof half === "number" ? half : half.left;
+  const right = typeof half === "number" ? half : half.right;
+  const normal = leftNormal(outward);
   switch (cap) {
     case "round":
-      return [circleContour(point, half)];
-    case "square": {
-      const normal = scale(leftNormal(outward), half);
-      const ahead = scale(outward, half);
+      // Through both edge ends: centered between them
       return [
-        polygonContour([
-          sub(point, normal),
-          add(sub(point, normal), ahead),
-          add(add(point, normal), ahead),
-          add(point, normal),
-        ]),
+        circleContour(
+          add(point, scale(normal, (left - right) / 2)),
+          (left + right) / 2
+        ),
+      ];
+    case "square": {
+      const ahead = scale(outward, (left + right) / 2);
+      const leftEnd = add(point, scale(normal, left));
+      const rightEnd = sub(point, scale(normal, right));
+      return [
+        polygonContour([rightEnd, add(rightEnd, ahead), add(leftEnd, ahead), leftEnd]),
       ];
     }
     default:
