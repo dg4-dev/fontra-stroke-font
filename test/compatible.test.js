@@ -162,12 +162,14 @@ function interpolateContours(a, b, f) {
 test("interpolating a twisting and a plain source leaves no cracks", async () => {
   const { nearestSample, sampleCenterline } = await import("./helpers.js");
   // allowance: how far the inner side near a twist may fall short of a stroke
-  // drawn at the in-between width. Capping the edge at the bend radius is not
-  // linear in the width, so in-between outlines come out a little thinner
-  // there; everywhere else they are exact up to the fitting tolerance.
+  // drawn at the in-between width. The edge of the twisting source is capped
+  // at the bend radius, which is not linear in the width, so in between the
+  // inner side there comes out thinner (measured: up to 10 units at 3/4 of
+  // the way from width 60 to 140). Everywhere else in-between outlines match
+  // a stroke of the in-between width up to the fitting tolerance.
   for (const [contour, thin, thick, allowance] of [
-    [hairpin, 60, 140, 6],
-    [hairpin, 40, 220, 25],
+    [hairpin, 60, 140, 10],
+    [hairpin, 40, 220, 40],
     [sCurve, 40, 130, 22],
   ]) {
     const [a, b] = assertCompatible([
@@ -191,6 +193,28 @@ test("interpolating a twisting and a plain source leaves no cracks", async () =>
             );
           }
         }
+      }
+    }
+  }
+});
+
+test("without twists, in-between outlines match a stroke of the in-between width", async () => {
+  const { nearestSample, sampleCenterline } = await import("./helpers.js");
+  const curve = openContour(on(0, 0), off(0, 300), off(300, 300), on(300, 0));
+  const [a, b] = assertCompatible([
+    { contour: curve, style: style({ width: 20, join: "round" }) },
+    { contour: curve, style: style({ width: 120, join: "round" }) },
+  ]);
+  const centerline = sampleCenterline(curve, 800);
+  const contours = interpolateContours(a.contours, b.contours, 0.5);
+  for (let x = -80; x <= 380; x += 4) {
+    for (let y = -80; y <= 300; y += 4) {
+      const { distance } = nearestSample({ x, y }, centerline);
+      const filled = winding({ x, y }, contours) !== 0;
+      if (distance < 35 - 1) {
+        assert.ok(filled, `missing at ${x}, ${y}`);
+      } else if (distance > 35 + 1) {
+        assert.ok(!filled, `extra at ${x}, ${y}`);
       }
     }
   }

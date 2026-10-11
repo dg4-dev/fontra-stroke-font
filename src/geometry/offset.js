@@ -39,7 +39,6 @@ import {
   isDegenerateSegment,
   leftNormal,
   lerp,
-  normalize,
   pointAt,
   scale,
   startTangent,
@@ -48,7 +47,7 @@ import {
   tangentAt,
 } from "./bezier.js";
 import { centerlineSegments } from "./centerline.js";
-import { fitCubic } from "./fit.js";
+import { hermitePiece } from "./fit.js";
 import { evoluteCusps, findTwistZones, sharpestBend } from "./twist.js";
 
 /** Largest distance (font units) between a fitted edge and the exact one. */
@@ -56,11 +55,8 @@ export const DEFAULT_TOLERANCE = 0.5;
 /** Most pieces one part of an edge is fitted with. */
 export const MAX_SUBDIVISIONS = 16;
 
-const SAMPLES_PER_PIECE = 8;
 // Handle length of a quarter circle drawn with one cubic, relative to the radius
 const KAPPA = 0.5522847498307936;
-// Parameter step for the direction of an edge at the end of a part
-const TANGENT_STEP = 1e-4;
 // Split parameters closer than this are the same
 const SAME_PARAMETER = 1e-9;
 
@@ -292,21 +288,6 @@ export function edgePoint(segment, side, half, t) {
   );
 }
 
-// The direction of the edge at t, looking forwards (ahead = 1) or backwards
-// (ahead = -1) within [a, b]. Along the evolute, an edge can turn sharply or
-// stand still, so the direction is measured on the edge itself.
-function edgeDirection(segment, side, half, t, ahead, a, b) {
-  const sign = side === "left" ? 1 : -1;
-  const plainOffset = (u) => sign * curvatureAt(segment, u) * half < 1 - 1e-6;
-  const u = Math.min(b, Math.max(a, t + ahead * TANGENT_STEP));
-  if (plainOffset(t) && plainOffset(u)) {
-    return tangentAt(segment, t);
-  }
-  const p = edgePoint(segment, side, half, t);
-  const q = edgePoint(segment, side, half, u);
-  return normalize(ahead > 0 ? sub(q, p) : sub(p, q)) ?? tangentAt(segment, t);
-}
-
 /**
  * Fit the edge over [a, b] with cubic pieces; without a given number of
  * pieces, the smallest number that keeps within the tolerance is used.
@@ -336,29 +317,18 @@ function fitEdge(
 }
 
 function edgePieces(segment, side, half, a, b, count) {
+  const edge = (t) => edgePoint(segment, side, half, t);
   const pieces = [];
   let error = 0;
   for (let i = 0; i < count; i++) {
     const ta = a + ((b - a) * i) / count;
     const tb = a + ((b - a) * (i + 1)) / count;
-    const p0 = edgePoint(segment, side, half, ta);
-    const p3 = edgePoint(segment, side, half, tb);
     if (!(tb > ta)) {
-      pieces.push({ type: "cubic", points: [p0, p0, p3, p3] });
+      const p = edge(ta);
+      pieces.push({ type: "cubic", points: [p, p, p, p] });
       continue;
     }
-    const samples = [];
-    for (let j = 1; j < SAMPLES_PER_PIECE; j++) {
-      const u = j / SAMPLES_PER_PIECE;
-      samples.push({ u, ...edgePoint(segment, side, half, ta + (tb - ta) * u) });
-    }
-    const fitted = fitCubic(
-      p0,
-      edgeDirection(segment, side, half, ta, 1, ta, tb),
-      p3,
-      edgeDirection(segment, side, half, tb, -1, ta, tb),
-      samples
-    );
+    const fitted = hermitePiece(edge, ta, tb);
     pieces.push({ type: "cubic", points: fitted.points });
     error = Math.max(error, fitted.error);
   }
