@@ -6,7 +6,7 @@ import {
   HANDLES_LAYER_IDENTIFIER,
   makeHandlesLayerDefinition,
 } from "./handles-layer.js";
-import { makeGlyphExpander, wrapGlyphLayers } from "./other-glyphs.js";
+import { makeGlyphExpander, makeStrokedTest, wrapGlyphLayers } from "./other-glyphs.js";
 import { PANEL_IDENTIFIER, definePanelElement } from "./panel.js";
 import { StrokeSettings } from "./settings.js";
 import { t } from "./strings.js";
@@ -32,7 +32,8 @@ export function start(editor, pluginPath) {
   // The other glyphs of the text: Fontra's own layers draw them
   wrapGlyphLayers(
     visualizationLayers.definitions,
-    makeGlyphExpander(settings, componentGlyphs)
+    makeGlyphExpander(settings, componentGlyphs),
+    makeStrokedTest(settings)
   );
   const tool = new StrokeWidthTool(editor, `${pluginPath}/tool-icon.svg`);
   insertLayerDefinition(

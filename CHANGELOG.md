@@ -11,6 +11,11 @@ Each section can be pasted as the notes of the matching GitHub release.
 - **Panel**: the values of the selected points, changed for all of them at once; a button to clear them; a setting to show the handles with the other tools too
 - Per-point values are written to every source being edited, interpolated between sources with the same points, used for components (with left and right swapped in flipped ones), and used by the command-line tool
 
+### Fixed
+
+- A glyph made only of straight two-point centerlines (such as l or -) lost its fill when selected or hovered in the glyph editor, and got Fontra's placeholder for empty glyphs drawn over it: Fontra takes such a glyph for an empty one
+- A faint seam could show where a join meets the strokes of a corner
+
 ### Changed
 
 - Round joins are drawn as a fan on the outer side of the corner instead of a full circle (the filled shape is the same for equal widths on both sides)

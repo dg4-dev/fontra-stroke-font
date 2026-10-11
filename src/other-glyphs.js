@@ -4,6 +4,13 @@
 // filled as a polygon. These layers are wrapped here: for a glyph with open
 // contours they get, instead of the flattened path, the closed contours plus
 // the stroked shapes, so the glyph looks like the exported one.
+//
+// Fontra also takes a glyph whose contours all have two points or less for an
+// empty glyph: it leaves it out of the selected and hovered glyph layers and
+// draws a placeholder (its character, and a grey box when it is selected or
+// hovered) instead. A glyph of straight two-point centerlines is not empty, so
+// for glyphs with open contours those layers draw it and the placeholder
+// layers do not.
 
 import { hasOpenContours, strokeGlyph } from "./glyph-strokes.js";
 import { appendContour } from "./stroke-layer.js";
@@ -16,7 +23,19 @@ export const WRAPPED_LAYER_IDENTIFIERS = Object.freeze([
   "fontra.all.glyphs",
 ]);
 
+// Layers that leave out empty glyphs, and those that draw placeholders for them
+const EMPTY_FILTERED_LAYER_IDENTIFIERS = Object.freeze([
+  "fontra.selected.glyph",
+  "fontra.hovered.glyph",
+]);
+export const PLACEHOLDER_LAYER_IDENTIFIERS = Object.freeze([
+  "fontra.undefined.glyph",
+  "fontra.empty.selected.glyph",
+  "fontra.empty.hovered.glyph",
+]);
+
 const ORIGINAL_DRAW = Symbol("stroke-font original draw");
+const ORIGINAL_FILTER = Symbol("stroke-font original selection filter");
 
 /**
  * Wrap the draw functions of Fontra's glyph layers, in place. Layers wrapped
@@ -24,14 +43,34 @@ const ORIGINAL_DRAW = Symbol("stroke-font original draw");
  * @param {object[]} definitions editor.visualizationLayers.definitions
  * @param {(positionedGlyph: object, model: object) => object|null} expandGlyph
  *   returns the glyph to draw instead, or null to draw the glyph as it is
+ * @param {(positionedGlyph: object) => boolean} [isStroked] whether a glyph
+ *   is drawn with its stroked shapes (then it is not empty)
  * @returns {number} how many layers were wrapped
  */
-export function wrapGlyphLayers(definitions, expandGlyph) {
+export function wrapGlyphLayers(definitions, expandGlyph, isStroked = () => false) {
   let count = 0;
-  for (const [index, definition] of definitions.entries()) {
+  for (let index = 0; index < definitions.length; index++) {
+    let definition = definitions[index];
+    if (PLACEHOLDER_LAYER_IDENTIFIERS.includes(definition.identifier)) {
+      definitions[index] = withFilter(
+        definition,
+        (original) => (positionedGlyph) =>
+          original(positionedGlyph) &&
+          (positionedGlyph.isUndefined || !isStroked(positionedGlyph))
+      );
+      continue;
+    }
     if (!WRAPPED_LAYER_IDENTIFIERS.includes(definition.identifier)) {
       continue;
     }
+    if (EMPTY_FILTERED_LAYER_IDENTIFIERS.includes(definition.identifier)) {
+      definitions[index] = withFilter(
+        definition,
+        (original) => (positionedGlyph) =>
+          original(positionedGlyph) || isStroked(positionedGlyph)
+      );
+    }
+    definition = definitions[index];
     const original = definition[ORIGINAL_DRAW] ?? definition.draw;
     definitions[index] = {
       ...definition,
@@ -53,6 +92,34 @@ export function wrapGlyphLayers(definitions, expandGlyph) {
     count++;
   }
   return count;
+}
+
+// A copy of a layer definition with its selection filter wrapped (the
+// original one, when the layer was wrapped before)
+function withFilter(definition, wrap) {
+  const original =
+    definition[ORIGINAL_FILTER] ?? definition.selectionFilter ?? (() => true);
+  return {
+    ...definition,
+    [ORIGINAL_FILTER]: original,
+    selectionFilter: wrap(original),
+  };
+}
+
+/**
+ * Whether a glyph of the text is drawn with stroked shapes: it or one of its
+ * components has open contours, and the setting is on.
+ */
+export function makeStrokedTest(settings) {
+  return (positionedGlyph) => {
+    const glyph = positionedGlyph?.glyph;
+    return (
+      !!glyph &&
+      !!settings.get("otherGlyphs") &&
+      (hasOpenContours(glyph.path) ||
+        (glyph.components ?? []).some((c) => hasOpenContours(c.path)))
+    );
+  };
 }
 
 /**
