@@ -63,3 +63,20 @@ export function samePointStructure(a, b) {
     )
   );
 }
+
+/**
+ * Whether a path starts with the contours of another, with the same numbers
+ * of points: a component's flattened path starts with the contours of its
+ * glyph, followed by those of nested components.
+ */
+export function startsWithPointStructure(path, start) {
+  const info = path?.contourInfo ?? [];
+  const startInfo = start?.contourInfo ?? [];
+  return (
+    startInfo.length <= info.length &&
+    startInfo.every(
+      (contour, i) =>
+        contour.endPoint === info[i].endPoint && contour.isClosed === info[i].isClosed
+    )
+  );
+}

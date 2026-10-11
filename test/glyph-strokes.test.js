@@ -111,3 +111,44 @@ test("component glyphs are loaded once and reloaded after a change", async () =>
   await new Promise((resolve) => setTimeout(resolve));
   assert.deepEqual(glyphs.get("acute"), { name: "acute", version: 2 });
 });
+
+test("components are stroked with the widths of their glyph's points", () => {
+  const corner = (x = 0, mirror = false) => ({
+    points: [
+      on(x + (mirror ? 200 : 0), 0),
+      { ...on(x + 100, 0), attrs: { identifier: "m" } },
+      on(x + (mirror ? 0 : 200), 0),
+    ],
+    isClosed: false,
+  });
+  const base = fakePositionedGlyph({
+    glyphName: "bar",
+    contours: [corner()],
+    sources: [
+      {
+        customData: {
+          [STROKE_KEY]: {
+            defaults: { width: 20, cap: "butt" },
+            points: { m: { left: 100, right: 10 } },
+          },
+        },
+      },
+    ],
+  });
+  const componentGlyphs = fakeComponentGlyphs({ bar: base.varGlyph });
+  const strokeComponent = (contour, transformation) =>
+    strokeGlyph(
+      fakePositionedGlyph({
+        components: [{ name: "bar", contours: [contour], transformation }],
+      }),
+      {},
+      componentGlyphs
+    ).outlines;
+  // Left of the centerline (above it) is 100 at the middle point
+  assert.equal(Math.round(bounds(strokeComponent(corner(500))).yMax), 100);
+  assert.equal(Math.round(bounds(strokeComponent(corner(500))).yMin), -10);
+  // Mirrored: the contour runs the other way, and the sides swap with it
+  const mirrored = strokeComponent(corner(500, true), { scaleX: -1 });
+  assert.equal(Math.round(bounds(mirrored).yMax), 100);
+  assert.equal(Math.round(bounds(mirrored).yMin), -10);
+});

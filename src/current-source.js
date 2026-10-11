@@ -6,11 +6,13 @@
 //
 // The values of points are found by the points' identifiers in each source.
 // Between sources, points correspond by their index in the path (identifiers
-// may differ between sources), so the sources need the same points.
+// may differ between sources), so the sources need the same points. The path
+// may have more contours after the glyph's own: those of nested components,
+// in the flattened path of a component.
 
 import { centerlineSegments } from "./geometry/centerline.js";
 import { widthProfile } from "./geometry/widths.js";
-import { pathPoints, samePointStructure } from "./path-points.js";
+import { pathPoints, startsWithPointStructure } from "./path-points.js";
 import {
   INTERPOLATED_OFFSET_KEYS,
   getGlyphStroke,
@@ -145,7 +147,7 @@ function applyDefaultJoins(values, varGlyph, defaultIndex, path) {
     return;
   }
   const defaultPath = layerPath(varGlyph, source);
-  const sameStructure = defaultPath && samePointStructure(defaultPath, path);
+  const sameStructure = defaultPath && startsWithPointStructure(path, defaultPath);
   const defaults = sameStructure
     ? resolvePointValues(pathPoints(defaultPath), source.customData)
     : undefined;
@@ -235,7 +237,7 @@ function pointVectors(varGlyph, sources, styles, path) {
   const perSource = [];
   for (const [i, source] of sources.entries()) {
     const sourcePath = layerPath(varGlyph, source);
-    if (!sourcePath || !samePointStructure(sourcePath, path)) {
+    if (!sourcePath || !startsWithPointStructure(path, sourcePath)) {
       return null;
     }
     const values = resolvePointValues(pathPoints(sourcePath), source.customData);
@@ -244,8 +246,9 @@ function pointVectors(varGlyph, sources, styles, path) {
   // What is interpolated: per open contour and on-curve point, each side
   // that any source sets, and the miter limit if any source sets it
   const entries = [];
+  const numContours = perSource[0].path.contourInfo.length;
   for (const [c, contour] of pathPoints(path).entries()) {
-    if (path.contourInfo[c].isClosed) {
+    if (c >= numContours || path.contourInfo[c].isClosed) {
       continue;
     }
     for (const [i, point] of contour.entries()) {

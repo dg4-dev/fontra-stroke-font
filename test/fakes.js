@@ -93,10 +93,12 @@ export function fakePositionedGlyph(options) {
       sourceIndex,
       varGlyph,
       // [{ name, contours, location? }] as Fontra's ComponentController
-      components: components.map(({ name, contours, location = {} }) => ({
-        compo: { name, location },
-        path: fakePath(contours),
-      })),
+      components: components.map(
+        ({ name, contours, location = {}, transformation }) => ({
+          compo: { name, location, transformation },
+          path: fakePath(contours),
+        })
+      ),
     },
   };
 }

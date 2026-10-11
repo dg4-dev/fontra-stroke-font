@@ -49,7 +49,7 @@ After registering, reopen the glyph editor to load the plugin.
 
 Draw an open contour (with the pen tool, end a contour without closing it) in the glyph being edited. The plugin fills its stroked shape in translucent blue under the centerline. The preview follows while you drag points and handles. Closed contours are ordinary outlines and are not stroked; a glyph can mix both.
 
-The other glyphs of the text are drawn with their stroked shapes too, as they will look in the font. Open contours inside components are stroked too, with the values of the component's own glyph at the component's location. The width is not scaled when the component is.
+The other glyphs of the text are drawn with their stroked shapes too, as they will look in the font. Open contours inside components are stroked too, with the values of the component's own glyph at the component's location, including the widths of its points (left and right are swapped when the component is flipped, so each side stays where it is in the glyph). The width is not scaled when the component is.
 
 Where the centerline bends more sharply than half the width (the radius of the bend is smaller than half the width), the stroke twists: its inner edge would run backwards. The plugin fills such places without holes and marks them with a red ring. See [Twists](#twists).
 

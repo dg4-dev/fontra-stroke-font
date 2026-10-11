@@ -89,16 +89,50 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
       continue;
     }
     // The component's glyph between its sources: at the parent's location,
-    // with the component's own axis values
+    // with the component's own axis values. Its path is the component's, for
+    // the values of its points.
     const style = strokeStyleForGlyph(
-      { glyphName: name, varGlyph, glyph: { varGlyph } },
+      { glyphName: name, varGlyph, glyph: { varGlyph, path } },
       { ...location, ...component.compo.location }
     );
     if (style) {
+      if (style.points && isMirrored(component.compo.transformation)) {
+        style.points = mirrorPointValues(style.points);
+      }
       outlines.push(...strokeOpenContours(path, style).outlines);
     }
   }
   return { outlines, twists };
+}
+
+/**
+ * Whether a component's transformation flips its glyph over: then the left
+ * of the centerline in the glyph is on its right in the component.
+ */
+export function isMirrored(transformation) {
+  const scaleX = transformation?.scaleX ?? 1;
+  const scaleY = transformation?.scaleY ?? 1;
+  return scaleX * scaleY < 0;
+}
+
+/** Point values with left and right swapped. */
+export function mirrorPointValues(points) {
+  return points.map((contour) =>
+    contour.map((values) => {
+      if (!values || (values.left === undefined && values.right === undefined)) {
+        return values;
+      }
+      const { left, right, ...rest } = values;
+      const swapped = { ...rest };
+      if (right !== undefined) {
+        swapped.left = right;
+      }
+      if (left !== undefined) {
+        swapped.right = left;
+      }
+      return swapped;
+    })
+  );
 }
 
 export function hasOpenContours(path) {
