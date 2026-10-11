@@ -1,7 +1,15 @@
-// The sidebar panel: preview visibility and the stroke values of the source
-// being edited.
+// The sidebar panel: preview visibility, the stroke values of the source
+// being edited, and the values of the selected points.
 
 import { describeStrokeSource } from "./current-source.js";
+import {
+  CLEARED_POINT_VALUES,
+  describeSelectedPoints,
+  editPointValues,
+  editingSourceIndices,
+  pointValuesForField,
+  selectedPointIndices,
+} from "./point-edit.js";
 import {
   CAPS,
   JOINS,
@@ -106,6 +114,21 @@ const styles = `
   .note:empty {
     display: none;
   }
+  button {
+    justify-self: start;
+    padding: 0.2em 0.8em;
+    border-radius: 0.25em;
+    border: 0.5px solid var(--horizontal-rule-color, #8884);
+    background-color: var(--text-input-background-color, #fff);
+    color: inherit;
+    font: inherit;
+  }
+  button:disabled {
+    opacity: 0.5;
+  }
+  [hidden] {
+    display: none !important;
+  }
 `;
 
 export function definePanelElement() {
@@ -123,13 +146,14 @@ export function definePanelElement() {
       this.sceneController = editor.sceneController;
       this.settings = settings;
       this._state = null;
+      this._pointState = null;
       this.attachShadow({ mode: "open" });
       this._render();
 
       settings.addListener(() => this._syncSettings());
       const scheduleUpdate = () => this._scheduleUpdate();
       this.sceneController.sceneSettingsController?.addKeyListener(
-        ["selectedGlyphName", "selectedGlyph", "positionedLines"],
+        ["selectedGlyphName", "selectedGlyph", "positionedLines", "selection"],
         scheduleUpdate
       );
       this.sceneController.addCurrentGlyphChangeListener?.(scheduleUpdate);
@@ -161,7 +185,15 @@ export function definePanelElement() {
         ? sceneModel.getLocationForGlyph?.(positionedGlyph.glyphName)
         : undefined;
       this._state = describeStrokeSource(positionedGlyph, location);
+      this._pointState = positionedGlyph
+        ? describeSelectedPoints(
+            positionedGlyph,
+            location,
+            this.sceneController.selection
+          )
+        : null;
       this._syncValues();
+      this._syncPointValues();
     }
 
     _render() {
@@ -186,6 +218,28 @@ export function definePanelElement() {
         })
       );
 
+      this._pointsLabel = el("div", { class: "source" });
+      this._pointsNote = el("div", { class: "note" });
+      this._pointFields = el(
+        "div",
+        { class: "fields" },
+        ...this._numberField("width", t("field.width"), { min: 0, step: 1 }, "point"),
+        ...this._numberField("left", t("field.left"), { min: 0, step: 1 }, "point"),
+        ...this._numberField("right", t("field.right"), { min: 0, step: 1 }, "point"),
+        ...this._selectField("join", t("field.join"), ["", ...JOINS], "join", "point"),
+        ...this._numberField(
+          "miterLimit",
+          t("field.miterLimit"),
+          { min: MIN_MITER_LIMIT, step: 0.1 },
+          "point"
+        )
+      );
+      this._clearButton = el(
+        "button",
+        { type: "button", onclick: () => this._clearPointValues() },
+        t("points.clear")
+      );
+
       const panel = el(
         "div",
         { class: "panel" },
@@ -204,11 +258,17 @@ export function definePanelElement() {
         this._fields,
         this._sharedNote,
         el("hr"),
+        this._pointsLabel,
+        this._pointsNote,
+        this._pointFields,
+        this._clearButton,
+        el("hr"),
         el("div", { class: "hint" }, t("panel.hint"))
       );
       root.appendChild(panel);
       this._syncSettings();
       this._syncValues();
+      this._syncPointValues();
     }
 
     _checkbox(key, label) {
@@ -245,8 +305,9 @@ export function definePanelElement() {
       );
     }
 
-    _numberField(key, label, { min, step }) {
-      const id = `stroke-font-${key}`;
+    // target "source" changes the source's value, "point" the selected points'
+    _numberField(key, label, { min, step }, target = "source") {
+      const id = `stroke-font-${target}-${key}`;
       const input = el("input", {
         "type": "number",
         id,
@@ -255,22 +316,32 @@ export function definePanelElement() {
         "data-key": key,
         // "change" fires on Enter or when leaving the field, so that typing a
         // number makes one undo step rather than one per keystroke
-        "onchange": (event) => this._changeValue(key, event.target.value),
+        "onchange": (event) => this._onChange(target, key, event.target.value),
       });
       return [el("label", { for: id }, label), input];
     }
 
-    _selectField(key, label, choices, stringPrefix) {
-      const id = `stroke-font-${key}`;
+    _selectField(key, label, choices, stringPrefix, target = "source") {
+      const id = `stroke-font-${target}-${key}`;
       const select = el("select", {
         id,
         "data-key": key,
-        "onchange": (event) => this._changeValue(key, event.target.value),
+        "onchange": (event) => this._onChange(target, key, event.target.value),
       });
       for (const choice of choices) {
-        select.append(el("option", { value: choice }, t(`${stringPrefix}.${choice}`)));
+        const text =
+          choice === "" ? t("point.sourceValue") : t(`${stringPrefix}.${choice}`);
+        select.append(el("option", { value: choice }, text));
       }
       return [el("label", { for: id }, label), select];
+    }
+
+    _onChange(target, key, value) {
+      if (target === "point") {
+        this._changePointValue(key, value);
+      } else {
+        this._changeValue(key, value);
+      }
     }
 
     _syncSettings() {
@@ -326,6 +397,108 @@ export function definePanelElement() {
         input.disabled =
           !editable || (key === "miterLimit" && state.style.join !== "miter");
       }
+    }
+
+    _syncPointValues() {
+      if (!this._pointFields) {
+        return;
+      }
+      const state = this._pointState;
+      const sourceState = this._state;
+      const editable = !!state?.editable;
+      this._pointsLabel.textContent = state
+        ? t("points.title", state.count)
+        : t("points.noneTitle");
+      this._pointsNote.textContent = !state
+        ? t("points.none")
+        : !state.atSource
+          ? t("source.notAtSource")
+          : sourceState && !sourceState.isDefaultSource && state.editable
+            ? t("points.sharedJoin", sourceState.defaultSourceName)
+            : "";
+      this._pointFields.hidden = !state;
+      this._clearButton.hidden = !state;
+      this._clearButton.disabled = !editable || !state.stored;
+      this._pointFields.setAttribute("aria-disabled", String(!editable));
+      for (const input of this._pointFields.querySelectorAll("[data-key]")) {
+        const key = input.dataset.key;
+        const value = state?.fields[key];
+        const text = value === undefined ? "" : formatValue(value);
+        if (this.shadowRoot.activeElement !== input && input.value !== text) {
+          input.value = text;
+        }
+        if (input.tagName === "INPUT") {
+          // Several points with different values, or the source's miter limit
+          input.placeholder =
+            value === undefined
+              ? "—"
+              : key === "miterLimit" && state
+                ? formatValue(state.sourceStyle.miterLimit)
+                : "";
+        }
+        input.disabled = !editable;
+      }
+    }
+
+    async _changePointValue(key, rawValue) {
+      const state = this._pointState;
+      const sourceState = this._state;
+      if (!state?.editable || !sourceState?.atSource) {
+        return;
+      }
+      let value;
+      if (rawValue !== "") {
+        value = sanitizeOffsetValue(key, rawValue);
+        if (value === undefined) {
+          this._syncPointValues();
+          return;
+        }
+      }
+      if (value === undefined && key !== "join" && key !== "miterLimit") {
+        // An emptied width field: nothing to change
+        this._syncPointValues();
+        return;
+      }
+      const undoKey =
+        key === "join"
+          ? "undo.pointJoin"
+          : key === "miterLimit"
+            ? "undo.pointMiterLimit"
+            : "undo.pointWidth";
+      await this._editPoints(
+        (stored) => pointValuesForField(stored, key, value),
+        t(undoKey)
+      );
+    }
+
+    async _clearPointValues() {
+      await this._editPoints(() => CLEARED_POINT_VALUES, t("undo.pointClear"));
+    }
+
+    async _editPoints(makeValues, undoLabel) {
+      const sourceState = this._state;
+      const pointIndices = selectedPointIndices(this.sceneController.selection);
+      const varGlyph =
+        this.sceneController.sceneModel?.getSelectedPositionedGlyph?.()?.varGlyph;
+      const sourceIndices = editingSourceIndices(
+        varGlyph,
+        sourceState.sourceIndex,
+        this.sceneController.editingLayerNames ?? []
+      );
+      try {
+        await this.sceneController.editNamedGlyphAndRecordChanges(
+          sourceState.glyphName,
+          (glyph) => {
+            editPointValues(glyph, sourceIndices, pointIndices, makeValues, {
+              defaultIndex: sourceState.defaultSourceIndex,
+            });
+            return undoLabel;
+          }
+        );
+      } catch (e) {
+        console.error("[stroke-font] could not change the point values", e);
+      }
+      this.update();
     }
 
     async _changeValue(key, rawValue) {

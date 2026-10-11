@@ -39,6 +39,23 @@ export const strings = {
     "undo.cap": "Change stroke cap",
     "undo.join": "Change stroke join",
     "undo.miterLimit": "Change miter limit",
+    "field.left": "Left",
+    "field.right": "Right",
+    "point.sourceValue": "Source’s",
+    "points.title": "Selected points: {0}",
+    "points.noneTitle": "Points",
+    "points.none":
+      "Select points of a centerline to give them their own widths. A point in the middle without a width of its own follows the points around it.",
+    "points.sharedJoin":
+      "Point joins are the same in all sources; they are saved in the default source, “{0}”.",
+    "points.clear": "Clear point values",
+    "undo.pointWidth": "Change point width",
+    "undo.pointJoin": "Change point join",
+    "undo.pointMiterLimit": "Change point miter limit",
+    "undo.pointClear": "Clear point values",
+    "tool.title": "Stroke widths: drag the handles on the edges of points",
+    "setting.handles": "Show width handles (stroke width tool)",
+    "menu.pointJoin": "Join of the point",
     "panel.hint":
       "Open contours are centerlines, stroked with these values. Closed contours " +
       "stay as they are. The values belong to the source being edited and are " +
@@ -74,6 +91,23 @@ export const strings = {
     "undo.cap": "端の形の変更",
     "undo.join": "角の形の変更",
     "undo.miterLimit": "マイターリミットの変更",
+    "field.left": "左",
+    "field.right": "右",
+    "point.sourceValue": "ソースの値",
+    "points.title": "選択中の点: {0}",
+    "points.noneTitle": "点",
+    "points.none":
+      "中心線の点を選ぶと、点ごとの太さを付けられます。途中の点で値が無いものは、前後の点に合わせた太さになります。",
+    "points.sharedJoin":
+      "点ごとの角の形は全ソース共通で、デフォルトソース「{0}」に保存されます。",
+    "points.clear": "点の値を消す",
+    "undo.pointWidth": "点の太さの変更",
+    "undo.pointJoin": "点の角の形の変更",
+    "undo.pointMiterLimit": "点のマイターリミットの変更",
+    "undo.pointClear": "点の値の消去",
+    "tool.title": "ストロークの太さ（点の縁のハンドルをドラッグ）",
+    "setting.handles": "太さのハンドルを表示（太さのツール）",
+    "menu.pointJoin": "点の角の形",
     "panel.hint":
       "閉じていない輪郭を中心線として、これらの値でなぞります。閉じた輪郭はそのままです。" +
       "値は編集中のソースのもので、フォントに保存されます。",
@@ -106,6 +140,22 @@ export const strings = {
     "undo.cap": "修改笔画端点",
     "undo.join": "修改笔画转角",
     "undo.miterLimit": "修改斜接限制",
+    "field.left": "左侧",
+    "field.right": "右侧",
+    "point.sourceValue": "源的值",
+    "points.title": "选中的点: {0}",
+    "points.noneTitle": "点",
+    "points.none":
+      "选择中心线上的点,即可为其设置单独的宽度。中间没有自身宽度的点会随前后的点变化。",
+    "points.sharedJoin": "点的转角在所有源中相同,保存在默认源“{0}”中。",
+    "points.clear": "清除点的值",
+    "undo.pointWidth": "修改点的宽度",
+    "undo.pointJoin": "修改点的转角",
+    "undo.pointMiterLimit": "修改点的斜接限制",
+    "undo.pointClear": "清除点的值",
+    "tool.title": "笔画宽度(拖动点边缘的手柄)",
+    "setting.handles": "显示宽度手柄(笔画宽度工具)",
+    "menu.pointJoin": "点的转角",
     "panel.hint":
       "未闭合的轮廓作为中心线,按这些数值描绘笔画。闭合的轮廓保持不变。" +
       "这些数值属于正在编辑的源,并随字体保存。",
@@ -138,6 +188,22 @@ export const strings = {
     "undo.cap": "修改筆畫端點",
     "undo.join": "修改筆畫轉角",
     "undo.miterLimit": "修改斜接限制",
+    "field.left": "左側",
+    "field.right": "右側",
+    "point.sourceValue": "源的值",
+    "points.title": "選取的點: {0}",
+    "points.noneTitle": "點",
+    "points.none":
+      "選取中心線上的點,即可為其設定個別的寬度。中間沒有自身寬度的點會隨前後的點變化。",
+    "points.sharedJoin": "點的轉角在所有源中相同,儲存在預設源「{0}」中。",
+    "points.clear": "清除點的值",
+    "undo.pointWidth": "修改點的寬度",
+    "undo.pointJoin": "修改點的轉角",
+    "undo.pointMiterLimit": "修改點的斜接限制",
+    "undo.pointClear": "清除點的值",
+    "tool.title": "筆畫寬度(拖曳點邊緣的控點)",
+    "setting.handles": "顯示寬度控點(筆畫寬度工具)",
+    "menu.pointJoin": "點的轉角",
     "panel.hint":
       "未封閉的輪廓作為中心線,依這些數值描繪筆畫。封閉的輪廓保持不變。" +
       "這些數值屬於正在編輯的源,並隨字型儲存。",
@@ -172,6 +238,23 @@ export const strings = {
     "undo.cap": "Linienende ändern",
     "undo.join": "Ecke ändern",
     "undo.miterLimit": "Gehrungsgrenze ändern",
+    "field.left": "Links",
+    "field.right": "Rechts",
+    "point.sourceValue": "Wert der Source",
+    "points.title": "Ausgewählte Punkte: {0}",
+    "points.noneTitle": "Punkte",
+    "points.none":
+      "Wähle Punkte einer Mittellinie aus, um ihnen eigene Breiten zu geben. Ein Punkt in der Mitte ohne eigene Breite folgt den Punkten um ihn herum.",
+    "points.sharedJoin":
+      "Die Ecken der Punkte sind in allen Sources gleich; sie werden in der Standard-Source „{0}“ gespeichert.",
+    "points.clear": "Punktwerte löschen",
+    "undo.pointWidth": "Punktbreite ändern",
+    "undo.pointJoin": "Punktecke ändern",
+    "undo.pointMiterLimit": "Gehrungsgrenze des Punkts ändern",
+    "undo.pointClear": "Punktwerte löschen",
+    "tool.title": "Strichbreiten: Anfasser an den Kanten der Punkte ziehen",
+    "setting.handles": "Breitenanfasser anzeigen (Strichbreiten-Werkzeug)",
+    "menu.pointJoin": "Ecke des Punkts",
     "panel.hint":
       "Offene Konturen sind Mittellinien und werden mit diesen Werten " +
       "nachgezogen. Geschlossene Konturen bleiben, wie sie sind. Die Werte " +
@@ -207,6 +290,23 @@ export const strings = {
     "undo.cap": "Lijnuiteinde wijzigen",
     "undo.join": "Hoek wijzigen",
     "undo.miterLimit": "Verstekgrens wijzigen",
+    "field.left": "Links",
+    "field.right": "Rechts",
+    "point.sourceValue": "Waarde van de source",
+    "points.title": "Geselecteerde punten: {0}",
+    "points.noneTitle": "Punten",
+    "points.none":
+      "Selecteer punten van een middellijn om ze een eigen breedte te geven. Een punt in het midden zonder eigen breedte volgt de punten eromheen.",
+    "points.sharedJoin":
+      "De hoeken van punten zijn in alle sources gelijk; ze worden opgeslagen in de standaardsource ‘{0}’.",
+    "points.clear": "Puntwaarden wissen",
+    "undo.pointWidth": "Puntbreedte wijzigen",
+    "undo.pointJoin": "Punthoek wijzigen",
+    "undo.pointMiterLimit": "Verstekgrens van punt wijzigen",
+    "undo.pointClear": "Puntwaarden wissen",
+    "tool.title": "Lijnbreedtes: sleep de grepen aan de randen van punten",
+    "setting.handles": "Breedtegrepen tonen (lijnbreedtegereedschap)",
+    "menu.pointJoin": "Hoek van het punt",
     "panel.hint":
       "Open contouren zijn middenlijnen en worden met deze waarden getrokken. " +
       "Gesloten contouren blijven zoals ze zijn. De waarden horen bij de source " +
@@ -242,6 +342,24 @@ export const strings = {
     "undo.cap": "Modifier l’extrémité du trait",
     "undo.join": "Modifier la jointure du trait",
     "undo.miterLimit": "Modifier la limite de raccord",
+    "field.left": "Gauche",
+    "field.right": "Droite",
+    "point.sourceValue": "Valeur de la source",
+    "points.title": "Points sélectionnés : {0}",
+    "points.noneTitle": "Points",
+    "points.none":
+      "Sélectionnez des points d’une ligne centrale pour leur donner leur propre épaisseur. Un point au milieu sans épaisseur propre suit les points qui l’entourent.",
+    "points.sharedJoin":
+      "Les jointures des points sont les mêmes dans toutes les sources ; elles sont enregistrées dans la source par défaut, « {0} ».",
+    "points.clear": "Effacer les valeurs des points",
+    "undo.pointWidth": "Modifier l’épaisseur du point",
+    "undo.pointJoin": "Modifier la jointure du point",
+    "undo.pointMiterLimit": "Modifier la limite de raccord du point",
+    "undo.pointClear": "Effacer les valeurs des points",
+    "tool.title":
+      "Épaisseurs du trait : faites glisser les poignées sur les bords des points",
+    "setting.handles": "Afficher les poignées d’épaisseur (outil d’épaisseur)",
+    "menu.pointJoin": "Jointure du point",
     "panel.hint":
       "Les contours ouverts sont des lignes médianes, tracées avec ces valeurs. " +
       "Les contours fermés restent tels quels. Les valeurs appartiennent à la " +
@@ -277,6 +395,23 @@ export const strings = {
     "undo.cap": "Modifica estremità del tratto",
     "undo.join": "Modifica angolo del tratto",
     "undo.miterLimit": "Modifica limite di smussatura",
+    "field.left": "Sinistra",
+    "field.right": "Destra",
+    "point.sourceValue": "Valore della sorgente",
+    "points.title": "Punti selezionati: {0}",
+    "points.noneTitle": "Punti",
+    "points.none":
+      "Seleziona i punti di una linea centrale per dare loro uno spessore proprio. Un punto in mezzo senza spessore proprio segue i punti intorno.",
+    "points.sharedJoin":
+      "Gli angoli dei punti sono uguali in tutte le sorgenti; vengono salvati nella sorgente predefinita, «{0}».",
+    "points.clear": "Cancella i valori dei punti",
+    "undo.pointWidth": "Modifica spessore del punto",
+    "undo.pointJoin": "Modifica angolo del punto",
+    "undo.pointMiterLimit": "Modifica limite di smussatura del punto",
+    "undo.pointClear": "Cancella i valori dei punti",
+    "tool.title": "Spessori del tratto: trascina le maniglie sui bordi dei punti",
+    "setting.handles": "Mostra le maniglie dello spessore (strumento spessore)",
+    "menu.pointJoin": "Angolo del punto",
     "panel.hint":
       "I contorni aperti sono linee centrali, tracciate con questi valori. I " +
       "contorni chiusi restano come sono. I valori appartengono alla sorgente " +
@@ -312,6 +447,24 @@ export const strings = {
     "undo.cap": "Cambiar extremo del trazo",
     "undo.join": "Cambiar esquina del trazo",
     "undo.miterLimit": "Cambiar límite de inglete",
+    "field.left": "Izquierda",
+    "field.right": "Derecha",
+    "point.sourceValue": "Valor de la matriz",
+    "points.title": "Puntos seleccionados: {0}",
+    "points.noneTitle": "Puntos",
+    "points.none":
+      "Selecciona puntos de una línea central para darles su propio grosor. Un punto intermedio sin grosor propio sigue a los puntos que lo rodean.",
+    "points.sharedJoin":
+      "Las esquinas de los puntos son iguales en todas las matrices y se guardan en la matriz predeterminada, «{0}».",
+    "points.clear": "Borrar los valores de los puntos",
+    "undo.pointWidth": "Cambiar grosor del punto",
+    "undo.pointJoin": "Cambiar esquina del punto",
+    "undo.pointMiterLimit": "Cambiar límite de inglete del punto",
+    "undo.pointClear": "Borrar los valores de los puntos",
+    "tool.title":
+      "Grosores del trazo: arrastra los tiradores de los bordes de los puntos",
+    "setting.handles": "Mostrar tiradores de grosor (herramienta de grosor)",
+    "menu.pointJoin": "Esquina del punto",
     "panel.hint":
       "Los contornos abiertos son líneas centrales, trazadas con estos valores. " +
       "Los contornos cerrados quedan como están. Los valores pertenecen a la " +
@@ -347,6 +500,24 @@ export const strings = {
     "undo.cap": "Cambiar extremo del trazo",
     "undo.join": "Cambiar esquina del trazo",
     "undo.miterLimit": "Cambiar límite de inglete",
+    "field.left": "Izquierda",
+    "field.right": "Derecha",
+    "point.sourceValue": "Valor de la matriz",
+    "points.title": "Puntos seleccionados: {0}",
+    "points.noneTitle": "Puntos",
+    "points.none":
+      "Selecciona puntos de una línea central para darles su propio grosor. Un punto intermedio sin grosor propio sigue a los puntos que lo rodean.",
+    "points.sharedJoin":
+      "Las esquinas de los puntos son iguales en todas las matrices y se guardan en la matriz predeterminada, “{0}”.",
+    "points.clear": "Borrar los valores de los puntos",
+    "undo.pointWidth": "Cambiar grosor del punto",
+    "undo.pointJoin": "Cambiar esquina del punto",
+    "undo.pointMiterLimit": "Cambiar límite de inglete del punto",
+    "undo.pointClear": "Borrar los valores de los puntos",
+    "tool.title":
+      "Grosores del trazo: arrastra los tiradores de los bordes de los puntos",
+    "setting.handles": "Mostrar tiradores de grosor (herramienta de grosor)",
+    "menu.pointJoin": "Esquina del punto",
     "panel.hint":
       "Los contornos abiertos son líneas centrales, trazadas con estos valores. " +
       "Los contornos cerrados quedan como están. Los valores pertenecen a la " +
@@ -382,6 +553,23 @@ export const strings = {
     "undo.cap": "Alterar terminal do traço",
     "undo.join": "Alterar canto do traço",
     "undo.miterLimit": "Alterar limite de esquadria",
+    "field.left": "Esquerda",
+    "field.right": "Direita",
+    "point.sourceValue": "Valor da matriz",
+    "points.title": "Pontos selecionados: {0}",
+    "points.noneTitle": "Pontos",
+    "points.none":
+      "Selecione pontos de uma linha central para dar a eles uma espessura própria. Um ponto no meio sem espessura própria segue os pontos ao redor.",
+    "points.sharedJoin":
+      "Os cantos dos pontos são iguais em todas as matrizes e são salvos na matriz padrão, “{0}”.",
+    "points.clear": "Limpar os valores dos pontos",
+    "undo.pointWidth": "Alterar espessura do ponto",
+    "undo.pointJoin": "Alterar canto do ponto",
+    "undo.pointMiterLimit": "Alterar limite de esquadria do ponto",
+    "undo.pointClear": "Limpar os valores dos pontos",
+    "tool.title": "Espessuras do traço: arraste as alças nas bordas dos pontos",
+    "setting.handles": "Mostrar alças de espessura (ferramenta de espessura)",
+    "menu.pointJoin": "Canto do ponto",
     "panel.hint":
       "Contornos abertos são linhas centrais, traçadas com estes valores. " +
       "Contornos fechados ficam como estão. Os valores pertencem à matriz em " +
@@ -417,6 +605,23 @@ export const strings = {
     "undo.cap": "Alterar terminal do traço",
     "undo.join": "Alterar canto do traço",
     "undo.miterLimit": "Alterar limite de esquadria",
+    "field.left": "Esquerda",
+    "field.right": "Direita",
+    "point.sourceValue": "Valor da matriz",
+    "points.title": "Pontos selecionados: {0}",
+    "points.noneTitle": "Pontos",
+    "points.none":
+      "Selecione pontos de uma linha central para lhes dar uma espessura própria. Um ponto no meio sem espessura própria segue os pontos à sua volta.",
+    "points.sharedJoin":
+      "Os cantos dos pontos são iguais em todas as matrizes e são guardados na matriz predefinida, «{0}».",
+    "points.clear": "Apagar os valores dos pontos",
+    "undo.pointWidth": "Alterar espessura do ponto",
+    "undo.pointJoin": "Alterar canto do ponto",
+    "undo.pointMiterLimit": "Alterar limite de esquadria do ponto",
+    "undo.pointClear": "Apagar os valores dos pontos",
+    "tool.title": "Espessuras do traço: arraste as pegas nos limites dos pontos",
+    "setting.handles": "Mostrar pegas de espessura (ferramenta de espessura)",
+    "menu.pointJoin": "Canto do ponto",
     "panel.hint":
       "Os contornos abertos são linhas centrais, traçadas com estes valores. " +
       "Os contornos fechados ficam como estão. Os valores pertencem à matriz em " +
@@ -451,6 +656,23 @@ export const strings = {
     "undo.cap": "Изменение концов обводки",
     "undo.join": "Изменение углов обводки",
     "undo.miterLimit": "Изменение предела среза",
+    "field.left": "Слева",
+    "field.right": "Справа",
+    "point.sourceValue": "Значение мастера",
+    "points.title": "Выбранные точки: {0}",
+    "points.noneTitle": "Точки",
+    "points.none":
+      "Выберите точки средней линии, чтобы задать им собственную толщину. Точка в середине без собственной толщины следует за соседними точками.",
+    "points.sharedJoin":
+      "Углы точек одинаковы во всех мастерах и сохраняются в мастере по умолчанию «{0}».",
+    "points.clear": "Очистить значения точек",
+    "undo.pointWidth": "Изменение толщины точки",
+    "undo.pointJoin": "Изменение угла точки",
+    "undo.pointMiterLimit": "Изменение предела среза точки",
+    "undo.pointClear": "Очистка значений точек",
+    "tool.title": "Толщина обводки: перетаскивайте маркеры на краях точек",
+    "setting.handles": "Показывать маркеры толщины (инструмент толщины)",
+    "menu.pointJoin": "Угол точки",
     "panel.hint":
       "Незамкнутые контуры — это средние линии, обводимые с этими значениями. " +
       "Замкнутые контуры остаются как есть. Значения относятся к " +
