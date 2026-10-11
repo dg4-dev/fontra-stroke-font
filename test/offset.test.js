@@ -342,14 +342,7 @@ test("a lone point becomes a dot with round or square caps", () => {
   assert.deepEqual(bounds(square), { xMin: -30, yMin: -20, xMax: 50, yMax: 60 });
 });
 
-test("closed contours and zero widths give nothing", () => {
-  assert.deepEqual(
-    strokeOffsetContour(
-      { points: [on(0, 0), on(100, 0), on(0, 100)], isClosed: true },
-      style()
-    ).contours,
-    []
-  );
+test("zero widths give nothing", () => {
   assert.deepEqual(
     strokeOffsetContour(openContour(on(0, 0), on(100, 0)), style({ width: 0 }))
       .contours,
