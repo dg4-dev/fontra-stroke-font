@@ -87,7 +87,7 @@ test("the number of pieces can be given in a layout", () => {
     on(200, 200)
   );
   const auto = strokeOffsetContour(contour, style());
-  const line = { breaks: [], pieces: [1] };
+  const line = { breaks: [], pieces: [1], line: true };
   assert.deepEqual(auto.layout.segments[0], { left: line, right: line });
   const forcedLayout = {
     segments: [

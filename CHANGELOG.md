@@ -2,6 +2,24 @@
 
 Each section can be pasted as the notes of the matching GitHub release.
 
+## Unreleased
+
+### Added
+
+- **Widths per point**: a point of a centerline can have its own width, the same on both sides or different on each side, and a corner its own join and miter limit. Between points the width follows a smooth curve along the centerline; a point in the middle without a width of its own follows the points around it, so adding a point does not change the stroke
+- **Stroke width tool**: handles on the edges of the points, dragged to change the width on both sides (or on one side with Alt); a double click removes a point's values, and the context menu sets the join of the selected points. Elsewhere the tool works like the pointer tool
+- **Panel**: the values of the selected points, changed for all of them at once; a button to clear them; a setting to show the handles with the other tools too
+- Per-point values are written to every source being edited, interpolated between sources with the same points, used for components (with left and right swapped in flipped ones), and used by the command-line tool
+
+### Fixed
+
+- A glyph made only of straight two-point centerlines (such as l or -) lost its fill when selected or hovered in the glyph editor, and got Fontra's placeholder for empty glyphs drawn over it: Fontra takes such a glyph for an empty one
+- A faint seam could show where a join meets the strokes of a corner
+
+### Changed
+
+- Round joins are drawn as a fan on the outer side of the corner instead of a full circle (the filled shape is the same for equal widths on both sides)
+
 ## 0.1.0
 
 The first release: draw open contours as centerlines in Fontra's glyph editor, see them stroked with a width while you edit, and expand them into outlines before building the font.

@@ -40,12 +40,19 @@ function unpackContour(element) {
       y: Number(point.attributes.y),
       glifType: point.attributes.type ?? "offcurve",
       smooth: point.attributes.smooth === "yes",
+      identifier: point.attributes.identifier,
     }));
   const isClosed = !(raw.length && raw[0].glifType === "move");
   // An off-curve point is quadratic when the on-curve point it leads to is a
   // "qcurve", cubic otherwise. In a closed contour, the off-curve points at
   // the end lead to the first point.
-  const points = raw.map(({ x, y, smooth }) => (smooth ? { x, y, smooth } : { x, y }));
+  const points = raw.map(({ x, y, smooth, identifier }) => {
+    const point = smooth ? { x, y, smooth } : { x, y };
+    if (identifier !== undefined) {
+      point.attrs = { identifier };
+    }
+    return point;
+  });
   const isOnCurve = raw.map((point) => ON_CURVE_TYPES.has(point.glifType));
   let next = null;
   // Walk backwards (twice around for a closed contour), remembering the type

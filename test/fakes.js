@@ -10,7 +10,15 @@ export function fakePath(contours) {
       return { isClosed: c.isClosed, endPoint };
     }),
     coordinates: contours.flatMap((c) => c.points.flatMap((p) => [p.x, p.y])),
-    pointTypes: contours.flatMap((c) => c.points.map((p) => p.type ?? "on")),
+    // As VarPackedPath: 0 on-curve, 1 quadratic, 2 cubic, 8 smooth flag
+    pointTypes: contours.flatMap((c) =>
+      c.points.map((p) =>
+        p.type === "cubic" ? 2 : p.type === "quad" ? 1 : p.smooth ? 8 : 0
+      )
+    ),
+    pointAttributes: contours.some((c) => c.points.some((p) => p.attrs))
+      ? contours.flatMap((c) => c.points.map((p) => p.attrs ?? null))
+      : null,
     drawContourToPath2d(path2d, index) {
       const [first, ...rest] = contours[index].points;
       path2d.moveTo(first.x, first.y);
@@ -21,7 +29,12 @@ export function fakePath(contours) {
     },
     getUnpackedContour(index) {
       const c = contours[index];
-      return { points: c.points.map((p) => ({ ...p })), isClosed: c.isClosed };
+      return {
+        points: c.points.map((p) =>
+          p.attrs ? { ...p, attrs: { ...p.attrs } } : { ...p }
+        ),
+        isClosed: c.isClosed,
+      };
     },
   };
 }
@@ -37,12 +50,22 @@ export function fakePositionedGlyph(options) {
     glyphCustomData = {},
     sources = [{ name: "Regular", customData: {} }],
     nearestSourceIndex = 0,
+    // The contours of each source's layer (named by the source's layerName,
+    // or "layer<index>"); by default every source has the glyph's contours
+    sourceContours = sources.map(() => contours),
   } = options;
+  const layers = Object.fromEntries(
+    sources.map((source, i) => {
+      source.layerName ??= `layer${i}`;
+      return [source.layerName, { glyph: { path: fakePath(sourceContours[i]) } }];
+    })
+  );
   // Explicitly passing undefined means "not at a source"
   const sourceIndex = "sourceIndex" in options ? options.sourceIndex : 0;
   const varGlyph = {
-    glyph: { customData: glyphCustomData, sources },
+    glyph: { customData: glyphCustomData, sources, layers },
     sources,
+    layers,
     findNearestSourceForSourceLocation: (location) =>
       location?.isDefault ? 0 : nearestSourceIndex,
     getDenseDefaultSourceLocation: () => ({ isDefault: true }),
@@ -70,10 +93,12 @@ export function fakePositionedGlyph(options) {
       sourceIndex,
       varGlyph,
       // [{ name, contours, location? }] as Fontra's ComponentController
-      components: components.map(({ name, contours, location = {} }) => ({
-        compo: { name, location },
-        path: fakePath(contours),
-      })),
+      components: components.map(
+        ({ name, contours, location = {}, transformation }) => ({
+          compo: { name, location, transformation },
+          path: fakePath(contours),
+        })
+      ),
     },
   };
 }

@@ -2,11 +2,16 @@
 // start(editor, pluginPath) once the glyph editor has been set up.
 
 import { ComponentGlyphs } from "./glyph-strokes.js";
-import { makeGlyphExpander, wrapGlyphLayers } from "./other-glyphs.js";
+import {
+  HANDLES_LAYER_IDENTIFIER,
+  makeHandlesLayerDefinition,
+} from "./handles-layer.js";
+import { makeGlyphExpander, makeStrokedTest, wrapGlyphLayers } from "./other-glyphs.js";
 import { PANEL_IDENTIFIER, definePanelElement } from "./panel.js";
 import { StrokeSettings } from "./settings.js";
 import { t } from "./strings.js";
 import { LAYER_IDENTIFIER, makeStrokeLayerDefinition } from "./stroke-layer.js";
+import { StrokeWidthTool, TOOL_IDENTIFIER } from "./width-tool.js";
 
 export function start(editor, pluginPath) {
   const visualizationLayers = editor.visualizationLayers;
@@ -27,8 +32,15 @@ export function start(editor, pluginPath) {
   // The other glyphs of the text: Fontra's own layers draw them
   wrapGlyphLayers(
     visualizationLayers.definitions,
-    makeGlyphExpander(settings, componentGlyphs)
+    makeGlyphExpander(settings, componentGlyphs),
+    makeStrokedTest(settings)
   );
+  const tool = new StrokeWidthTool(editor, `${pluginPath}/tool-icon.svg`);
+  insertLayerDefinition(
+    visualizationLayers.definitions,
+    makeHandlesLayerDefinition({ tool, settings })
+  );
+  visualizationLayers.toggle(HANDLES_LAYER_IDENTIFIER, true);
   visualizationLayers.requestUpdate?.();
 
   settings.addListener((key, value) => {
@@ -40,6 +52,36 @@ export function start(editor, pluginPath) {
   editor.canvasController.requestUpdate();
 
   addPanel(editor, settings, pluginPath);
+  addTool(editor, tool);
+}
+
+function addTool(editor, tool) {
+  if (typeof editor.addEditTool !== "function") {
+    console.warn("[stroke-font] edit tools are not supported by this Fontra");
+    return;
+  }
+  if (editor.tools?.[TOOL_IDENTIFIER]) {
+    return;
+  }
+  try {
+    editor.addEditTool(tool);
+  } catch (e) {
+    console.error("[stroke-font] could not add the stroke width tool", e);
+    return;
+  }
+  // Fontra makes every new tool button look selected and fixes that when it
+  // selects its first tool, which happened before plugins start. Fontra also
+  // looks up the button's tooltip in its own translation table.
+  const button = document.querySelector(
+    `#edit-tools > .tool-button[data-tool="${TOOL_IDENTIFIER}"]`
+  );
+  if (button) {
+    button.classList.toggle(
+      "selected",
+      editor.selectedToolIdentifier === TOOL_IDENTIFIER
+    );
+    button.setAttribute("title", t("tool.title"));
+  }
 }
 
 function addPanel(editor, settings, pluginPath) {
