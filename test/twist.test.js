@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { centerlineSegments } from "../src/geometry/centerline.js";
 import { signedArea, strokeOffsetContour } from "../src/geometry/offset.js";
-import { findTwistZones, splitByTurning, turning } from "../src/geometry/twist.js";
+import { evoluteCusps, findTwistZones } from "../src/geometry/twist.js";
 import { nearestSample, off, on, sampleCenterline, winding } from "./helpers.js";
 
 const KAPPA = 0.5522847498307936;
@@ -61,13 +61,17 @@ test("a hairpin twists around its sharpest point, between two cusps", () => {
   assert.ok(Math.abs(zone.t0 + zone.t1 - 1) < 1e-6);
 });
 
-test("zones are split into parts that turn by equal angles", () => {
-  const segment = segmentOf(quarterArc(100));
-  assert.ok(Math.abs(turning(segment, 0, 1) - Math.PI / 2) < 1e-3);
-  const [a, mid, b] = splitByTurning(segment, 0, 1, 2);
-  assert.equal(a, 0);
-  assert.equal(b, 1);
-  assert.ok(Math.abs(turning(segment, 0, mid) - Math.PI / 4) < 1e-2);
+test("the evolute of a hairpin has its cusp at the sharpest point", () => {
+  const segment = segmentOf(hairpin);
+  const [zone] = findTwistZones(segment, 60);
+  const cusps = evoluteCusps(segment, "right", zone.t0, zone.t1);
+  assert.equal(cusps.length, 1);
+  assert.ok(Math.abs(cusps[0] - 0.5) < 1e-6, `cusp ${cusps[0]}`);
+  // A circle has no cusps
+  assert.deepEqual(
+    evoluteCusps(segmentOf(quarterArc(30)), "left", 0.2, 0.8).length <= 1,
+    true
+  );
 });
 
 function assertCoversExactly(contour, width, label) {
@@ -122,9 +126,9 @@ test("twist zones are reported with the sharpest point", () => {
   assert.equal(twists[0].segmentIndex, 0);
   assert.equal(twists[0].side, "right");
   assert.ok(Math.abs(twists[0].point.x - 75) < 1, `x ${twists[0].point.x}`);
-  const kinds = layout.segments[0].spans.map((span) => span.kind);
-  assert.deepEqual(kinds, ["band", "zone", "band"]);
-
+  // The right edge is split where it follows the evolute, and at its cusp
+  assert.equal(layout.segments[0].right.breaks.length, 3);
+  assert.deepEqual(layout.segments[0].left.breaks, []);
   const sTwists = strokeOffsetContour(sCurve, style({ width: 130 })).twists;
   assert.deepEqual(
     sTwists.map((twist) => [twist.segmentIndex, twist.side]),
@@ -135,7 +139,7 @@ test("twist zones are reported with the sharpest point", () => {
   );
 });
 
-test("a zone turning by more than 90° is split into parts", () => {
+test("a half circle tighter than half the width", () => {
   // Half circle of radius 30 drawn as two quarters joined smoothly
   const halfCircle = openContour(
     on(30, 0),
@@ -147,9 +151,6 @@ test("a zone turning by more than 90° is split into parts", () => {
     on(-30, 0)
   );
   const wideArc = openContour(on(30, 0), off(30, 60), off(-30, 60), on(-30, 0));
-  const { layout } = strokeOffsetContour(wideArc, style({ width: 100 }));
-  const zone = layout.segments[0].spans.find((span) => span.kind === "zone");
-  assert.ok(zone.parts.length >= 2, `parts ${zone.parts.length}`);
   assertCoversExactly(halfCircle, 80, "half circle");
   assertCoversExactly(wideArc, 100, "wide arc");
 });

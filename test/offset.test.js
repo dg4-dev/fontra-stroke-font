@@ -87,9 +87,13 @@ test("the number of pieces can be given in a layout", () => {
     on(200, 200)
   );
   const auto = strokeOffsetContour(contour, style());
-  assert.deepEqual(auto.layout.segments[0], { spans: [{ kind: "band", pieces: 1 }] });
+  const line = { breaks: [], pieces: [1] };
+  assert.deepEqual(auto.layout.segments[0], { left: line, right: line });
   const forcedLayout = {
-    segments: [auto.layout.segments[0], { spans: [{ kind: "band", pieces: 3 }] }],
+    segments: [
+      auto.layout.segments[0],
+      { left: { breaks: [], pieces: [3] }, right: { breaks: [], pieces: [3] } },
+    ],
   };
   const forced = strokeOffsetContour(contour, style(), { layout: forcedLayout });
   assert.equal(forced.layoutMismatch, false);
@@ -104,7 +108,7 @@ test("a tighter tolerance uses more pieces", () => {
   const contour = openContour(on(0, 0), off(0, 300), off(300, 300), on(300, 0));
   const pieces = (tolerance) =>
     strokeOffsetContour(contour, style({ width: 200 }), { tolerance }).layout
-      .segments[0].spans[0].pieces;
+      .segments[0].left.pieces[0];
   assert.ok(pieces(0.05) > pieces(5));
 });
 

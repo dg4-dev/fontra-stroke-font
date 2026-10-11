@@ -2,12 +2,15 @@
 // stay compatible: the same contours, with the same points in the same order,
 // which a variable font needs. No Fontra or DOM dependencies.
 //
-// Each source alone may choose a different number of pieces for an edge, or
-// twist in one source and not in another. The layouts of all sources are
-// merged (the zones of all sources, the largest piece counts), and every
-// source is stroked again with the merged layout.
+// Each source alone may split an edge in other places (where it twists) or
+// fit it with a different number of pieces. The layouts of all sources are
+// merged: every edge is split at the places any source splits it, and each
+// part gets the largest number of pieces any source needs. Every source is
+// then stroked again with the merged layout. Since the edges are split at the
+// same parameters in all sources, the points of different sources lie on the
+// same normals of the centerline, and the outlines interpolate well.
 
-import { strokeOffsetContour } from "./offset.js";
+import { mergeBreaks, strokeOffsetContour } from "./offset.js";
 
 /**
  * @param {{contour: object, style: object}[]} inputs the same centerline in
@@ -17,23 +20,25 @@ import { strokeOffsetContour } from "./offset.js";
  *   compatible: boolean, problems: string[]}}
  */
 export function strokeCompatibly(inputs, options = {}) {
-  const stroke = (layouts) =>
-    inputs.map(({ contour, style }, i) =>
-      strokeOffsetContour(contour, style, { ...options, layout: layouts?.[i] })
+  const stroke = (layout) =>
+    inputs.map(({ contour, style }) =>
+      strokeOffsetContour(contour, style, { ...options, layout })
     );
   const problems = [];
 
   // 1. Each source alone
-  const first = stroke(null);
-  // 2. The zones of all sources, with piece counts chosen per source
-  const zoneLayout = mergeZones(
+  const first = stroke(undefined);
+  // 2. The splits of all sources, with piece counts chosen per source
+  const breakLayout = mergeBreakLayouts(
     first.map((result) => result.layout),
     problems
   );
-  const second = zoneLayout ? stroke(inputs.map(() => zoneLayout)) : first;
+  const second = breakLayout ? stroke(breakLayout) : first;
   // 3. The largest piece counts
-  const pieceLayout = mergePieceCounts(second.map((result) => result.layout));
-  const final = pieceLayout ? stroke(inputs.map(() => pieceLayout)) : second;
+  const pieceLayout = breakLayout
+    ? mergePieceCounts(second.map((result) => result.layout))
+    : null;
+  const final = pieceLayout ? stroke(pieceLayout) : second;
 
   const signatures = final.map((result) => outlineSignature(result.contours));
   const compatible = signatures.every((signature) => signature === signatures[0]);
@@ -58,10 +63,10 @@ export function outlineSignature(contours) {
 }
 
 /**
- * The zones of all layouts, without piece counts. Returns null when the
- * layouts cannot be merged; the reason goes to problems.
+ * The split parameters of all layouts, without piece counts. Returns null
+ * when the layouts cannot be merged; the reason goes to problems.
  */
-export function mergeZones(layouts, problems = []) {
+export function mergeBreakLayouts(layouts, problems = []) {
   const numSegments = layouts[0]?.segments.length ?? 0;
   if (layouts.some((layout) => layout.segments.length !== numSegments)) {
     problems.push("the centerline has a different number of segments in some sources");
@@ -71,68 +76,27 @@ export function mergeZones(layouts, problems = []) {
   for (let i = 0; i < numSegments; i++) {
     const entries = layouts.map((layout) => layout.segments[i]);
     const present = entries.filter(Boolean);
-    if (!present.length) {
-      segments.push(null);
+    if (present.length !== entries.length) {
+      if (present.length) {
+        problems.push(`segment ${i + 1} has zero length in some sources`);
+      }
+      segments.push(present.length ? present[0] : null);
       continue;
     }
-    if (present.length !== entries.length) {
-      problems.push(`segment ${i + 1} has zero length in some sources`);
+    const segment = {};
+    for (const side of ["left", "right"]) {
+      segment[side] = {
+        breaks: mergeBreaks(present.flatMap((entry) => entry[side].breaks)),
+      };
     }
-    const zoneLists = present.map((entry) =>
-      entry.spans.filter((span) => span.kind === "zone")
-    );
-    const longest = zoneLists.reduce((a, b) => (b.length > a.length ? b : a));
-    const sides = longest.map((zone) => zone.side);
-    const parts = sides.map(() => 1);
-    for (const zones of zoneLists) {
-      const mapping = subsequenceMapping(
-        zones.map((zone) => zone.side),
-        sides
-      );
-      if (!mapping) {
-        problems.push(
-          `segment ${i + 1} twists to different sides in a different order in some sources`
-        );
-        return null;
-      }
-      for (const [k, zone] of zones.entries()) {
-        parts[mapping[k]] = Math.max(parts[mapping[k]], zone.parts.length);
-      }
-    }
-    const spans = [{ kind: "band" }];
-    for (const [k, side] of sides.entries()) {
-      spans.push({
-        kind: "zone",
-        side,
-        parts: Array.from({ length: parts[k] }, () => ({})),
-      });
-      spans.push({ kind: "band" });
-    }
-    segments.push({ spans });
+    segments.push(segment);
   }
   return { segments };
 }
 
-// For each item of short, its index in long, keeping the order; null when
-// short is not a subsequence of long
-function subsequenceMapping(short, long) {
-  const mapping = [];
-  let j = 0;
-  for (const item of short) {
-    while (j < long.length && long[j] !== item) {
-      j++;
-    }
-    if (j === long.length) {
-      return null;
-    }
-    mapping.push(j++);
-  }
-  return mapping;
-}
-
 /**
- * The largest piece counts of layouts that have the same spans; null when
- * their spans differ.
+ * The largest piece counts of layouts that split their edges at the same
+ * places; null when they do not.
  */
 export function mergePieceCounts(layouts) {
   const [first, ...rest] = layouts;
@@ -152,28 +116,14 @@ export function mergePieceCounts(layouts) {
         }
         continue;
       }
-      if (segment.spans.length !== target.spans.length) {
-        return null;
-      }
-      for (const [s, span] of segment.spans.entries()) {
-        const targetSpan = target.spans[s];
-        if (span.kind !== targetSpan.kind) {
+      for (const side of ["left", "right"]) {
+        const counts = segment[side].pieces;
+        const targetCounts = target[side].pieces;
+        if (counts.length !== targetCounts.length) {
           return null;
         }
-        if (span.kind === "band") {
-          targetSpan.pieces = Math.max(targetSpan.pieces, span.pieces);
-          continue;
-        }
-        if (
-          span.side !== targetSpan.side ||
-          span.parts.length !== targetSpan.parts.length
-        ) {
-          return null;
-        }
-        for (const [p, part] of span.parts.entries()) {
-          const targetPart = targetSpan.parts[p];
-          targetPart.outer = Math.max(targetPart.outer, part.outer);
-          targetPart.inner = Math.max(targetPart.inner, part.inner);
+        for (const [k, count] of counts.entries()) {
+          targetCounts[k] = Math.max(targetCounts[k], count);
         }
       }
     }

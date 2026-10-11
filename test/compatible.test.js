@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  mergeBreakLayouts,
   mergePieceCounts,
-  mergeZones,
   outlineSignature,
   strokeCompatibly,
 } from "../src/geometry/compatible.js";
@@ -110,47 +110,88 @@ test("a zero width in one source is reported", () => {
   assert.match(problems[0], /zero length/);
 });
 
-test("zones are merged by side and order", () => {
-  const band = { kind: "band", pieces: 1 };
-  const zone = (side, parts = 1) => ({
-    kind: "zone",
-    side,
-    parts: Array.from({ length: parts }, () => ({ outer: 1, inner: 1 })),
-  });
-  const merged = mergeZones([
-    { segments: [{ spans: [band, zone("left"), band] }] },
-    { segments: [{ spans: [band, zone("left", 2), band, zone("right"), band] }] },
+test("split parameters are merged from all sources", () => {
+  const side = (breaks, pieces) => ({ breaks, pieces });
+  const merged = mergeBreakLayouts([
+    { segments: [{ left: side([0.3, 0.7], [1, 2, 1]), right: side([], [1]) }] },
+    { segments: [{ left: side([0.5], [1, 1]), right: side([0.2], [2, 1]) }] },
   ]);
-  assert.deepEqual(
-    merged.segments[0].spans.map((span) => span.kind + (span.side ?? "")),
-    ["band", "zoneleft", "band", "zoneright", "band"]
-  );
-  assert.equal(merged.segments[0].spans[1].parts.length, 2);
+  assert.deepEqual(merged.segments[0].left.breaks, [0.3, 0.5, 0.7]);
+  assert.deepEqual(merged.segments[0].right.breaks, [0.2]);
+  assert.equal(merged.segments[0].left.pieces, undefined);
   const problems = [];
   assert.equal(
-    mergeZones(
-      [
-        { segments: [{ spans: [band, zone("left"), band, zone("right"), band] }] },
-        { segments: [{ spans: [band, zone("right"), band, zone("left"), band] }] },
-      ],
-      problems
-    ),
+    mergeBreakLayouts([{ segments: [null] }, { segments: [null, null] }], problems),
     null
   );
   assert.equal(problems.length, 1);
 });
 
 test("piece counts are merged by taking the largest", () => {
+  const side = (pieces) => ({
+    breaks: pieces.slice(1).map((_, i) => (i + 1) / 10),
+    pieces,
+  });
   const merged = mergePieceCounts([
-    { segments: [{ spans: [{ kind: "band", pieces: 2 }] }, null] },
-    { segments: [{ spans: [{ kind: "band", pieces: 5 }] }, null] },
+    { segments: [{ left: side([2, 1]), right: side([1]) }, null] },
+    { segments: [{ left: side([1, 3]), right: side([4]) }, null] },
   ]);
-  assert.equal(merged.segments[0].spans[0].pieces, 5);
+  assert.deepEqual(merged.segments[0].left.pieces, [2, 3]);
+  assert.deepEqual(merged.segments[0].right.pieces, [4]);
   assert.equal(
     mergePieceCounts([
-      { segments: [{ spans: [{ kind: "band", pieces: 2 }] }] },
+      { segments: [{ left: side([1]), right: side([1]) }] },
       { segments: [null] },
     ]),
     null
   );
+});
+
+// Linear interpolation of two compatible outlines, point by point
+function interpolateContours(a, b, f) {
+  return a.map((contour, i) => ({
+    isClosed: true,
+    points: contour.points.map((p, j) => {
+      const q = b[i].points[j];
+      const point = { x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f };
+      return p.type ? { ...point, type: p.type } : point;
+    }),
+  }));
+}
+
+test("interpolating a twisting and a plain source leaves no cracks", async () => {
+  const { nearestSample, sampleCenterline } = await import("./helpers.js");
+  // allowance: how far the inner side near a twist may fall short of a stroke
+  // drawn at the in-between width. Capping the edge at the bend radius is not
+  // linear in the width, so in-between outlines come out a little thinner
+  // there; everywhere else they are exact up to the fitting tolerance.
+  for (const [contour, thin, thick, allowance] of [
+    [hairpin, 60, 140, 6],
+    [hairpin, 40, 220, 25],
+    [sCurve, 40, 130, 22],
+  ]) {
+    const [a, b] = assertCompatible([
+      { contour, style: style({ width: thin, join: "round" }) },
+      { contour, style: style({ width: thick, join: "round" }) },
+    ]);
+    const centerline = sampleCenterline(contour, 600);
+    for (const f of [0.25, 0.5, 0.75]) {
+      const contours = interpolateContours(a.contours, b.contours, f);
+      const half = (thin + (thick - thin) * f) / 2;
+      for (let x = -40; x <= 240; x += 2) {
+        for (let y = -40; y <= 240; y += 2) {
+          const { distance } = nearestSample({ x, y }, centerline);
+          // Inside the thinner source's stroke nothing may be missing at all
+          const limit = Math.max(thin / 2 - 1, half - allowance);
+          if (distance < limit) {
+            assert.notEqual(
+              winding({ x, y }, contours),
+              0,
+              `${thin}/${thick} at ${f}: missing at ${x}, ${y}`
+            );
+          }
+        }
+      }
+    }
+  }
 });

@@ -4,8 +4,7 @@
 //
 // The result is a set of closed contours that overlap and are meant to be
 // filled together with the nonzero rule:
-// - one band per run of segments between two corners, ends or twist zones,
-// - two shapes per part of a twist zone (see below),
+// - one band per run of segments between two corners (or ends),
 // - one shape per corner (the join) and per end (the cap).
 // Overlaps are not removed; fontmake / fontra-workflow do that after the CLI.
 //
@@ -14,28 +13,33 @@
 // from how a contour is built, not from measuring it, so that it is the same
 // in every source of a glyph and the outlines stay compatible.
 //
-// Twist zones: where the centerline bends with a radius smaller than half the
-// width, the inner edge runs backwards between two cusps. A band there would
-// fold over itself and leave a hole, so each zone (split into parts that turn
-// by less than 90°) is filled with two simple shapes that meet at X, where the
-// normals at both ends of the part cross:
-// - the outer lobe: the outer edge and the two normals down to X,
-// - the inner lobe: X and the backwards-running inner edge.
+// Twists: where the centerline bends with a radius smaller than half the
+// width, an edge at half the width would run backwards between two cusps and
+// fold the band over itself, leaving a hole. Each edge is therefore kept no
+// farther from the centerline than the radius of the bend towards that side:
+// there it follows the centers of curvature (the evolute) instead. Nothing
+// is lost: every point within half the width of the centerline lies on the
+// normal of its nearest centerline point, at most the radius of the bend
+// away from it. Where the stroke twists (see twist.js), the band does not
+// fold, so it needs no other shapes.
 //
-// The layout: the number of pieces each edge is fitted with, and the zones
-// with their parts, per segment. strokeOffsetContour() returns the layout it
-// used and can be given one. Stroking every source of a glyph with the same
-// layout gives outlines with the same points (see compatible.js).
+// The layout: per segment and side, the parameters where an edge is split
+// (where it starts or stops following the evolute, and the cusps of the
+// evolute) and the number of pieces each part is fitted with.
+// strokeOffsetContour() returns the layout it used and can be given one.
+// Stroking every source of a glyph with the same layout gives outlines with
+// the same points, split at the same places (see compatible.js).
 
 import {
   EPSILON,
   add,
   cross,
+  curvatureAt,
   dot,
   isDegenerateSegment,
   leftNormal,
   lerp,
-  lineIntersection,
+  normalize,
   pointAt,
   scale,
   startTangent,
@@ -45,19 +49,20 @@ import {
 } from "./bezier.js";
 import { centerlineSegments } from "./centerline.js";
 import { fitCubic } from "./fit.js";
-import { findTwistZones, sharpestBend, splitByTurning, turning } from "./twist.js";
+import { evoluteCusps, findTwistZones, sharpestBend } from "./twist.js";
 
 /** Largest distance (font units) between a fitted edge and the exact one. */
 export const DEFAULT_TOLERANCE = 0.5;
-/** Most pieces an edge is split into within one span. */
+/** Most pieces one part of an edge is fitted with. */
 export const MAX_SUBDIVISIONS = 16;
 
 const SAMPLES_PER_PIECE = 8;
 // Handle length of a quarter circle drawn with one cubic, relative to the radius
 const KAPPA = 0.5522847498307936;
-// The parts of a twist zone turn by less than this, so that the normals at
-// both ends of a part cross on the inner side
-const MAX_PART_TURNING = Math.PI / 2;
+// Parameter step for the direction of an edge at the end of a part
+const TANGENT_STEP = 1e-4;
+// Split parameters closer than this are the same
+const SAME_PARAMETER = 1e-9;
 
 /**
  * Stroke an open centerline with a constant width.
@@ -113,21 +118,18 @@ export function strokeOffsetContour(contour, style, options = {}) {
       result.layoutMismatch = true;
     }
     result.layout.segments[index] = built.layout;
-    for (const span of built.spans) {
-      if (span.kind === "zone" && !span.degenerate) {
-        result.twists.push({
-          segmentIndex: index,
-          side: span.side,
-          t0: span.t0,
-          t1: span.t1,
-          point: pointAt(segment, sharpestBend(segment, span.side, span.t0, span.t1)),
-        });
-      }
+    for (const zone of built.zones) {
+      result.twists.push({
+        segmentIndex: index,
+        ...zone,
+        point: pointAt(segment, sharpestBend(segment, zone.side, zone.t0, zone.t1)),
+      });
     }
     usable.push({
       index,
       segment,
-      spans: built.spans,
+      left: built.left,
+      right: built.right,
       startTangent: startTangent(segment),
       endTangent: endTangent(segment),
     });
@@ -180,209 +182,167 @@ export function strokeOffsetContour(contour, style, options = {}) {
   return result;
 }
 
-// --- Segments: band spans and twist zones -------------------------------------
+// --- Segments: the two edges ----------------------------------------------------
 
 /**
- * The spans of one segment: band, zone, band, ..., band. Returns the spans
- * with their fitted edges, the layout used, and whether the forced layout
- * could not be followed.
+ * The left and right edges of one segment, as lists of pieces, with the
+ * layout used, the twist zones found, and whether a given layout could not be
+ * followed.
  */
 function buildSegment(segment, half, forcedLayout, fitOptions) {
-  let mismatch = false;
-  let forcedSpans = forcedLayout?.spans;
-  let zones = findTwistZones(segment, half);
-  if (forcedSpans) {
-    const forcedSides = forcedSpans
-      .filter((span) => span.kind === "zone")
-      .map((span) => span.side);
-    const aligned = alignZones(segment, zones, forcedSides);
-    if (aligned) {
-      zones = aligned;
-    } else {
-      mismatch = true;
-      forcedSpans = undefined;
-    }
-  }
-  const forcedBands = forcedSpans?.filter((span) => span.kind === "band") ?? [];
-  const forcedZones = forcedSpans?.filter((span) => span.kind === "zone") ?? [];
-
-  const spans = [];
-  const layoutSpans = [];
-  let cursor = 0;
-  for (let j = 0; j <= zones.length; j++) {
-    const end = j < zones.length ? zones[j].t0 : 1;
-    const band = bandSpan(
-      segment,
-      half,
-      cursor,
-      end,
-      forcedBands[j]?.pieces,
-      fitOptions
-    );
-    spans.push(band.span);
-    layoutSpans.push({ kind: "band", pieces: band.pieces });
-    if (j === zones.length) {
-      break;
-    }
-    const zone = zones[j];
-    const forcedParts = forcedZones[j]?.parts;
-    const numParts =
-      forcedParts?.length ??
-      Math.max(1, Math.ceil(turning(segment, zone.t0, zone.t1) / MAX_PART_TURNING));
-    const bounds = splitByTurning(segment, zone.t0, zone.t1, numParts);
-    const parts = [];
-    const layoutParts = [];
-    for (let p = 0; p < numParts; p++) {
-      const part = zonePart(
-        segment,
-        half,
-        zone.side,
-        bounds[p],
-        bounds[p + 1],
-        forcedParts?.[p],
-        fitOptions
-      );
-      parts.push(part.part);
-      layoutParts.push(part.layout);
-    }
-    spans.push({
-      kind: "zone",
-      side: zone.side,
-      t0: zone.t0,
-      t1: zone.t1,
-      degenerate: !!zone.degenerate,
-      parts,
-    });
-    layoutSpans.push({ kind: "zone", side: zone.side, parts: layoutParts });
-    cursor = zone.t1;
-  }
-  return { spans, layout: { spans: layoutSpans }, mismatch };
-}
-
-/**
- * Match the zones found to the sides a layout asks for, in order. Where the
- * layout has a zone this source does not (it bends less here), an empty zone
- * is placed where the segment bends most to that side, so that the outlines
- * keep the same points. Returns null when the zones found do not fit.
- */
-function alignZones(segment, zones, sides) {
-  const result = [];
-  let next = 0;
-  for (const side of sides) {
-    if (next < zones.length && zones[next].side === side) {
-      result.push(zones[next++]);
-      continue;
-    }
-    const lo = result.length ? result.at(-1).t1 : 0;
-    const hi = next < zones.length ? zones[next].t0 : 1;
-    const t = sharpestBend(segment, side, lo, hi);
-    result.push({ side, t0: t, t1: t, degenerate: true });
-  }
-  return next === zones.length ? result : null;
-}
-
-function bandSpan(segment, half, a, b, forcedPieces, fitOptions) {
   if (segment.type === "line") {
     const normal = leftNormal(startTangent(segment));
     const edge = (d) => [
-      {
-        type: "line",
-        points: [pointAt(segment, a), pointAt(segment, b)].map((p) =>
-          add(p, scale(normal, d))
-        ),
-      },
+      { type: "line", points: segment.points.map((p) => add(p, scale(normal, d))) },
     ];
-    return { span: { kind: "band", left: edge(half), right: edge(-half) }, pieces: 1 };
+    const sideLayout = { breaks: [], pieces: [1] };
+    return {
+      left: edge(half),
+      right: edge(-half),
+      layout: { left: sideLayout, right: { ...sideLayout, pieces: [1] } },
+      zones: [],
+      mismatch: !!forcedLayout && !isLineLayout(forcedLayout),
+    };
   }
-  const fit = fitEdges(
-    [
-      { d: half, sign: 1 },
-      { d: -half, sign: 1 },
-    ],
-    segment,
-    a,
-    b,
-    forcedPieces,
-    fitOptions
-  );
-  return {
-    span: { kind: "band", left: fit.edges[0], right: fit.edges[1] },
-    pieces: fit.pieces,
-  };
+  const zones = findTwistZones(segment, half);
+  const result = { layout: {}, zones, mismatch: false };
+  for (const side of ["left", "right"]) {
+    let forced = forcedLayout?.[side];
+    if (forced && !validBreaks(forced.breaks)) {
+      result.mismatch = true;
+      forced = undefined;
+    }
+    const breaks =
+      forced?.breaks ??
+      naturalBreaks(
+        segment,
+        zones.filter((zone) => zone.side === side)
+      );
+    const bounds = [0, ...breaks, 1];
+    const pieces = [];
+    const counts = [];
+    for (let i = 0; i < bounds.length - 1; i++) {
+      const fit = fitEdge(
+        segment,
+        side,
+        half,
+        bounds[i],
+        bounds[i + 1],
+        forced?.pieces?.[i],
+        fitOptions
+      );
+      pieces.push(...fit.pieces);
+      counts.push(fit.count);
+    }
+    result[side] = pieces;
+    result.layout[side] = { breaks, pieces: counts };
+  }
+  return result;
 }
 
-function zonePart(segment, half, side, a, b, forcedPart, fitOptions) {
-  const inner = side === "left" ? half : -half;
-  // The outer edge runs forwards; the inner edge runs backwards in a zone.
-  const outerFit = fitEdges(
-    [{ d: -inner, sign: 1 }],
-    segment,
-    a,
-    b,
-    forcedPart?.outer,
-    fitOptions
+function isLineLayout(layout) {
+  return ["left", "right"].every(
+    (side) => !layout[side]?.breaks?.length && (layout[side]?.pieces?.[0] ?? 1) === 1
   );
-  const innerFit = fitEdges(
-    [{ d: inner, sign: -1 }],
-    segment,
-    a,
-    b,
-    forcedPart?.inner,
-    fitOptions
+}
+
+function validBreaks(breaks) {
+  return (
+    Array.isArray(breaks) &&
+    breaks.every((t, i) => t >= 0 && t <= 1 && (i === 0 || t >= breaks[i - 1]))
   );
-  const startPoint = pointAt(segment, a);
-  const crossing =
-    b > a
-      ? lineIntersection(
-          startPoint,
-          leftNormal(tangentAt(segment, a)),
-          pointAt(segment, b),
-          leftNormal(tangentAt(segment, b))
-        )
-      : null;
-  return {
-    part: {
-      side,
-      outer: outerFit.edges[0],
-      inner: innerFit.edges[0],
-      crossing: crossing ?? startPoint,
-    },
-    layout: { outer: outerFit.pieces, inner: innerFit.pieces },
-  };
 }
 
 /**
- * Fit edges of a cubic segment over [a, b] with the same number of pieces.
- * Each edge is { d, sign }: the signed distance from the centerline (left is
- * positive) and the direction it runs in (-1 inside a twist zone).
+ * Where an edge has to be split: where it starts and stops following the
+ * evolute (the ends of the twist zones on its side), and the cusps of the
+ * evolute in between.
  */
-function fitEdges(edges, segment, a, b, forcedPieces, { tolerance, maxSubdivisions }) {
-  if (forcedPieces > 0 || !(b > a)) {
-    const n = forcedPieces > 0 ? Math.round(forcedPieces) : 1;
-    return {
-      edges: edges.map(({ d, sign }) => edgePieces(segment, d, sign, a, b, n).pieces),
-      pieces: n,
-    };
+function naturalBreaks(segment, zones) {
+  const breaks = [];
+  for (const zone of zones) {
+    breaks.push(
+      zone.t0,
+      ...evoluteCusps(segment, zone.side, zone.t0, zone.t1),
+      zone.t1
+    );
+  }
+  return mergeBreaks(
+    breaks.filter((t) => t > SAME_PARAMETER && t < 1 - SAME_PARAMETER)
+  );
+}
+
+/** Sorted split parameters without (nearly) equal ones. */
+export function mergeBreaks(breaks) {
+  const sorted = [...breaks].sort((a, b) => a - b);
+  return sorted.filter((t, i) => i === 0 || t - sorted[i - 1] > SAME_PARAMETER);
+}
+
+/**
+ * A point on the edge: half the width from the centerline, but no farther
+ * than the radius of the bend towards that side.
+ */
+export function edgePoint(segment, side, half, t) {
+  const sign = side === "left" ? 1 : -1;
+  const bend = sign * curvatureAt(segment, t);
+  const distance = bend * half > 1 ? 1 / bend : half;
+  return add(
+    pointAt(segment, t),
+    scale(leftNormal(tangentAt(segment, t)), sign * distance)
+  );
+}
+
+// The direction of the edge at t, looking forwards (ahead = 1) or backwards
+// (ahead = -1) within [a, b]. Along the evolute, an edge can turn sharply or
+// stand still, so the direction is measured on the edge itself.
+function edgeDirection(segment, side, half, t, ahead, a, b) {
+  const sign = side === "left" ? 1 : -1;
+  const plainOffset = (u) => sign * curvatureAt(segment, u) * half < 1 - 1e-6;
+  const u = Math.min(b, Math.max(a, t + ahead * TANGENT_STEP));
+  if (plainOffset(t) && plainOffset(u)) {
+    return tangentAt(segment, t);
+  }
+  const p = edgePoint(segment, side, half, t);
+  const q = edgePoint(segment, side, half, u);
+  return normalize(ahead > 0 ? sub(q, p) : sub(p, q)) ?? tangentAt(segment, t);
+}
+
+/**
+ * Fit the edge over [a, b] with cubic pieces; without a given number of
+ * pieces, the smallest number that keeps within the tolerance is used.
+ */
+function fitEdge(
+  segment,
+  side,
+  half,
+  a,
+  b,
+  forcedCount,
+  { tolerance, maxSubdivisions }
+) {
+  if (forcedCount > 0 || !(b > a)) {
+    const count = forcedCount > 0 ? Math.round(forcedCount) : 1;
+    return { pieces: edgePieces(segment, side, half, a, b, count).pieces, count };
   }
   let result;
-  for (let n = 1; n <= maxSubdivisions; n++) {
-    const fitted = edges.map(({ d, sign }) => edgePieces(segment, d, sign, a, b, n));
-    result = { edges: fitted.map((edge) => edge.pieces), pieces: n };
-    if (fitted.every((edge) => edge.error <= tolerance)) {
+  for (let count = 1; count <= maxSubdivisions; count++) {
+    const fitted = edgePieces(segment, side, half, a, b, count);
+    result = { pieces: fitted.pieces, count };
+    if (fitted.error <= tolerance) {
       break;
     }
   }
   return result;
 }
 
-function edgePieces(segment, d, sign, a, b, n) {
+function edgePieces(segment, side, half, a, b, count) {
   const pieces = [];
   let error = 0;
-  for (let i = 0; i < n; i++) {
-    const ta = a + ((b - a) * i) / n;
-    const tb = a + ((b - a) * (i + 1)) / n;
-    const p0 = offsetPoint(segment, ta, d);
-    const p3 = offsetPoint(segment, tb, d);
+  for (let i = 0; i < count; i++) {
+    const ta = a + ((b - a) * i) / count;
+    const tb = a + ((b - a) * (i + 1)) / count;
+    const p0 = edgePoint(segment, side, half, ta);
+    const p3 = edgePoint(segment, side, half, tb);
     if (!(tb > ta)) {
       pieces.push({ type: "cubic", points: [p0, p0, p3, p3] });
       continue;
@@ -390,13 +350,13 @@ function edgePieces(segment, d, sign, a, b, n) {
     const samples = [];
     for (let j = 1; j < SAMPLES_PER_PIECE; j++) {
       const u = j / SAMPLES_PER_PIECE;
-      samples.push({ u, ...offsetPoint(segment, ta + (tb - ta) * u, d) });
+      samples.push({ u, ...edgePoint(segment, side, half, ta + (tb - ta) * u) });
     }
     const fitted = fitCubic(
       p0,
-      scale(tangentAt(segment, ta), sign),
+      edgeDirection(segment, side, half, ta, 1, ta, tb),
       p3,
-      scale(tangentAt(segment, tb), sign),
+      edgeDirection(segment, side, half, tb, -1, ta, tb),
       samples
     );
     pieces.push({ type: "cubic", points: fitted.points });
@@ -405,49 +365,31 @@ function edgePieces(segment, d, sign, a, b, n) {
   return { pieces, error };
 }
 
-function offsetPoint(segment, t, d) {
-  return add(pointAt(segment, t), scale(leftNormal(tangentAt(segment, t)), d));
-}
-
 // --- Assembling contours ------------------------------------------------------
 
-// The bands and zone shapes of a run of segments joined by smooth points
+// The band of a run of segments joined by smooth points
 function runContours(run) {
-  const contours = [];
-  let band = newBand();
+  const right = [];
+  const left = [];
+  const joints = [];
   for (const [k, item] of run.entries()) {
-    for (const [s, span] of item.spans.entries()) {
-      if (span.kind === "band") {
-        if (s === 0 && k > 0) {
-          // The band continues from the previous segment through a smooth point
-          band.joints.push(band.right.length);
-        }
-        band.right.push(...span.right.map(copyPiece));
-        band.left.push(...span.left.map(copyPiece));
-        continue;
-      }
-      contours.push(bandContour(band));
-      band = newBand();
-      for (const part of span.parts) {
-        contours.push(...zoneContours(part));
-      }
+    if (k > 0) {
+      // The band continues from the previous segment through a smooth point
+      joints.push({ right: right.length, left: left.length });
     }
+    right.push(...item.right.map(copyPiece));
+    left.push(...item.left.map(copyPiece));
   }
-  contours.push(bandContour(band));
-  return contours;
-}
-
-function newBand() {
-  return { right: [], left: [], joints: [] };
+  return [bandContour(right, left, joints)];
 }
 
 // Right edge forwards, then left edge backwards
-function bandContour({ right, left, joints }) {
+function bandContour(right, left, joints) {
   // At smooth points the edges of the two segments meet only if the tangents
   // agree exactly; meet halfway so that the band stays closed.
-  for (const index of joints) {
-    meetHalfway(right[index - 1], right[index]);
-    meetHalfway(left[index - 1], left[index]);
+  for (const joint of joints) {
+    meetHalfway(right[joint.right - 1], right[joint.right]);
+    meetHalfway(left[joint.left - 1], left[joint.left]);
   }
   const points = [onCurve(right[0].points[0])];
   for (const piece of right) {
@@ -460,43 +402,6 @@ function bandContour({ right, left, joints }) {
   // The last point appended is the start of the left edge; the contour closes
   // with a line back to the start of the right edge.
   return { points, isClosed: true };
-}
-
-// The outer and inner lobes of one part of a twist zone, both counter-clockwise
-function zoneContours({ side, outer, inner, crossing }) {
-  const x = onCurve(crossing);
-  if (side === "left") {
-    // Outer edge on the right: forwards, then X
-    const outerLobe = [onCurve(outer[0].points[0])];
-    for (const piece of outer) {
-      appendPiece(outerLobe, piece.points);
-    }
-    outerLobe.push(x);
-    // X, then the inner (left) edge in the direction of the centerline
-    const innerLobe = [x, onCurve(inner[0].points[0])];
-    for (const piece of inner) {
-      appendPiece(innerLobe, piece.points);
-    }
-    return [
-      { points: outerLobe, isClosed: true },
-      { points: innerLobe, isClosed: true },
-    ];
-  }
-  // Outer edge on the left: X, then the outer edge backwards
-  const outerLobe = [x, onCurve(outer.at(-1).points.at(-1))];
-  for (const piece of outer.toReversed()) {
-    appendPiece(outerLobe, piece.points.toReversed());
-  }
-  // The inner (right) edge against the direction of the centerline, then X
-  const innerLobe = [onCurve(inner.at(-1).points.at(-1))];
-  for (const piece of inner.toReversed()) {
-    appendPiece(innerLobe, piece.points.toReversed());
-  }
-  innerLobe.push(x);
-  return [
-    { points: outerLobe, isClosed: true },
-    { points: innerLobe, isClosed: true },
-  ];
 }
 
 function copyPiece(piece) {

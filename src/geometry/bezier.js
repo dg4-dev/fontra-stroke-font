@@ -175,16 +175,3 @@ export function curvatureAt(segment, t) {
   }
   return 0;
 }
-
-/**
- * Intersection of the lines through p with direction u and through q with
- * direction v, or null when they are (nearly) parallel.
- */
-export function lineIntersection(p, u, q, v) {
-  const denominator = cross(u, v);
-  if (Math.abs(denominator) < 1e-9) {
-    return null;
-  }
-  const s = cross(sub(q, p), v) / denominator;
-  return add(p, scale(u, s));
-}
