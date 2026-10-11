@@ -469,31 +469,48 @@ export function joinShape(point, tangentIn, tangentOut, half, style) {
   // The outer side is on the right when turning left, and on the left when
   // turning right.
   const outer = typeof half === "number" ? half : turnsRight ? half.left : half.right;
+  const inner = typeof half === "number" ? half : turnsRight ? half.right : half.left;
   const side = turnsRight ? outer : -outer;
   const normalIn = leftNormal(tangentIn);
   const normalOut = leftNormal(tangentOut);
   const a = add(point, scale(normalIn, side));
   const b = add(point, scale(normalOut, side));
-  // Counter-clockwise: from the corner to one edge end, around the outside to
-  // the other
+  // The shape starts a little inside the corner, where both bands cover it.
+  // Starting at the corner itself, its sides would lie exactly on the ends of
+  // the bands, and a canvas shows a faint seam along edges that only touch.
+  const start = insideCorner(point, normalIn, normalOut, side, inner);
+  // Counter-clockwise: from inside the corner to one edge end, around the
+  // outside to the other
   const [from, to] = turnsRight ? [b, a] : [a, b];
   if (style.join === "round") {
     const turn = Math.acos(Math.min(1, Math.max(-1, dot(tangentIn, tangentOut))));
-    return fanContour(point, from, to, turn, outer);
+    return fanContour(point, start, from, to, turn);
   }
   const cosTurn = dot(tangentIn, tangentOut);
   const tip =
     style.join === "miter" && miterRatio(tangentIn, tangentOut) <= style.miterLimit
       ? add(point, scale(add(normalIn, normalOut), side / (1 + cosTurn)))
       : lerp(a, b, 0.5);
-  return polygonContour([point, from, tip, to]);
+  return polygonContour([start, from, tip, to]);
+}
+
+// A point on the inner side of a corner, half the inner width away from it
+// along the bisector of the two normals; the corner itself when they cancel
+// out (a stroke turning back on itself)
+function insideCorner(point, normalIn, normalOut, side, inner) {
+  const bisector = add(normalIn, normalOut);
+  const length = Math.hypot(bisector.x, bisector.y);
+  if (!(length > EPSILON) || !(inner > 0)) {
+    return point;
+  }
+  return add(point, scale(bisector, (-Math.sign(side) * inner) / 2 / length));
 }
 
 /**
- * The corner, and an arc around it from one point to another,
- * counter-clockwise over the given angle, drawn with two cubics.
+ * A point near the corner, then an arc around the corner from one point to
+ * another, counter-clockwise over the given angle, drawn with two cubics.
  */
-function fanContour(center, from, to, angle, radius) {
+function fanContour(center, start, from, to, angle) {
   const middle = add(center, rotate(sub(from, center), angle / 2));
   // Handle length of a cubic arc over half the angle
   const k = (4 / 3) * Math.tan(angle / 8);
@@ -504,7 +521,7 @@ function fanContour(center, from, to, angle, radius) {
   };
   return {
     points: [
-      onCurve(center),
+      onCurve(start),
       onCurve(from),
       offCurve(add(from, scale(tangent(from), k))),
       offCurve(sub(middle, scale(tangent(middle), k))),
