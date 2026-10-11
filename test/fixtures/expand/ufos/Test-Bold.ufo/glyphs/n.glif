@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<glyph name="n" format="2">
+  <advance width="500"/>
+  <unicode hex="006E"/>
+  <anchor x="250" y="0" name="bottom"/>
+  <outline>
+    <contour>
+      <point x="100" y="0" type="move" identifier="p1"/>
+      <point x="100" y="300"/>
+      <point x="400" y="300"/>
+      <point x="400" y="0" type="curve"/>
+    </contour>
+    <contour>
+      <point x="0" y="-20" type="line"/>
+      <point x="500" y="-20" type="line"/>
+      <point x="500" y="-10" type="line"/>
+      <point x="0" y="-10" type="line"/>
+    </contour>
+    <component base="period" xOffset="250" yOffset="400" identifier="c1"/>
+  </outline>
+  <lib>
+    <dict>
+      <key>xyz.fontra.glyph.source.customData</key>
+      <dict>
+        <key>xyz.dg4.stroke</key>
+        <dict>
+          <key>defaults</key>
+          <dict>
+            <key>width</key>
+            <integer>160</integer>
+            <key>cap</key>
+            <string>square</string>
+          </dict>
+        </dict>
+      </dict>
+    </dict>
+  </lib>
+</glyph>

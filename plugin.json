@@ -1,0 +1,5 @@
+{
+  "name": "Stroke Font",
+  "init": "src/start.js",
+  "function": "start"
+}

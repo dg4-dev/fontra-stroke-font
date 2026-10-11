@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<designspace format="5.0">
+  <axes>
+    <axis tag="wght" name="Weight" minimum="300" maximum="700" default="300">
+      <map input="300" output="30"/>
+      <map input="700" output="70"/>
+    </axis>
+  </axes>
+  <sources>
+    <source filename="../ufos/Test-Light.ufo" name="Light" stylename="Light">
+      <location><dimension name="Weight" xvalue="30"/></location>
+    </source>
+    <source filename="../ufos/Test-Light.ufo" name="Medium" stylename="Medium" layer="medium">
+      <location><dimension name="Weight" xvalue="50"/></location>
+    </source>
+    <source filename="../ufos/Test-Bold.ufo" name="Bold" stylename="Bold">
+      <location><dimension name="Weight" xvalue="70"/></location>
+    </source>
+  </sources>
+</designspace>
