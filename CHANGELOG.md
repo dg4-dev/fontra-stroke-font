@@ -4,7 +4,7 @@ Each section can be pasted as the notes of the matching GitHub release.
 
 ## 0.2.0
 
-Widths per point: a stroke can now get wider and thinner along its centerline, differently on each side, and its corners can each have their own join. Widths are changed in the sidebar panel or by dragging handles on the canvas.
+Widths per point: a stroke can now get wider and thinner along its centerline, differently on each side, and its corners can each have their own join. Widths are changed in the sidebar panel or by dragging handles on the canvas. Closed contours can be stroked as loops, for letters such as o, 0, D and Q.
 
 ### Added
 
@@ -24,7 +24,7 @@ Widths per point: a stroke can now get wider and thinner along its centerline, d
 ### Changed
 
 - Round joins are drawn as a fan on the outer side of the corner instead of a full circle. The filled shape is the same for equal widths on both sides, but the outlines written by the command-line tool have different points at round joins than with 0.1.0
-- Fonts made with 0.1.0 need no changes
+- Fonts made with 0.1.0 need no changes: their closed contours stay outlines until they are marked as centerlines
 
 ### Install or update
 
@@ -52,7 +52,6 @@ The input files are not changed. See the README for static fonts, overlaps and f
 - Pen nibs and live corners come in later versions
 - Widths per point are interpolated only between sources whose glyphs have the same points
 - The width handles can only be dragged with the stroke width tool, not with Fontra's pointer tool
-- Clicking a stroke selects its glyph only where the glyph's centerlines are, or for a glyph of straight two-point centerlines only within its advance width (#29)
 - Between a source where a stroke twists and one where it does not, in-between weights come out a little thinner on the inside of the bend; the command-line tool warns about such glyphs
 - The stroke width of a component does not scale when the component is scaled
 - Fontra's font overview shows the centerlines
