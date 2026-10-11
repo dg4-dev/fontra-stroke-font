@@ -13,7 +13,6 @@ import {
 import {
   CAPS,
   JOINS,
-  MIN_MITER_LIMIT,
   SHARED_OFFSET_KEYS,
   sanitizeOffsetValue,
   setSourceDefaults,
@@ -209,13 +208,10 @@ export function definePanelElement() {
       this._fields = el(
         "div",
         { class: "fields" },
-        ...this._numberField("width", t("field.width"), { min: 0, step: 1 }),
+        ...this._numberField("width", t("field.width")),
         ...this._selectField("cap", t("field.cap"), CAPS, "cap"),
         ...this._selectField("join", t("field.join"), JOINS, "join"),
-        ...this._numberField("miterLimit", t("field.miterLimit"), {
-          min: MIN_MITER_LIMIT,
-          step: 0.1,
-        })
+        ...this._numberField("miterLimit", t("field.miterLimit"))
       );
 
       this._pointsLabel = el("div", { class: "source" });
@@ -223,16 +219,11 @@ export function definePanelElement() {
       this._pointFields = el(
         "div",
         { class: "fields" },
-        ...this._numberField("width", t("field.width"), { min: 0, step: 1 }, "point"),
-        ...this._numberField("left", t("field.left"), { min: 0, step: 1 }, "point"),
-        ...this._numberField("right", t("field.right"), { min: 0, step: 1 }, "point"),
+        ...this._numberField("width", t("field.width"), "point"),
+        ...this._numberField("left", t("field.left"), "point"),
+        ...this._numberField("right", t("field.right"), "point"),
         ...this._selectField("join", t("field.join"), ["", ...JOINS], "join", "point"),
-        ...this._numberField(
-          "miterLimit",
-          t("field.miterLimit"),
-          { min: MIN_MITER_LIMIT, step: 0.1 },
-          "point"
-        )
+        ...this._numberField("miterLimit", t("field.miterLimit"), "point")
       );
       this._clearButton = el(
         "button",
@@ -307,17 +298,31 @@ export function definePanelElement() {
     }
 
     // target "source" changes the source's value, "point" the selected points'
-    _numberField(key, label, { min, step }, target = "source") {
+    _numberField(key, label, target = "source") {
       const id = `stroke-font-${target}-${key}`;
       const input = el("input", {
         "type": "number",
         id,
-        min,
-        step,
+        // No min or step: the values are checked by sanitizeOffsetValue(), and
+        // with them the browser would flag values such as interpolated widths
+        // as invalid, in the browser's language rather than Fontra's
+        "step": "any",
         "data-key": key,
+        // While typing, the field is not refreshed from the glyph
+        "oninput": () => (input.dataset.typing = "true"),
         // "change" fires on Enter or when leaving the field, so that typing a
         // number makes one undo step rather than one per keystroke
-        "onchange": (event) => this._onChange(target, key, event.target.value),
+        "onchange": (event) => {
+          delete input.dataset.typing;
+          this._onChange(target, key, event.target.value);
+        },
+        "onblur": () => {
+          if (input.dataset.typing) {
+            delete input.dataset.typing;
+            this._syncValues();
+            this._syncPointValues();
+          }
+        },
       });
       return [el("label", { for: id }, label), input];
     }
@@ -392,7 +397,7 @@ export function definePanelElement() {
         const key = input.dataset.key;
         const value = state ? formatValue(state.style[key]) : "";
         // Leave a field alone while it is being typed into
-        if (this.shadowRoot.activeElement !== input && input.value !== String(value)) {
+        if (!input.dataset.typing && input.value !== String(value)) {
           input.value = String(value);
         }
         input.disabled =
@@ -410,13 +415,13 @@ export function definePanelElement() {
       this._pointsLabel.textContent = state
         ? t("points.title", state.count)
         : t("points.noneTitle");
+      // Between sources, the note above the source's values already says why
+      // nothing can be changed
       this._pointsNote.textContent = !state
         ? t("points.none")
-        : !state.atSource
-          ? t("source.notAtSource")
-          : sourceState && !sourceState.isDefaultSource && state.editable
-            ? t("points.sharedJoin", sourceState.defaultSourceName)
-            : "";
+        : sourceState && !sourceState.isDefaultSource && state.editable
+          ? t("points.sharedJoin", sourceState.defaultSourceName)
+          : "";
       this._pointFields.hidden = !state;
       this._clearButton.hidden = !state;
       this._clearButton.disabled = !editable || !state.stored;
@@ -425,7 +430,7 @@ export function definePanelElement() {
         const key = input.dataset.key;
         const value = state?.fields[key];
         const text = value === undefined ? "" : formatValue(value);
-        if (this.shadowRoot.activeElement !== input && input.value !== text) {
+        if (!input.dataset.typing && input.value !== text) {
           input.value = text;
         }
         if (input.tagName === "INPUT") {
