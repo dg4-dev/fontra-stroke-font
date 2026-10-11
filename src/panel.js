@@ -250,7 +250,8 @@ export function definePanelElement() {
           this._checkbox("visible", t("setting.visible")),
           this._checkbox("outlineOnly", t("setting.outlineOnly")),
           this._opacitySlider(),
-          this._checkbox("otherGlyphs", t("setting.otherGlyphs"))
+          this._checkbox("otherGlyphs", t("setting.otherGlyphs")),
+          this._checkbox("handles", t("setting.handles"))
         ),
         el("hr"),
         this._sourceLabel,

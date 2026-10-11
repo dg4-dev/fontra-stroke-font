@@ -54,7 +54,7 @@ export const strings = {
     "undo.pointMiterLimit": "Change point miter limit",
     "undo.pointClear": "Clear point values",
     "tool.title": "Stroke widths: drag the handles on the edges of points",
-    "setting.handles": "Show width handles (stroke width tool)",
+    "setting.handles": "Show width handles with other tools too",
     "menu.pointJoin": "Join of the point",
     "panel.hint":
       "Open contours are centerlines, stroked with these values. Closed contours " +
@@ -106,7 +106,7 @@ export const strings = {
     "undo.pointMiterLimit": "点のマイターリミットの変更",
     "undo.pointClear": "点の値の消去",
     "tool.title": "ストロークの太さ（点の縁のハンドルをドラッグ）",
-    "setting.handles": "太さのハンドルを表示（太さのツール）",
+    "setting.handles": "ほかのツールでも太さのハンドルを表示",
     "menu.pointJoin": "点の角の形",
     "panel.hint":
       "閉じていない輪郭を中心線として、これらの値でなぞります。閉じた輪郭はそのままです。" +
@@ -154,7 +154,7 @@ export const strings = {
     "undo.pointMiterLimit": "修改点的斜接限制",
     "undo.pointClear": "清除点的值",
     "tool.title": "笔画宽度(拖动点边缘的手柄)",
-    "setting.handles": "显示宽度手柄(笔画宽度工具)",
+    "setting.handles": "使用其他工具时也显示宽度手柄",
     "menu.pointJoin": "点的转角",
     "panel.hint":
       "未闭合的轮廓作为中心线,按这些数值描绘笔画。闭合的轮廓保持不变。" +
@@ -202,7 +202,7 @@ export const strings = {
     "undo.pointMiterLimit": "修改點的斜接限制",
     "undo.pointClear": "清除點的值",
     "tool.title": "筆畫寬度(拖曳點邊緣的控點)",
-    "setting.handles": "顯示寬度控點(筆畫寬度工具)",
+    "setting.handles": "使用其他工具時也顯示寬度控點",
     "menu.pointJoin": "點的轉角",
     "panel.hint":
       "未封閉的輪廓作為中心線,依這些數值描繪筆畫。封閉的輪廓保持不變。" +
@@ -253,7 +253,7 @@ export const strings = {
     "undo.pointMiterLimit": "Gehrungsgrenze des Punkts ändern",
     "undo.pointClear": "Punktwerte löschen",
     "tool.title": "Strichbreiten: Anfasser an den Kanten der Punkte ziehen",
-    "setting.handles": "Breitenanfasser anzeigen (Strichbreiten-Werkzeug)",
+    "setting.handles": "Breitenanfasser auch bei anderen Werkzeugen anzeigen",
     "menu.pointJoin": "Ecke des Punkts",
     "panel.hint":
       "Offene Konturen sind Mittellinien und werden mit diesen Werten " +
@@ -305,7 +305,7 @@ export const strings = {
     "undo.pointMiterLimit": "Verstekgrens van punt wijzigen",
     "undo.pointClear": "Puntwaarden wissen",
     "tool.title": "Lijnbreedtes: sleep de grepen aan de randen van punten",
-    "setting.handles": "Breedtegrepen tonen (lijnbreedtegereedschap)",
+    "setting.handles": "Breedtegrepen ook bij ander gereedschap tonen",
     "menu.pointJoin": "Hoek van het punt",
     "panel.hint":
       "Open contouren zijn middenlijnen en worden met deze waarden getrokken. " +
@@ -358,7 +358,7 @@ export const strings = {
     "undo.pointClear": "Effacer les valeurs des points",
     "tool.title":
       "Épaisseurs du trait : faites glisser les poignées sur les bords des points",
-    "setting.handles": "Afficher les poignées d’épaisseur (outil d’épaisseur)",
+    "setting.handles": "Afficher les poignées d’épaisseur avec les autres outils aussi",
     "menu.pointJoin": "Jointure du point",
     "panel.hint":
       "Les contours ouverts sont des lignes médianes, tracées avec ces valeurs. " +
@@ -410,7 +410,8 @@ export const strings = {
     "undo.pointMiterLimit": "Modifica limite di smussatura del punto",
     "undo.pointClear": "Cancella i valori dei punti",
     "tool.title": "Spessori del tratto: trascina le maniglie sui bordi dei punti",
-    "setting.handles": "Mostra le maniglie dello spessore (strumento spessore)",
+    "setting.handles":
+      "Mostra le maniglie dello spessore anche con gli altri strumenti",
     "menu.pointJoin": "Angolo del punto",
     "panel.hint":
       "I contorni aperti sono linee centrali, tracciate con questi valori. I " +
@@ -463,7 +464,7 @@ export const strings = {
     "undo.pointClear": "Borrar los valores de los puntos",
     "tool.title":
       "Grosores del trazo: arrastra los tiradores de los bordes de los puntos",
-    "setting.handles": "Mostrar tiradores de grosor (herramienta de grosor)",
+    "setting.handles": "Mostrar los tiradores de grosor también con otras herramientas",
     "menu.pointJoin": "Esquina del punto",
     "panel.hint":
       "Los contornos abiertos son líneas centrales, trazadas con estos valores. " +
@@ -516,7 +517,7 @@ export const strings = {
     "undo.pointClear": "Borrar los valores de los puntos",
     "tool.title":
       "Grosores del trazo: arrastra los tiradores de los bordes de los puntos",
-    "setting.handles": "Mostrar tiradores de grosor (herramienta de grosor)",
+    "setting.handles": "Mostrar los tiradores de grosor también con otras herramientas",
     "menu.pointJoin": "Esquina del punto",
     "panel.hint":
       "Los contornos abiertos son líneas centrales, trazadas con estos valores. " +
@@ -568,7 +569,7 @@ export const strings = {
     "undo.pointMiterLimit": "Alterar limite de esquadria do ponto",
     "undo.pointClear": "Limpar os valores dos pontos",
     "tool.title": "Espessuras do traço: arraste as alças nas bordas dos pontos",
-    "setting.handles": "Mostrar alças de espessura (ferramenta de espessura)",
+    "setting.handles": "Mostrar as alças de espessura também com outras ferramentas",
     "menu.pointJoin": "Canto do ponto",
     "panel.hint":
       "Contornos abertos são linhas centrais, traçadas com estes valores. " +
@@ -620,7 +621,7 @@ export const strings = {
     "undo.pointMiterLimit": "Alterar limite de esquadria do ponto",
     "undo.pointClear": "Apagar os valores dos pontos",
     "tool.title": "Espessuras do traço: arraste as pegas nos limites dos pontos",
-    "setting.handles": "Mostrar pegas de espessura (ferramenta de espessura)",
+    "setting.handles": "Mostrar as pegas de espessura também com outras ferramentas",
     "menu.pointJoin": "Canto do ponto",
     "panel.hint":
       "Os contornos abertos são linhas centrais, traçadas com estes valores. " +
@@ -671,7 +672,7 @@ export const strings = {
     "undo.pointMiterLimit": "Изменение предела среза точки",
     "undo.pointClear": "Очистка значений точек",
     "tool.title": "Толщина обводки: перетаскивайте маркеры на краях точек",
-    "setting.handles": "Показывать маркеры толщины (инструмент толщины)",
+    "setting.handles": "Показывать маркеры толщины и в других инструментах",
     "menu.pointJoin": "Угол точки",
     "panel.hint":
       "Незамкнутые контуры — это средние линии, обводимые с этими значениями. " +
