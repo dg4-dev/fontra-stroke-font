@@ -10,9 +10,15 @@ import {
   makeStrokeLayerDefinition,
 } from "../src/stroke-layer.js";
 import { FakeContext, fakePositionedGlyph } from "./fakes.js";
-import { on } from "./helpers.js";
+import { off, on } from "./helpers.js";
 
 const line = { points: [on(0, 0), on(200, 0)], isClosed: false };
+const PARAMETERS = {
+  fillColor: "red",
+  twistColor: "orange",
+  markerRadius: 5,
+  markerWidth: 1,
+};
 const square = {
   points: [on(0, 0), on(100, 0), on(100, 100), on(0, 100)],
   isClosed: true,
@@ -26,7 +32,7 @@ test("open contours are filled; closed ones are left to Fontra", () => {
       { customData: { [STROKE_KEY]: { defaults: { width: 40, cap: "butt" } } } },
     ],
   });
-  drawStrokePreview(context, glyph, {}, "red");
+  drawStrokePreview(context, glyph, {}, PARAMETERS);
   const moves = context.calls.filter(([name]) => name === "moveTo");
   // One band for the line, nothing for the square
   assert.equal(moves.length, 1);
@@ -42,7 +48,12 @@ test("open contours are filled; closed ones are left to Fontra", () => {
 
 test("nothing is drawn without open contours", () => {
   const context = new FakeContext();
-  drawStrokePreview(context, fakePositionedGlyph({ contours: [square] }), {}, "red");
+  drawStrokePreview(
+    context,
+    fakePositionedGlyph({ contours: [square] }),
+    {},
+    PARAMETERS
+  );
   assert.deepEqual(context.calls, []);
 });
 
@@ -52,7 +63,7 @@ test("nib glyphs are not drawn yet", () => {
     contours: [line],
     glyphCustomData: { [STROKE_KEY]: { type: "nib" } },
   });
-  drawStrokePreview(context, glyph, {}, "red");
+  drawStrokePreview(context, glyph, {}, PARAMETERS);
   assert.deepEqual(context.calls, []);
 });
 
@@ -66,7 +77,7 @@ test("a malformed contour is skipped", () => {
     }
     return getUnpacked(index);
   };
-  drawStrokePreview(context, glyph, {}, "red");
+  drawStrokePreview(context, glyph, {}, PARAMETERS);
   assert.ok(context.calls.some(([name]) => name === "fill"));
 });
 
@@ -127,7 +138,7 @@ test("the layer draws the positioned glyph at the model's location", () => {
   layer.draw({
     context,
     positionedGlyph: glyph,
-    parameters: { fillColor: "blue" },
+    parameters: { ...PARAMETERS, fillColor: "blue" },
     model: { getLocationForGlyph: (name) => ({ wght: 700, name }) },
   });
   assert.deepEqual(seen, [{ wght: 700, name: "a" }]);
@@ -162,4 +173,22 @@ test("the panel description of the selected glyph", async () => {
   assert.equal(nearest.atSource, false);
   // A source without a name of its own falls back to its layer name
   assert.equal(nearest.sourceName, "light-layer");
+});
+
+test("twisting places get a ring", () => {
+  const context = new FakeContext();
+  const hairpin = {
+    points: [on(0, 0), off(0, 150), off(150, 150), on(150, 0)],
+    isClosed: false,
+  };
+  const glyph = fakePositionedGlyph({
+    contours: [hairpin],
+    sources: [{ customData: { [STROKE_KEY]: { defaults: { width: 120 } } } }],
+  });
+  drawStrokePreview(context, glyph, {}, PARAMETERS);
+  const arcs = context.calls.filter(([name]) => name === "arc");
+  assert.equal(arcs.length, 1);
+  assert.ok(Math.abs(arcs[0][1] - 75) < 1);
+  assert.equal(arcs[0][3], 5);
+  assert.deepEqual(context.calls.at(-1), ["stroke", "orange", 1]);
 });

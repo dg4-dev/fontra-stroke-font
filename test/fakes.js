@@ -61,4 +61,10 @@ export class FakeContext {
   fill(rule) {
     this.calls.push(["fill", rule, this.fillStyle]);
   }
+  arc(x, y, radius, start, end) {
+    this.calls.push(["arc", x, y, radius]);
+  }
+  stroke() {
+    this.calls.push(["stroke", this.strokeStyle, this.lineWidth]);
+  }
 }
