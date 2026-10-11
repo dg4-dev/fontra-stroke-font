@@ -2,7 +2,7 @@
 
 A [Fontra](https://github.com/fontra/fontra) plugin for designing stroke fonts: draw open contours as centerlines, stroke them with a width or a pen nib, and see the stroked shape while you edit.
 
-The plan is in the issues. Phases 1 and 2 work: open contours are stroked with a constant width per source, the values are changed in a sidebar panel and interpolated between sources, and a command-line tool turns the centerlines into outlines for building fonts. Later phases add per-point widths, pen nibs and live corners.
+Version 0.1.0 strokes open contours with a constant width per source: the values are changed in a sidebar panel and interpolated between sources, and a command-line tool turns the centerlines into outlines for building fonts. Per-point widths, pen nibs and live corners come in later versions; the plan is in the issues, and the changes per version in [CHANGELOG.md](CHANGELOG.md).
 
 - **In the editor**: open contours are centerlines. The plugin draws the stroked shape on top of them as a preview; the font sources keep the centerlines
 - **Ways to stroke**: a width (per point, optionally different on each side) with caps, joins and a miter limit; or a pen nib (ellipse, rectangle or flat pen) with its size and angle per point
