@@ -137,6 +137,12 @@ function strokeOpenContoursUncached(path, style) {
       // rather than break drawing.
       continue;
     }
+    const values = style.points?.[contourIndex];
+    if (values) {
+      contour.points.forEach((point, i) => {
+        point.values = values[i];
+      });
+    }
     const stroked = strokeOffsetContour(contour, style);
     outlines.push(...stroked.contours);
     twists.push(...stroked.twists.map((twist) => ({ ...twist, contourIndex })));
@@ -155,6 +161,7 @@ function cacheKey(path, style) {
     style.cap,
     style.join,
     style.miterLimit,
+    style.points ? JSON.stringify(style.points) : "",
     contours,
     Array.from(path.pointTypes ?? []).join(","),
     Array.from(path.coordinates ?? []).join(","),

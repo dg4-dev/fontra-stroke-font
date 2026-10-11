@@ -12,7 +12,11 @@ import {
 import { basename, dirname, join, resolve } from "node:path";
 
 import { strokeCompatibly } from "../src/geometry/compatible.js";
-import { getGlyphStroke, offsetStyleInGlyph } from "../src/stroke-data.js";
+import {
+  getGlyphStroke,
+  offsetStyleInGlyph,
+  resolvePointValues,
+} from "../src/stroke-data.js";
 import { parseDesignspace } from "./formats/designspace.js";
 import { readGlif, rewriteGlif } from "./formats/glif.js";
 import { layerGlyphFiles } from "./formats/ufo.js";
@@ -143,6 +147,36 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
     );
   }
 
+  // The values of the points, with the joins of the default source's points
+  const pointValues = members.map((member) => outlinePointValues(member));
+  if (sameShape) {
+    const defaultValues = pointValues[members.indexOf(defaultMember)];
+    for (const values of pointValues) {
+      for (const [index, contourValues] of values) {
+        for (const [i, own] of contourValues.entries()) {
+          const join = defaultValues.get(index)?.[i]?.join;
+          if (own?.join !== join) {
+            const next = { ...own, join };
+            if (join === undefined) {
+              delete next.join;
+            }
+            contourValues[i] = Object.keys(next).length ? next : undefined;
+          }
+        }
+      }
+    }
+  }
+  const withValues = (member, i, index) => {
+    const contour = member.glif.outline[index].contour;
+    const values = pointValues[i].get(index);
+    return {
+      ...contour,
+      points: contour.points.map((point, k) =>
+        values?.[k] ? { ...point, values: values[k] } : point
+      ),
+    };
+  };
+
   const replacements = members.map(() => new Map());
   if (sameShape) {
     for (const [index, item] of members[0].glif.outline.entries()) {
@@ -151,7 +185,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
       }
       const { results, compatible, problems } = strokeCompatibly(
         members.map((member, i) => ({
-          contour: member.glif.outline[index].contour,
+          contour: withValues(member, i, index),
           style: styles[i],
         })),
         options
@@ -186,7 +220,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
       for (const [index, item] of member.glif.outline.entries()) {
         if (isOpenContour(item)) {
           const { results } = strokeCompatibly(
-            [{ contour: item.contour, style: styles[i] }],
+            [{ contour: withValues(member, i, index), style: styles[i] }],
             options
           );
           replacements[i].set(index, results[0].contours);
@@ -204,6 +238,25 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
     }
   }
   report.glyphs++;
+}
+
+// The values of the points of a glif's contours: outline index → values per
+// point of that contour. Identifiers are looked up across the whole glyph,
+// as Fontra does.
+function outlinePointValues(member) {
+  const items = member.glif.outline.filter((item) => item.contour);
+  const values = resolvePointValues(
+    items.map((item) =>
+      item.contour.points.map((point) => ({
+        identifier: point.attrs?.identifier,
+        onCurve: !point.type,
+      }))
+    ),
+    member.glif.lib[SOURCE_CUSTOM_DATA_KEY] ?? {}
+  );
+  return new Map(
+    items.map((item, k) => [member.glif.outline.indexOf(item), values[k]])
+  );
 }
 
 function isOpenContour(item) {

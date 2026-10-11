@@ -53,6 +53,7 @@ import {
 import { centerlineSegments } from "./centerline.js";
 import { hermitePiece } from "./fit.js";
 import { evoluteCusps, findTwistZones, sharpestBend } from "./twist.js";
+import { pointHalfWidths } from "../stroke-data.js";
 import { widthProfile } from "./widths.js";
 
 /** Largest distance (font units) between a fitted edge and the exact one. */
@@ -100,7 +101,8 @@ export function strokeOffsetContour(contour, style, options = {}) {
     return result;
   }
   const profile = widthProfile(contour, segments, style);
-  if (!(profile.max > 0)) {
+  // (A lone point has no segments; its own width decides below)
+  if (!(profile.max > 0) && segments.length) {
     return result;
   }
   let forced = options.layout;
@@ -152,17 +154,18 @@ export function strokeOffsetContour(contour, style, options = {}) {
     // A lone point (or points on top of each other): a dot, as in SVG
     const pointIndex = contour.points.findIndex((p) => !p.type);
     if (pointIndex >= 0) {
-      const widths = profile.atPoint(pointIndex) ?? {
-        left: style.width / 2,
-        right: style.width / 2,
+      // Without segments, the point's own widths (or the source's)
+      const own = pointHalfWidths(contour.points[pointIndex].values);
+      const widths = {
+        left: own.left ?? style.width / 2,
+        right: own.right ?? style.width / 2,
       };
-      result.contours.push(
-        ...dotShapes(
-          contour.points[pointIndex],
-          (widths.left + widths.right) / 2,
-          style.cap
-        )
-      );
+      const radius = (widths.left + widths.right) / 2;
+      if (radius > 0) {
+        result.contours.push(
+          ...dotShapes(contour.points[pointIndex], radius, style.cap)
+        );
+      }
     }
     return result;
   }
