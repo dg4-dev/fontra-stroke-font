@@ -133,3 +133,33 @@ test("the layer draws the positioned glyph at the model's location", () => {
   assert.deepEqual(seen, [{ wght: 700, name: "a" }]);
   assert.deepEqual(context.calls.at(-1), ["fill", "nonzero", "blue"]);
 });
+
+test("the panel description of the selected glyph", async () => {
+  const { describeStrokeSource } = await import("../src/current-source.js");
+  assert.equal(describeStrokeSource(undefined, {}), null);
+  const glyph = fakePositionedGlyph({
+    sources: [
+      { name: "", layerName: "light-layer", customData: {} },
+      { name: "Bold", customData: { [STROKE_KEY]: { defaults: { width: 120 } } } },
+    ],
+    sourceIndex: 1,
+  });
+  const state = describeStrokeSource(glyph, {});
+  assert.equal(state.glyphName, "a");
+  assert.equal(state.sourceName, "Bold");
+  assert.equal(state.atSource, true);
+  assert.equal(state.method, "offset");
+  assert.deepEqual(state.stored, { width: 120 });
+  assert.equal(state.style.width, 120);
+  assert.equal(state.style.cap, "round");
+
+  const between = fakePositionedGlyph({
+    sources: glyph.varGlyph.sources,
+    sourceIndex: undefined,
+    nearestSourceIndex: 0,
+  });
+  const nearest = describeStrokeSource(between, {});
+  assert.equal(nearest.atSource, false);
+  // A source without a name of its own falls back to its layer name
+  assert.equal(nearest.sourceName, "light-layer");
+});

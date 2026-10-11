@@ -104,26 +104,45 @@ export function sanitizeOffsetValue(key, value) {
 /**
  * Set (or, with undefined, remove) source default values, in place. Returns
  * the customData. Other keys of the stroke data are kept.
+ *
+ * Only the keys that change are assigned or deleted, and new objects are
+ * built from plain values only: inside Fontra's editGlyph functions the
+ * customData is a change-recording proxy, and assigning an object that holds
+ * such proxies would record proxies instead of data.
  * @param {object} sourceCustomData customData of a glyph source
  * @param {object} values e.g. { width: 90 } or { cap: undefined }
  */
 export function setSourceDefaults(sourceCustomData, values) {
-  const stored = asObject(sourceCustomData[STROKE_KEY]);
-  const defaults = { ...asObject(stored.defaults) };
-  for (const [key, value] of Object.entries(values)) {
-    if (value === undefined) {
-      delete defaults[key];
-    } else {
-      defaults[key] = value;
+  const toSet = Object.fromEntries(
+    Object.entries(values).filter(([key, value]) => value !== undefined)
+  );
+  const stored = sourceCustomData[STROKE_KEY];
+  if (!isObject(stored)) {
+    if (Object.keys(toSet).length) {
+      sourceCustomData[STROKE_KEY] = { defaults: toSet };
+    }
+    return sourceCustomData;
+  }
+  const defaults = stored.defaults;
+  if (!isObject(defaults)) {
+    if (Object.keys(toSet).length) {
+      stored.defaults = toSet;
+    }
+  } else {
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) {
+        if (defaults[key] !== undefined) {
+          delete defaults[key];
+        }
+      } else if (defaults[key] !== value) {
+        defaults[key] = value;
+      }
+    }
+    if (!Object.keys(defaults).length) {
+      delete stored.defaults;
     }
   }
-  const updated = { ...stored, defaults };
-  if (!Object.keys(defaults).length) {
-    delete updated.defaults;
-  }
-  if (Object.keys(updated).length) {
-    sourceCustomData[STROKE_KEY] = updated;
-  } else {
+  if (!Object.keys(stored).length) {
     delete sourceCustomData[STROKE_KEY];
   }
   return sourceCustomData;
@@ -144,8 +163,12 @@ export function isCenterline(contour) {
   return !contour.isClosed;
 }
 
+function isObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
 function asObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return isObject(value) ? value : {};
 }
 
 function toNumber(value) {

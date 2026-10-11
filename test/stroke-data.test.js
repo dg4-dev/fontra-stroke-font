@@ -95,6 +95,50 @@ test("setSourceDefaults removes the key when nothing is left", () => {
   assert.deepEqual(customData, {});
 });
 
+test("setSourceDefaults only touches the keys that change", () => {
+  // Record what a change-recording proxy would see
+  const log = [];
+  const record = (target, path) =>
+    new Proxy(target, {
+      get(obj, prop) {
+        const value = obj[prop];
+        return value && typeof value === "object"
+          ? record(value, [...path, prop])
+          : value;
+      },
+      set(obj, prop, value) {
+        log.push(["=", [...path, prop].join("/"), value]);
+        obj[prop] = value;
+        return true;
+      },
+      deleteProperty(obj, prop) {
+        log.push(["d", [...path, prop].join("/")]);
+        delete obj[prop];
+        return true;
+      },
+    });
+  const customData = {
+    [STROKE_KEY]: {
+      defaults: { width: 50, cap: "round" },
+      points: { abc: { left: 10 } },
+    },
+  };
+  setSourceDefaults(record(customData, []), {
+    width: 60,
+    cap: "round",
+    join: undefined,
+  });
+  assert.deepEqual(log, [["=", `${STROKE_KEY}/defaults/width`, 60]]);
+  log.length = 0;
+  setSourceDefaults(record(customData, []), { width: undefined, cap: undefined });
+  assert.deepEqual(log, [
+    ["d", `${STROKE_KEY}/defaults/width`],
+    ["d", `${STROKE_KEY}/defaults/cap`],
+    ["d", `${STROKE_KEY}/defaults`],
+  ]);
+  assert.deepEqual(customData, { [STROKE_KEY]: { points: { abc: { left: 10 } } } });
+});
+
 test("nib angles are kept in [0, 180)", () => {
   assert.equal(normalizeNibAngle(45), 45);
   assert.equal(normalizeNibAngle(180), 0);
