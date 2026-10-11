@@ -1,12 +1,13 @@
 // Fontra plugin entry point. Fontra imports this module and calls
 // start(editor, pluginPath) once the glyph editor has been set up.
 
-import { ComponentGlyphs } from "./glyph-strokes.js";
+import { ComponentGlyphs, strokeGlyph } from "./glyph-strokes.js";
 import {
   HANDLES_LAYER_IDENTIFIER,
   makeHandlesLayerDefinition,
 } from "./handles-layer.js";
 import { makeGlyphExpander, makeStrokedTest, wrapGlyphLayers } from "./other-glyphs.js";
+import { widenHitAreas } from "./hit-areas.js";
 import { PANEL_IDENTIFIER, definePanelElement } from "./panel.js";
 import { StrokeSettings } from "./settings.js";
 import { t } from "./strings.js";
@@ -21,9 +22,12 @@ export function start(editor, pluginPath) {
   }
 
   const settings = new StrokeSettings();
-  const componentGlyphs = new ComponentGlyphs(editor.fontController, () =>
-    editor.canvasController.requestUpdate()
-  );
+  // Glyphs of components load later; their glyphs' strokes then change
+  let widenAll = () => {};
+  const componentGlyphs = new ComponentGlyphs(editor.fontController, () => {
+    widenAll();
+    editor.canvasController.requestUpdate();
+  });
   insertLayerDefinition(
     visualizationLayers.definitions,
     makeStrokeLayerDefinition({ settings, componentGlyphs })
@@ -42,6 +46,22 @@ export function start(editor, pluginPath) {
   );
   visualizationLayers.toggle(HANDLES_LAYER_IDENTIFIER, true);
   visualizationLayers.requestUpdate?.();
+
+  // Make the glyphs of the text clickable by their stroked shapes
+  const sceneModel = editor.sceneController?.sceneModel;
+  const sceneSettingsController = editor.sceneController?.sceneSettingsController;
+  widenAll = () =>
+    widenHitAreas(
+      sceneModel?.positionedLines,
+      (item) =>
+        strokeGlyph(
+          item,
+          sceneModel.getLocationForGlyph?.(item.glyphName),
+          componentGlyphs
+        ).outlines
+    );
+  sceneSettingsController?.addKeyListener?.("positionedLines", () => widenAll());
+  widenAll();
 
   settings.addListener((key, value) => {
     if (key === "visible") {

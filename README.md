@@ -202,9 +202,9 @@ The exception is a twist that only some sources have. In a source that twists, t
 - The stroked shapes are drawn in the glyph editor only. Fontra's font overview shows the centerlines
 - To draw the other glyphs with their strokes, the plugin wraps the draw functions of four of Fontra's visualization layers (`fontra.context.glyphs`, `fontra.selected.glyph`, `fontra.hovered.glyph`, `fontra.all.glyphs`) and hands them the stroked shapes instead of the centerlines
 - Fontra takes a glyph whose contours all have two points or less (a glyph of straight two-point centerlines) for an empty glyph. The plugin wraps the selection filters of Fontra's layers for selected, hovered and empty glyphs (`fontra.selected.glyph`, `fontra.hovered.glyph`, `fontra.empty.selected.glyph`, `fontra.empty.hovered.glyph`, `fontra.undefined.glyph`) so that such a glyph is drawn with its strokes and without Fontra's placeholder
+- Fontra finds the glyph under the pointer by its bounds and convex hull, made from its outlines: for a glyph with centerlines, the centerlines only. After Fontra lays out the text, the plugin widens the bounds of such glyphs and replaces their convex hull (cached on Fontra's glyph controller, used only for this) with those of their stroked shapes, so that they can be clicked anywhere on their strokes
 - The preview does not appear in Fontra's "View → Glyph editor appearance" menu. Items in that menu need an internal Fontra action registration that plugins cannot make. Use the sidebar panel to toggle it instead
 - The handles can only be dragged with the stroke width tool, not with Fontra's pointer tool
-- Fontra finds the glyph under the pointer by its centerlines, not by its stroked shape, so clicking a stroke outside the area of its centerlines does not select the glyph. For a glyph of straight two-point centerlines, only the area of its advance width can be clicked, which can be narrower than its strokes ([#29](https://github.com/dg4-dev/fontra-stroke-font/issues/29))
 - Per-point values are interpolated only between sources whose glyphs have the same points; otherwise the preview between such sources uses the sources' values only
 - The plugin relies on internal APIs of Fontra's editor (`editor.visualizationLayers`, `editor.addSidebarPanel()`, `editor.addEditTool()`, `sceneController.editGlyph()`, `sceneController.editNamedGlyphAndRecordChanges()` and others). Changes in Fontra may break it
 
@@ -227,6 +227,7 @@ src/
   point-edit.js       Reading and changing the values of the selected points
   width-tool.js       The stroke width tool (handles on the canvas)
   handles-layer.js    Fontra visualization layer for the handles
+  hit-areas.js        Making the glyphs of the text clickable by their strokes
   glyph-strokes.js    Stroked shapes of a glyph and its components, reused while unchanged
   stroke-layer.js     Fontra visualization layer for the preview
   other-glyphs.js     Wrapping Fontra's layers that draw the other glyphs

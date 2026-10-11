@@ -15,6 +15,7 @@ Each section can be pasted as the notes of the matching GitHub release.
 
 - A glyph made only of straight two-point centerlines (such as l or -) lost its fill when selected or hovered in the glyph editor, and got Fontra's placeholder for empty glyphs drawn over it: Fontra takes such a glyph for an empty one
 - A faint seam could show where a join meets the strokes of a corner
+- Clicking a stroke in the glyph editor did not select its glyph outside the area of its centerlines, and for a glyph of straight two-point centerlines only within its advance width, which could select the glyph next to it instead (#29)
 
 ### Changed
 
