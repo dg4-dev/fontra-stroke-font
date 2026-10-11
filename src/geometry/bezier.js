@@ -145,3 +145,33 @@ export function isDegenerateSegment(segment) {
   const [p0, ...rest] = segment.points;
   return rest.every((p) => distance(p, p0) <= EPSILON);
 }
+
+/** Second derivative of a "line" or "cubic" segment. */
+export function secondDerivativeAt(segment, t) {
+  if (segment.type === "line") {
+    return { x: 0, y: 0 };
+  }
+  const [p0, p1, p2, p3] = segment.points;
+  const mt = 1 - t;
+  return {
+    x: 6 * (mt * (p2.x - 2 * p1.x + p0.x) + t * (p3.x - 2 * p2.x + p1.x)),
+    y: 6 * (mt * (p2.y - 2 * p1.y + p0.y) + t * (p3.y - 2 * p2.y + p1.y)),
+  };
+}
+
+/**
+ * Signed curvature: positive where the curve turns left (counter-clockwise).
+ * Where the first derivative vanishes (a handle retracted onto its point),
+ * the curvature just inside the segment is used.
+ */
+export function curvatureAt(segment, t) {
+  for (const u of [t, Math.min(1, t + 1e-4), Math.max(0, t - 1e-4)]) {
+    const d1 = derivativeAt(segment, u);
+    const speedSquared = d1.x * d1.x + d1.y * d1.y;
+    if (speedSquared > EPSILON) {
+      const d2 = secondDerivativeAt(segment, u);
+      return cross(d1, d2) / (speedSquared * Math.sqrt(speedSquared));
+    }
+  }
+  return 0;
+}

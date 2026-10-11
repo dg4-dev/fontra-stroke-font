@@ -33,6 +33,12 @@ export const DEFAULT_OFFSET_STYLE = Object.freeze({
 
 export const MIN_MITER_LIMIT = 1;
 
+// Numbers vary between sources and are interpolated. Strings cannot be
+// interpolated, and the outlines would not match if they differed, so all
+// sources use the default source's.
+export const INTERPOLATED_OFFSET_KEYS = Object.freeze(["width", "miterLimit"]);
+export const SHARED_OFFSET_KEYS = Object.freeze(["cap", "join"]);
+
 /**
  * The stroke method of a glyph. Glyphs without settings use the offset method.
  * @param {object} glyphCustomData customData of the variable glyph
@@ -74,6 +80,21 @@ export function resolveOffsetStyle(sourceCustomData) {
     }
   }
   return style;
+}
+
+/**
+ * The offset style of a source within its glyph: its own numbers, with the
+ * cap and join of the default source.
+ * @param {object} sourceCustomData customData of the source
+ * @param {object} defaultSourceCustomData customData of the default source
+ */
+export function offsetStyleInGlyph(sourceCustomData, defaultSourceCustomData) {
+  const own = resolveOffsetStyle(sourceCustomData);
+  const shared = resolveOffsetStyle(defaultSourceCustomData);
+  for (const key of SHARED_OFFSET_KEYS) {
+    own[key] = shared[key];
+  }
+  return own;
 }
 
 /**

@@ -14,9 +14,11 @@ export const strings = {
     "panel.title": "Stroke font",
     "setting.visible": "Show stroke preview",
     "source.current": "Source: {0}",
+    "source.between": "Between sources",
     "source.notAtSource":
-      "Not at a source: the preview uses the values of the nearest source, “{0}”. " +
-      "Go to a source to change its values.",
+      "Between sources: the preview uses values interpolated between the sources. Go to a source to change its values.",
+    "source.sharedStyle":
+      "Cap and join are the same in all sources; they are saved in the default source, “{0}”.",
     "source.noGlyph": "No glyph selected",
     "source.nibGlyph":
       "This glyph is stroked with a pen nib, which is not supported yet.",
@@ -44,9 +46,11 @@ export const strings = {
     "panel.title": "ストロークフォント",
     "setting.visible": "なぞった形を表示",
     "source.current": "ソース: {0}",
+    "source.between": "ソースの間",
     "source.notAtSource":
-      "ソースの位置ではありません。表示には一番近いソース「{0}」の値を使っています。" +
-      "値を変えるには、ソースの位置に移動してください。",
+      "ソースの位置ではありません。表示には、ソースの値を補間した値を使っています。値を変えるには、ソースの位置に移動してください。",
+    "source.sharedStyle":
+      "端の形と角の形は全ソース共通で、デフォルトソース「{0}」に保存されます。",
     "source.noGlyph": "グリフが選択されていません",
     "source.nibGlyph":
       "このグリフはペン先でなぞる設定です。ペン先にはまだ対応していません。",
@@ -73,8 +77,10 @@ export const strings = {
     "panel.title": "笔画字体",
     "setting.visible": "显示笔画预览",
     "source.current": "源: {0}",
+    "source.between": "源之间",
     "source.notAtSource":
-      "当前不在源的位置: 预览使用最近的源“{0}”的值。要修改数值,请切换到某个源。",
+      "当前不在源的位置: 预览使用各源数值的插值。要修改数值,请切换到某个源。",
+    "source.sharedStyle": "端点和转角在所有源中相同,保存在默认源“{0}”中。",
     "source.noGlyph": "未选择字形",
     "source.nibGlyph": "此字形使用笔尖描绘,目前尚不支持。",
     "field.width": "宽度",
@@ -100,8 +106,10 @@ export const strings = {
     "panel.title": "筆畫字型",
     "setting.visible": "顯示筆畫預覽",
     "source.current": "源: {0}",
+    "source.between": "源之間",
     "source.notAtSource":
-      "目前不在源的位置: 預覽使用最近的源「{0}」的數值。要修改數值,請切換到某個源。",
+      "目前不在源的位置: 預覽使用各源數值的內插值。要修改數值,請切換到某個源。",
+    "source.sharedStyle": "端點和轉角在所有源中相同,儲存在預設源「{0}」中。",
     "source.noGlyph": "未選取字符",
     "source.nibGlyph": "此字符使用筆尖描繪,目前尚未支援。",
     "field.width": "寬度",
@@ -127,9 +135,11 @@ export const strings = {
     "panel.title": "Strichschrift",
     "setting.visible": "Strichvorschau anzeigen",
     "source.current": "Source: {0}",
+    "source.between": "Zwischen Sources",
     "source.notAtSource":
-      "Nicht an einer Source: Die Vorschau verwendet die Werte der nächsten " +
-      "Source „{0}“. Wechsle zu einer Source, um ihre Werte zu ändern.",
+      "Nicht an einer Source: Die Vorschau verwendet zwischen den Sources interpolierte Werte. Wechsle zu einer Source, um ihre Werte zu ändern.",
+    "source.sharedStyle":
+      "Linienende und Ecke gelten für alle Sources und werden in der Standard-Source „{0}“ gespeichert.",
     "source.noGlyph": "Keine Glyphe ausgewählt",
     "source.nibGlyph":
       "Diese Glyphe wird mit einer Federspitze gezeichnet, was noch nicht unterstützt wird.",
@@ -157,9 +167,11 @@ export const strings = {
     "panel.title": "Lijnfont",
     "setting.visible": "Lijnvoorbeeld tonen",
     "source.current": "Source: {0}",
+    "source.between": "Tussen sources",
     "source.notAtSource":
-      "Niet op een source: het voorbeeld gebruikt de waarden van de dichtstbijzijnde " +
-      "source, ‘{0}’. Ga naar een source om de waarden te wijzigen.",
+      "Niet op een source: het voorbeeld gebruikt waarden die tussen de sources geïnterpoleerd zijn. Ga naar een source om de waarden te wijzigen.",
+    "source.sharedStyle":
+      "Lijnuiteinde en hoek zijn in alle sources gelijk en worden opgeslagen in de standaardsource ‘{0}’.",
     "source.noGlyph": "Geen glyph geselecteerd",
     "source.nibGlyph":
       "Deze glyph wordt met een penpunt getrokken; dat wordt nog niet ondersteund.",
@@ -187,9 +199,11 @@ export const strings = {
     "panel.title": "Police à traits",
     "setting.visible": "Afficher l’aperçu du trait",
     "source.current": "Source : {0}",
+    "source.between": "Entre les sources",
     "source.notAtSource":
-      "Pas sur une source : l’aperçu utilise les valeurs de la source la plus " +
-      "proche, « {0} ». Placez-vous sur une source pour modifier ses valeurs.",
+      "Pas sur une source : l’aperçu utilise des valeurs interpolées entre les sources. Placez-vous sur une source pour modifier ses valeurs.",
+    "source.sharedStyle":
+      "L’extrémité et la jointure sont les mêmes pour toutes les sources ; elles sont enregistrées dans la source par défaut, « {0} ».",
     "source.noGlyph": "Aucun glyphe sélectionné",
     "source.nibGlyph":
       "Ce glyphe est tracé avec une plume, ce qui n’est pas encore pris en charge.",
@@ -217,9 +231,11 @@ export const strings = {
     "panel.title": "Font a tratto",
     "setting.visible": "Mostra anteprima del tratto",
     "source.current": "Sorgente: {0}",
+    "source.between": "Tra le sorgenti",
     "source.notAtSource":
-      "Non su una sorgente: l’anteprima usa i valori della sorgente più vicina, " +
-      "«{0}». Spostati su una sorgente per modificarne i valori.",
+      "Non su una sorgente: l’anteprima usa valori interpolati tra le sorgenti. Spostati su una sorgente per modificarne i valori.",
+    "source.sharedStyle":
+      "Estremità e angolo sono uguali in tutte le sorgenti e vengono salvati nella sorgente predefinita, «{0}».",
     "source.noGlyph": "Nessun glifo selezionato",
     "source.nibGlyph":
       "Questo glifo è tracciato con un pennino, non ancora supportato.",
@@ -247,9 +263,11 @@ export const strings = {
     "panel.title": "Fuente de trazos",
     "setting.visible": "Mostrar vista previa del trazo",
     "source.current": "Matriz: {0}",
+    "source.between": "Entre matrices",
     "source.notAtSource":
-      "No estás en una matriz: la vista previa usa los valores de la matriz más " +
-      "cercana, «{0}». Ve a una matriz para cambiar sus valores.",
+      "No estás en una matriz: la vista previa usa valores interpolados entre las matrices. Ve a una matriz para cambiar sus valores.",
+    "source.sharedStyle":
+      "El extremo y la esquina son iguales en todas las matrices y se guardan en la matriz predeterminada, «{0}».",
     "source.noGlyph": "Ningún glifo seleccionado",
     "source.nibGlyph":
       "Este glifo se traza con una plumilla, que todavía no es compatible.",
@@ -277,9 +295,11 @@ export const strings = {
     "panel.title": "Fuente de trazos",
     "setting.visible": "Mostrar vista previa del trazo",
     "source.current": "Matriz: {0}",
+    "source.between": "Entre matrices",
     "source.notAtSource":
-      "No estás en una matriz: la vista previa usa los valores de la matriz más " +
-      "cercana, “{0}”. Ve a una matriz para cambiar sus valores.",
+      "No estás en una matriz: la vista previa usa valores interpolados entre las matrices. Ve a una matriz para cambiar sus valores.",
+    "source.sharedStyle":
+      "El extremo y la esquina son iguales en todas las matrices y se guardan en la matriz predeterminada, “{0}”.",
     "source.noGlyph": "Ningún glifo seleccionado",
     "source.nibGlyph":
       "Este glifo se traza con una plumilla, que todavía no es compatible.",
@@ -307,9 +327,11 @@ export const strings = {
     "panel.title": "Fonte de traços",
     "setting.visible": "Mostrar prévia do traço",
     "source.current": "Matriz: {0}",
+    "source.between": "Entre matrizes",
     "source.notAtSource":
-      "Fora de uma matriz: a prévia usa os valores da matriz mais próxima, “{0}”. " +
-      "Vá até uma matriz para alterar seus valores.",
+      "Fora de uma matriz: a prévia usa valores interpolados entre as matrizes. Vá até uma matriz para alterar seus valores.",
+    "source.sharedStyle":
+      "Terminal e canto são iguais em todas as matrizes e ficam salvos na matriz padrão, “{0}”.",
     "source.noGlyph": "Nenhum glifo selecionado",
     "source.nibGlyph":
       "Este glifo é traçado com uma pena, o que ainda não é suportado.",
@@ -337,9 +359,11 @@ export const strings = {
     "panel.title": "Tipo de traços",
     "setting.visible": "Mostrar pré-visualização do traço",
     "source.current": "Matriz: {0}",
+    "source.between": "Entre matrizes",
     "source.notAtSource":
-      "Fora de uma matriz: a pré-visualização usa os valores da matriz mais " +
-      "próxima, «{0}». Vá até uma matriz para alterar os seus valores.",
+      "Fora de uma matriz: a pré-visualização usa valores interpolados entre as matrizes. Vá até uma matriz para alterar os seus valores.",
+    "source.sharedStyle":
+      "Terminal e canto são iguais em todas as matrizes e ficam guardados na matriz predefinida, «{0}».",
     "source.noGlyph": "Nenhum glifo selecionado",
     "source.nibGlyph":
       "Este glifo é traçado com um aparo, o que ainda não é suportado.",
@@ -367,9 +391,11 @@ export const strings = {
     "panel.title": "Штриховой шрифт",
     "setting.visible": "Показывать обводку",
     "source.current": "Мастер: {0}",
+    "source.between": "Между мастерами",
     "source.notAtSource":
-      "Не в позиции мастера: для просмотра берутся значения ближайшего " +
-      "мастера «{0}». Перейдите к мастеру, чтобы изменить его значения.",
+      "Не в позиции мастера: для просмотра значения интерполируются между мастерами. Перейдите к мастеру, чтобы изменить его значения.",
+    "source.sharedStyle":
+      "Концы и углы одинаковы во всех мастерах и сохраняются в мастере по умолчанию «{0}».",
     "source.noGlyph": "Глиф не выбран",
     "source.nibGlyph": "Этот глиф обводится пером, что пока не поддерживается.",
     "field.width": "Толщина",

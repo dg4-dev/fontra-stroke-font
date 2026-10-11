@@ -78,7 +78,7 @@ test("an arc's edges are arcs of radius r ± half the width", () => {
   assert.ok(radii.every((r) => Math.abs(r - 260) < 0.6 || Math.abs(r - 340) < 0.6));
 });
 
-test("the number of pieces can be given per segment", () => {
+test("the number of pieces can be given in a layout", () => {
   const contour = openContour(
     on(0, 0),
     on(100, 0, true),
@@ -87,11 +87,17 @@ test("the number of pieces can be given per segment", () => {
     on(200, 200)
   );
   const auto = strokeOffsetContour(contour, style());
-  assert.equal(auto.subdivisions[0], 1);
-  const forced = strokeOffsetContour(contour, style(), {
-    subdivisions: [undefined, 3],
-  });
-  assert.deepEqual(forced.subdivisions, [1, 3]);
+  const line = { breaks: [], pieces: [1] };
+  assert.deepEqual(auto.layout.segments[0], { left: line, right: line });
+  const forcedLayout = {
+    segments: [
+      auto.layout.segments[0],
+      { left: { breaks: [], pieces: [3] }, right: { breaks: [], pieces: [3] } },
+    ],
+  };
+  const forced = strokeOffsetContour(contour, style(), { layout: forcedLayout });
+  assert.equal(forced.layoutMismatch, false);
+  assert.deepEqual(forced.layout, forcedLayout);
   // 1 line + 3 cubics on each edge, joined by the two ends
   const band = forced.contours[0];
   assert.equal(band.points.filter((p) => !p.type).length, 10);
@@ -100,11 +106,17 @@ test("the number of pieces can be given per segment", () => {
 
 test("a tighter tolerance uses more pieces", () => {
   const contour = openContour(on(0, 0), off(0, 300), off(300, 300), on(300, 0));
-  const loose = strokeOffsetContour(contour, style({ width: 200 }), { tolerance: 5 });
-  const tight = strokeOffsetContour(contour, style({ width: 200 }), {
-    tolerance: 0.05,
-  });
-  assert.ok(tight.subdivisions[0] > loose.subdivisions[0]);
+  const pieces = (tolerance) =>
+    strokeOffsetContour(contour, style({ width: 200 }), { tolerance }).layout
+      .segments[0].left.pieces[0];
+  assert.ok(pieces(0.05) > pieces(5));
+});
+
+test("a layout for another contour is not followed", () => {
+  const contour = openContour(on(0, 0), on(100, 0));
+  const result = strokeOffsetContour(contour, style(), { layout: { segments: [] } });
+  assert.equal(result.layoutMismatch, true);
+  assert.equal(result.contours.length, 1);
 });
 
 test("all contours are counter-clockwise", () => {
@@ -312,8 +324,8 @@ test("no holes inside sharp miter and bevel strokes", () => {
 
 test("zero-length segments are skipped", () => {
   const contour = openContour(on(0, 0), on(100, 0), on(100, 0), on(200, 0));
-  const { contours, subdivisions } = strokeOffsetContour(contour, style());
-  assert.deepEqual(subdivisions, [1, 0, 1]);
+  const { contours, layout } = strokeOffsetContour(contour, style());
+  assert.equal(layout.segments[1], null);
   assert.deepEqual(bounds(contours), { xMin: 0, yMin: -40, xMax: 200, yMax: 40 });
   assert.equal(centerlineSegments(contour).length, 3);
 });

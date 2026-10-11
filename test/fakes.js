@@ -28,7 +28,24 @@ export function fakePositionedGlyph(options) {
   const varGlyph = {
     glyph: { customData: glyphCustomData, sources },
     sources,
-    findNearestSourceForSourceLocation: () => nearestSourceIndex,
+    findNearestSourceForSourceLocation: (location) =>
+      location?.isDefault ? 0 : nearestSourceIndex,
+    getDenseDefaultSourceLocation: () => ({ isDefault: true }),
+    // Sources at wght 300, 700, ... in order; values interpolated linearly
+    model: {
+      getDeltas: (values) => values,
+      interpolateFromDeltas(location, values) {
+        const position = ((location.wght ?? 300) - 300) / 400;
+        const i = Math.min(values.length - 2, Math.max(0, Math.floor(position)));
+        const f = position - i;
+        if (values.length === 1) {
+          return { instance: values[0] };
+        }
+        return {
+          instance: values[i].map((v, k) => v + (values[i + 1][k] - v) * f),
+        };
+      },
+    },
   };
   return {
     glyphName: "a",
@@ -60,5 +77,11 @@ export class FakeContext {
   }
   fill(rule) {
     this.calls.push(["fill", rule, this.fillStyle]);
+  }
+  arc(x, y, radius, start, end) {
+    this.calls.push(["arc", x, y, radius]);
+  }
+  stroke() {
+    this.calls.push(["stroke", this.strokeStyle, this.lineWidth]);
   }
 }

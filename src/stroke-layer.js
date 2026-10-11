@@ -21,17 +21,24 @@ export function makeStrokeLayerDefinition() {
     // plugin's sidebar panel instead.
     userSwitchable: false,
     zIndex: LAYER_Z_INDEX,
-    screenParameters: {},
-    colors: { fillColor: "hsla(215, 90%, 45%, 0.3)" },
-    colorsDarkMode: { fillColor: "hsla(215, 90%, 65%, 0.35)" },
+    // Sizes in screen pixels; Fontra converts them to glyph units
+    screenParameters: { markerRadius: 7, markerWidth: 2 },
+    colors: {
+      fillColor: "hsla(215, 90%, 45%, 0.3)",
+      twistColor: "hsla(10, 90%, 50%, 0.9)",
+    },
+    colorsDarkMode: {
+      fillColor: "hsla(215, 90%, 65%, 0.35)",
+      twistColor: "hsla(10, 90%, 62%, 0.9)",
+    },
     draw: ({ context, positionedGlyph, parameters, model }) => {
       const location = model?.getLocationForGlyph?.(positionedGlyph?.glyphName);
-      drawStrokePreview(context, positionedGlyph, location, parameters.fillColor);
+      drawStrokePreview(context, positionedGlyph, location, parameters);
     },
   };
 }
 
-export function drawStrokePreview(context, positionedGlyph, location, fillColor) {
+export function drawStrokePreview(context, positionedGlyph, location, parameters) {
   const path = positionedGlyph?.glyph?.path;
   if (!path?.numContours) {
     return;
@@ -40,24 +47,35 @@ export function drawStrokePreview(context, positionedGlyph, location, fillColor)
   if (!style) {
     return;
   }
-  const outlines = strokeOpenContours(path, style);
-  if (!outlines.length) {
-    return;
+  const { outlines, twists } = strokeOpenContours(path, style);
+  if (outlines.length) {
+    context.beginPath();
+    for (const contour of outlines) {
+      appendContour(context, contour);
+    }
+    context.fillStyle = parameters.fillColor;
+    // The bands, joins and caps overlap and all run counter-clockwise
+    context.fill("nonzero");
   }
-  context.beginPath();
-  for (const contour of outlines) {
-    appendContour(context, contour);
+  // Rings where the stroke twists (bends more sharply than half the width)
+  if (twists.length) {
+    context.strokeStyle = parameters.twistColor;
+    context.lineWidth = parameters.markerWidth;
+    for (const { point } of twists) {
+      context.beginPath();
+      context.arc(point.x, point.y, parameters.markerRadius, 0, 2 * Math.PI);
+      context.stroke();
+    }
   }
-  context.fillStyle = fillColor;
-  // The bands, joins and caps overlap and all run counter-clockwise
-  context.fill("nonzero");
 }
 
 /**
- * Stroked outlines of the open contours of a Fontra path.
+ * Stroked outlines of the open contours of a Fontra path, and the places
+ * where the strokes twist.
  */
 export function strokeOpenContours(path, style) {
   const outlines = [];
+  const twists = [];
   for (let contourIndex = 0; contourIndex < path.numContours; contourIndex++) {
     if (path.contourInfo[contourIndex].isClosed) {
       continue;
@@ -70,9 +88,11 @@ export function strokeOpenContours(path, style) {
       // rather than break drawing.
       continue;
     }
-    outlines.push(...strokeOffsetContour(contour, style).contours);
+    const stroked = strokeOffsetContour(contour, style);
+    outlines.push(...stroked.contours);
+    twists.push(...stroked.twists.map((twist) => ({ ...twist, contourIndex })));
   }
-  return outlines;
+  return { outlines, twists };
 }
 
 function appendContour(context, contour) {
