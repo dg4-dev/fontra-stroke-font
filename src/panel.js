@@ -6,6 +6,7 @@ import {
   CAPS,
   JOINS,
   MIN_MITER_LIMIT,
+  SHARED_OFFSET_KEYS,
   sanitizeOffsetValue,
   setSourceDefaults,
 } from "./stroke-data.js";
@@ -147,6 +148,7 @@ export function definePanelElement() {
 
       this._sourceLabel = el("div", { class: "source" });
       this._note = el("div", { class: "note" });
+      this._sharedNote = el("div", { class: "note" });
       this._fields = el(
         "div",
         { class: "fields" },
@@ -168,6 +170,7 @@ export function definePanelElement() {
         this._sourceLabel,
         this._note,
         this._fields,
+        this._sharedNote,
         el("hr"),
         el("div", { class: "hint" }, t("panel.hint"))
       );
@@ -231,18 +234,25 @@ export function definePanelElement() {
         this._sourceLabel.textContent = t("source.noGlyph");
         this._note.textContent = "";
       } else {
-        this._sourceLabel.textContent = t("source.current", state.sourceName);
+        this._sourceLabel.textContent = state.atSource
+          ? t("source.current", state.sourceName)
+          : t("source.between");
         this._note.textContent =
           state.method !== "offset"
             ? t("source.nibGlyph")
             : state.atSource
               ? ""
-              : t("source.notAtSource", state.sourceName);
+              : t("source.notAtSource");
       }
+      // Cap and join are written to the default source (see stroke-data.js)
+      this._sharedNote.textContent =
+        editable && !state.isDefaultSource
+          ? t("source.sharedStyle", state.defaultSourceName)
+          : "";
       this._fields.setAttribute("aria-disabled", String(!editable));
       for (const input of this._fields.querySelectorAll("[data-key]")) {
         const key = input.dataset.key;
-        const value = state ? state.style[key] : "";
+        const value = state ? formatValue(state.style[key]) : "";
         // Leave a field alone while it is being typed into
         if (this.shadowRoot.activeElement !== input && input.value !== String(value)) {
           input.value = String(value);
@@ -263,7 +273,10 @@ export function definePanelElement() {
         this._syncValues();
         return;
       }
-      const { glyphName, sourceIndex } = state;
+      const { glyphName } = state;
+      const sourceIndex = SHARED_OFFSET_KEYS.includes(key)
+        ? state.defaultSourceIndex
+        : state.sourceIndex;
       try {
         await this.sceneController.editNamedGlyphAndRecordChanges(
           glyphName,
@@ -285,6 +298,13 @@ export function definePanelElement() {
 
   customElements.define(ELEMENT_NAME, StrokeFontPanel);
   return StrokeFontPanel;
+}
+
+// Interpolated numbers can have long fractions; two decimals are enough
+function formatValue(value) {
+  return typeof value === "number"
+    ? String(Math.round(value * 100) / 100)
+    : String(value);
 }
 
 function el(tag, attributes = {}, ...children) {

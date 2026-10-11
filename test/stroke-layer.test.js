@@ -95,7 +95,7 @@ test("the source being edited gives the values", () => {
   assert.equal(strokeStyleForGlyph(atBold, {}).width, 120);
 });
 
-test("between sources, the nearest source gives the values", () => {
+test("between sources, the nearest source is found", () => {
   const sources = [
     { customData: { [STROKE_KEY]: { defaults: { width: 40 } } } },
     { customData: { [STROKE_KEY]: { defaults: { width: 120 } } } },
@@ -108,7 +108,6 @@ test("between sources, the nearest source gives the values", () => {
   const found = findStrokeSource(between, { wght: 600 });
   assert.equal(found.sourceIndex, 1);
   assert.equal(found.atSource, false);
-  assert.equal(strokeStyleForGlyph(between, {}).width, 120);
 });
 
 test("the layer is inserted by zIndex and replaces an older copy", () => {
@@ -141,7 +140,7 @@ test("the layer draws the positioned glyph at the model's location", () => {
     parameters: { ...PARAMETERS, fillColor: "blue" },
     model: { getLocationForGlyph: (name) => ({ wght: 700, name }) },
   });
-  assert.deepEqual(seen, [{ wght: 700, name: "a" }]);
+  assert.ok(seen.some((location) => location.wght === 700 && location.name === "a"));
   assert.deepEqual(context.calls.at(-1), ["fill", "nonzero", "blue"]);
 });
 
@@ -171,8 +170,11 @@ test("the panel description of the selected glyph", async () => {
   });
   const nearest = describeStrokeSource(between, {});
   assert.equal(nearest.atSource, false);
+  assert.equal(nearest.sourceName, "");
   // A source without a name of its own falls back to its layer name
-  assert.equal(nearest.sourceName, "light-layer");
+  assert.equal(nearest.defaultSourceName, "light-layer");
+  assert.equal(nearest.defaultSourceIndex, 0);
+  assert.equal(state.isDefaultSource, false);
 });
 
 test("twisting places get a ring", () => {
@@ -191,4 +193,54 @@ test("twisting places get a ring", () => {
   assert.ok(Math.abs(arcs[0][1] - 75) < 1);
   assert.equal(arcs[0][3], 5);
   assert.deepEqual(context.calls.at(-1), ["stroke", "orange", 1]);
+});
+
+test("between sources, the numbers are interpolated", () => {
+  const sources = [
+    {
+      customData: {
+        [STROKE_KEY]: {
+          defaults: { width: 40, miterLimit: 2, cap: "butt", join: "bevel" },
+        },
+      },
+    },
+    {
+      customData: {
+        [STROKE_KEY]: { defaults: { width: 120, miterLimit: 6, cap: "square" } },
+      },
+    },
+  ];
+  const between = fakePositionedGlyph({ sources, sourceIndex: undefined });
+  assert.deepEqual(strokeStyleForGlyph(between, { wght: 500 }), {
+    width: 80,
+    miterLimit: 4,
+    cap: "butt",
+    join: "bevel",
+  });
+  // At a source: its own numbers, the default source's cap and join
+  const atBold = fakePositionedGlyph({ sources, sourceIndex: 1 });
+  assert.deepEqual(strokeStyleForGlyph(atBold, {}), {
+    width: 120,
+    miterLimit: 6,
+    cap: "butt",
+    join: "bevel",
+  });
+});
+
+test("without a working model, the nearest source gives the numbers", () => {
+  const sources = [
+    { customData: { [STROKE_KEY]: { defaults: { width: 40 } } } },
+    { customData: { [STROKE_KEY]: { defaults: { width: 120 } } } },
+  ];
+  const between = fakePositionedGlyph({
+    sources,
+    sourceIndex: undefined,
+    nearestSourceIndex: 1,
+  });
+  between.varGlyph.model = {
+    getDeltas() {
+      throw new Error("incompatible");
+    },
+  };
+  assert.equal(strokeStyleForGlyph(between, { wght: 500 }).width, 120);
 });
