@@ -11,6 +11,7 @@ Widths per point: a stroke can now get wider and thinner along its centerline, d
 - **Widths per point**: a point of a centerline can have its own width, the same on both sides or different on each side, and a corner its own join and miter limit. Between points the width follows a smooth curve along the centerline; a point in the middle without a width of its own follows the points around it, so adding a point does not change the stroke
 - **Stroke width tool** (the button with a stroke and a handle, next to Fontra's tools): handles on the edges of the points, dragged to change the width on both sides (or on one side with Alt); a double click removes a point's values, and the context menu sets the join of the selected points. Elsewhere the tool works like the pointer tool, so points can be moved without switching tools
 - **Panel**: the values of the selected points, changed for all of them at once; a button to clear them; a setting to show the handles with the other tools too
+- **Closed centerlines**: a closed contour can be marked as a centerline and is then stroked as a loop, for o, 0, D, Q and the like (in the panel, or in the context menu of the stroke width tool). Loops without corners become rings; loops with corners get joins. Marks are kept per contour, on its points, and are the same in all sources
 - Per-point values are written to every source being edited, interpolated between sources with the same points, used for components (with left and right swapped in flipped ones), and used by the command-line tool
 
 ### Fixed
@@ -18,6 +19,7 @@ Widths per point: a stroke can now get wider and thinner along its centerline, d
 - A glyph made only of straight two-point centerlines (such as l or -) lost its fill when selected or hovered in the glyph editor, and got Fontra's placeholder for empty glyphs drawn over it: Fontra takes such a glyph for an empty one
 - The number fields of the panel could show the browser's own "invalid value" message (in the browser's language) for values such as interpolated widths, and a field kept its old value when the selection changed after Enter
 - A faint seam could show where a join meets the strokes of a corner
+- Clicking a stroke in the glyph editor did not select its glyph outside the area of its centerlines, and for a glyph of straight two-point centerlines only within its advance width, which could select the glyph next to it instead (#29)
 
 ### Changed
 

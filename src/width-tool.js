@@ -22,13 +22,14 @@ import { centerlineSegments } from "./geometry/centerline.js";
 import {
   CLEARED_POINT_VALUES,
   centerlinePoints,
+  closedContourPoints,
   editPointValues,
   editingSourceIndices,
   measurePoints,
   pointValuesForField,
   selectedPointIndices,
 } from "./point-edit.js";
-import { JOINS, STROKE_KEY } from "./stroke-data.js";
+import { JOINS, STROKE_KEY, isCenterlineContour } from "./stroke-data.js";
 import { t } from "./strings.js";
 
 export const TOOL_IDENTIFIER = "fontra-plugin.stroke-font.width-tool";
@@ -50,11 +51,8 @@ export function widthHandles(positionedGlyph, location) {
     return [];
   }
   const all = [];
-  for (const [contourIndex, contour] of (path.contourInfo ?? []).entries()) {
-    if (contour.isClosed) {
-      continue;
-    }
-    const start = contourIndex ? path.contourInfo[contourIndex - 1].endPoint + 1 : 0;
+  for (const contour of path.contourInfo ?? []) {
+    const start = all.length;
     for (let i = start; i <= contour.endPoint; i++) {
       all.push(i);
     }
@@ -63,9 +61,22 @@ export function widthHandles(positionedGlyph, location) {
   if (!measured) {
     return [];
   }
-  const normals = pointNormals(path);
+  // Closed contours that are outlines get no handles
+  const centerlines = new Set(
+    (path.contourInfo ?? [])
+      .map((contour, index) =>
+        isCenterlineContour(contour.isClosed, measured.style.points?.[index])
+          ? index
+          : -1
+      )
+      .filter((index) => index >= 0)
+  );
+  const normals = pointNormals(path, centerlines);
   const handles = [];
   for (const point of measured.points) {
+    if (!centerlines.has(point.contourIndex)) {
+      continue;
+    }
     const normal = normals.get(point.pointIndex);
     if (!normal) {
       continue;
@@ -89,10 +100,10 @@ export function widthHandles(positionedGlyph, location) {
 // The left normal of the centerline at each on-curve point of the open
 // contours: of the segment arriving or leaving, halfway between both at a
 // corner
-function pointNormals(path) {
+function pointNormals(path, centerlines) {
   const normals = new Map();
   for (const [contourIndex, info] of (path.contourInfo ?? []).entries()) {
-    if (info.isClosed) {
+    if (!centerlines.has(contourIndex)) {
       continue;
     }
     const start = contourIndex ? path.contourInfo[contourIndex - 1].endPoint + 1 : 0;
@@ -452,7 +463,36 @@ export class StrokeWidthTool {
         });
         return t("undo.pointJoin");
       });
+    const items = [];
+    const closedPoints = closedContourPoints(
+      path,
+      selectedPointIndices(this.sceneController.selection)
+    );
+    if (closedPoints.length) {
+      const state = measurePoints(
+        positionedGlyph,
+        this._editTarget().location,
+        closedPoints
+      )?.points.some((point) => point.values?.centerline);
+      items.push({
+        title: t("points.closedCenterline"),
+        enabled: () => true,
+        checked: !!state,
+        callback: () =>
+          this._edit(sourceIndices, defaultIndex, (glyph) => {
+            editPointValues(
+              glyph,
+              sourceIndices,
+              closedPoints,
+              () => ({ centerline: state ? undefined : true }),
+              { defaultIndex }
+            );
+            return t("undo.closedCenterline");
+          }),
+      });
+    }
     return [
+      ...items,
       {
         title: t("menu.pointJoin"),
         getItems: () => [

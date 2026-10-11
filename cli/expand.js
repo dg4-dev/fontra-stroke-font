@@ -13,7 +13,9 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import { strokeCompatibly } from "../src/geometry/compatible.js";
 import {
+  SHARED_POINT_KEYS,
   getGlyphStroke,
+  isCenterlineContour,
   offsetStyleInGlyph,
   resolvePointValues,
 } from "../src/stroke-data.js";
@@ -107,7 +109,53 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
       const text = readFileSync(path, "utf-8");
       return { layer, path, text, glif: readGlif(text) };
     });
-  if (!members.some(({ glif }) => glif.outline.some(isOpenContour))) {
+  const defaultMember =
+    members.find((member) => member.layer === defaultLayer) ?? members[0];
+  const shapes = members.map((member) =>
+    member.glif.outline.map((item) =>
+      item.contour ? (item.contour.isClosed ? "closed" : "open") : item.element.name
+    )
+  );
+  const sameShape = shapes.every((shape) => shape.join() === shapes[0].join());
+
+  // The values of the points, with the joins of the default source's points
+  // and its marks of closed contours as centerlines
+  const pointValues = members.map((member) => outlinePointValues(member));
+  if (sameShape) {
+    const defaultValues = pointValues[members.indexOf(defaultMember)];
+    for (const values of pointValues) {
+      for (const [index, contourValues] of values) {
+        for (const [i, own] of contourValues.entries()) {
+          const shared = defaultValues.get(index)?.[i];
+          if (SHARED_POINT_KEYS.every((key) => own?.[key] === shared?.[key])) {
+            continue;
+          }
+          const next = { ...own };
+          for (const key of SHARED_POINT_KEYS) {
+            if (shared?.[key] === undefined) {
+              delete next[key];
+            } else {
+              next[key] = shared[key];
+            }
+          }
+          contourValues[i] = Object.keys(next).length ? next : undefined;
+        }
+      }
+    }
+  }
+  // Open contours, and closed ones marked as centerlines
+  const isCenterlineAt = (memberIndex, index) => {
+    const item = members[memberIndex].glif.outline[index];
+    return (
+      !!item.contour &&
+      isCenterlineContour(item.contour.isClosed, pointValues[memberIndex].get(index))
+    );
+  };
+  if (
+    !members.some((member, i) =>
+      member.glif.outline.some((item, index) => isCenterlineAt(i, index))
+    )
+  ) {
     return;
   }
 
@@ -129,43 +177,16 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
   }
 
   const sourceData = (member) => member.glif.lib[SOURCE_CUSTOM_DATA_KEY] ?? {};
-  const defaultMember =
-    members.find((member) => member.layer === defaultLayer) ?? members[0];
   const styles = members.map((member) =>
     offsetStyleInGlyph(sourceData(member), sourceData(defaultMember))
   );
 
-  const shapes = members.map((member) =>
-    member.glif.outline.map((item) =>
-      isOpenContour(item) ? "open" : item.element.name
-    )
-  );
-  const sameShape = shapes.every((shape) => shape.join() === shapes[0].join());
   if (!sameShape) {
     report.warnings.push(
       `${glyphName}: the sources have different contours; the outlines will not interpolate`
     );
   }
 
-  // The values of the points, with the joins of the default source's points
-  const pointValues = members.map((member) => outlinePointValues(member));
-  if (sameShape) {
-    const defaultValues = pointValues[members.indexOf(defaultMember)];
-    for (const values of pointValues) {
-      for (const [index, contourValues] of values) {
-        for (const [i, own] of contourValues.entries()) {
-          const join = defaultValues.get(index)?.[i]?.join;
-          if (own?.join !== join) {
-            const next = { ...own, join };
-            if (join === undefined) {
-              delete next.join;
-            }
-            contourValues[i] = Object.keys(next).length ? next : undefined;
-          }
-        }
-      }
-    }
-  }
   const withValues = (member, i, index) => {
     const contour = member.glif.outline[index].contour;
     const values = pointValues[i].get(index);
@@ -180,7 +201,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
   const replacements = members.map(() => new Map());
   if (sameShape) {
     for (const [index, item] of members[0].glif.outline.entries()) {
-      if (!isOpenContour(item)) {
+      if (!isCenterlineAt(0, index)) {
         continue;
       }
       const { results, compatible, problems } = strokeCompatibly(
@@ -218,7 +239,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
     // Stroke each source on its own
     for (const [i, member] of members.entries()) {
       for (const [index, item] of member.glif.outline.entries()) {
-        if (isOpenContour(item)) {
+        if (isCenterlineAt(i, index)) {
           const { results } = strokeCompatibly(
             [{ contour: withValues(member, i, index), style: styles[i] }],
             options
@@ -257,10 +278,6 @@ function outlinePointValues(member) {
   return new Map(
     items.map((item, k) => [member.glif.outline.indexOf(item), values[k]])
   );
-}
-
-function isOpenContour(item) {
-  return item.contour && !item.contour.isClosed;
 }
 
 // 1-based number of a contour among the contours (not components) of a glyph
