@@ -8,7 +8,8 @@
 // part gets the largest number of pieces any source needs. Every source is
 // then stroked again with the merged layout. Since the edges are split at the
 // same parameters in all sources, the points of different sources lie on the
-// same normals of the centerline, and the outlines interpolate well.
+// same normals of the centerline, and the outlines interpolate well. A line
+// whose width changes in some sources gets curved edges in all of them.
 
 import { mergeBreaks, strokeOffsetContour } from "./offset.js";
 
@@ -85,9 +86,11 @@ export function mergeBreakLayouts(layouts, problems = []) {
     }
     const segment = {};
     for (const side of ["left", "right"]) {
-      segment[side] = {
-        breaks: mergeBreaks(present.flatMap((entry) => entry[side].breaks)),
-      };
+      // A line keeps a straight edge only if it does in every source
+      const line = present.every((entry) => entry[side].line === true);
+      segment[side] = line
+        ? { breaks: [], line }
+        : { breaks: mergeBreaks(present.flatMap((entry) => entry[side].breaks)) };
     }
     segments.push(segment);
   }

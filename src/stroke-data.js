@@ -12,10 +12,15 @@
 //
 // Values of the offset method: width (or left / right), cap, join, miterLimit.
 // Values of the nib method: major, minor, angle. Both methods: cornerRadius.
-// Missing values fall back to the source defaults, then to the built-in ones.
+// Points also have centerline: true on the on-curve points of a closed
+// contour that is a centerline (stroked as a loop) rather than an outline.
+// Missing values fall back to the source defaults, then to the built-in ones,
+// except the widths of points: a point in the middle of a centerline without a
+// width of its own takes the width between the points around it that have one
+// (see geometry/widths.js), so that adding a point does not change the stroke.
 //
-// Phase 1 only uses the offset method's source defaults; the rest of the format
-// is fixed here so that later phases do not need to migrate data.
+// The nib method and cornerRadius are not used yet; the format is fixed here
+// so that later phases do not need to migrate data.
 
 export const STROKE_KEY = "xyz.dg4.stroke";
 
@@ -38,6 +43,19 @@ export const MIN_MITER_LIMIT = 1;
 // sources use the default source's.
 export const INTERPOLATED_OFFSET_KEYS = Object.freeze(["width", "miterLimit"]);
 export const SHARED_OFFSET_KEYS = Object.freeze(["cap", "join"]);
+
+// The values an on-curve point of the offset method can have
+export const POINT_OFFSET_KEYS = Object.freeze([
+  "width",
+  "left",
+  "right",
+  "join",
+  "miterLimit",
+]);
+
+// Point values that must be the same in all sources: those of the default
+// source are used (as cap and join of the source defaults)
+export const SHARED_POINT_KEYS = Object.freeze(["join", "centerline"]);
 
 /**
  * The stroke method of a glyph. Glyphs without settings use the offset method.
@@ -170,6 +188,159 @@ export function setSourceDefaults(sourceCustomData, values) {
 }
 
 /**
+ * The valid offset values of one point, from what is stored for it.
+ * @returns {object|undefined} undefined when the point has no valid values
+ */
+export function sanitizePointValues(stored) {
+  if (!isObject(stored)) {
+    return undefined;
+  }
+  const values = {};
+  for (const key of POINT_OFFSET_KEYS) {
+    const value = sanitizeOffsetValue(key, stored[key]);
+    if (value !== undefined) {
+      values[key] = value;
+    }
+  }
+  if (stored.centerline === true) {
+    values.centerline = true;
+  }
+  return Object.keys(values).length ? values : undefined;
+}
+
+/**
+ * Whether a contour is a centerline: an open one always, a closed one when
+ * one of its points has centerline: true.
+ * @param {boolean} isClosed
+ * @param {(object|undefined)[]} [values] the values of its points
+ */
+export function isCenterlineContour(isClosed, values) {
+  return !isClosed || !!values?.some((pointValues) => pointValues?.centerline);
+}
+
+/**
+ * The half widths a point sets on its left and right, each undefined when
+ * the point does not set it. left / right win over width.
+ */
+export function pointHalfWidths(values) {
+  const half = values?.width !== undefined ? values.width / 2 : undefined;
+  return {
+    left: values?.left ?? half,
+    right: values?.right ?? half,
+  };
+}
+
+/**
+ * The values of the points of a glyph's contours in one source.
+ *
+ * A point is found by its identifier. When several points of the glyph have
+ * the same identifier (a contour that was duplicated or pasted), only the
+ * first one gets the values; the others count as points without values.
+ * Off-curve points never have values.
+ *
+ * @param {{identifier?: string, onCurve: boolean}[][]} contours the points of
+ *   each contour of the glyph
+ * @param {object} sourceCustomData customData of the source
+ * @returns {(object|undefined)[][]} sanitized values per contour and point
+ */
+export function resolvePointValues(contours, sourceCustomData) {
+  const { points } = getSourceStroke(sourceCustomData);
+  const seen = new Set();
+  return contours.map((contour) =>
+    contour.map(({ identifier, onCurve }) => {
+      if (!onCurve || typeof identifier !== "string" || seen.has(identifier)) {
+        return undefined;
+      }
+      seen.add(identifier);
+      return sanitizePointValues(points[identifier]);
+    })
+  );
+}
+
+/**
+ * Change the values of points, in place: for each identifier, the given keys
+ * are set, or removed when undefined. Points left without values are
+ * removed, and so are the values of identifiers not in keepIdentifiers (the
+ * points that were deleted), when it is given. Returns the customData.
+ *
+ * Like setSourceDefaults(), only what changes is assigned or deleted, with
+ * new objects built from plain values only.
+ * @param {object} sourceCustomData customData of a glyph source
+ * @param {Map<string, object>|object} changes identifier → values
+ * @param {Iterable<string>} [keepIdentifiers] the identifiers of the source's points
+ */
+export function setPointValues(sourceCustomData, changes, keepIdentifiers) {
+  const entries = changes instanceof Map ? [...changes] : Object.entries(changes);
+  let stored = sourceCustomData[STROKE_KEY];
+  if (!isObject(stored)) {
+    sourceCustomData[STROKE_KEY] = {};
+    stored = sourceCustomData[STROKE_KEY];
+  }
+  if (!isObject(stored.points)) {
+    stored.points = {};
+  }
+  const points = stored.points;
+  for (const [identifier, values] of entries) {
+    const toSet = Object.fromEntries(
+      Object.entries(values).filter(([key, value]) => value !== undefined)
+    );
+    const current = points[identifier];
+    if (!isObject(current)) {
+      if (Object.keys(toSet).length) {
+        points[identifier] = toSet;
+      } else if (current !== undefined) {
+        delete points[identifier];
+      }
+      continue;
+    }
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) {
+        if (current[key] !== undefined) {
+          delete current[key];
+        }
+      } else if (current[key] !== value) {
+        current[key] = value;
+      }
+    }
+    if (!Object.keys(current).length) {
+      delete points[identifier];
+    }
+  }
+  if (keepIdentifiers) {
+    const keep = new Set(keepIdentifiers);
+    for (const identifier of Object.keys(points)) {
+      if (!keep.has(identifier)) {
+        delete points[identifier];
+      }
+    }
+  }
+  if (!Object.keys(points).length) {
+    delete stored.points;
+  }
+  if (!Object.keys(stored).length) {
+    delete sourceCustomData[STROKE_KEY];
+  }
+  return sourceCustomData;
+}
+
+/**
+ * A point identifier not in the given set: ten letters and digits, like the
+ * identifiers ufoLib makes.
+ */
+export function makePointIdentifier(taken = new Set(), random = Math.random) {
+  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (;;) {
+    let identifier = "";
+    for (let i = 0; i < 10; i++) {
+      identifier += characters[Math.floor(random() * characters.length)];
+    }
+    if (!taken.has(identifier)) {
+      return identifier;
+    }
+  }
+}
+
+/**
  * Nib angles are stored in degrees in [0, 180): an ellipse or a rectangle
  * turned by 180° is the same shape.
  */
@@ -178,10 +349,11 @@ export function normalizeNibAngle(angle) {
 }
 
 /**
- * Only open contours are centerlines; closed contours are ordinary outlines.
+ * Whether a contour is a centerline, from the values of its points (see
+ * isCenterlineContour()).
  */
-export function isCenterline(contour) {
-  return !contour.isClosed;
+export function isCenterline(contour, values) {
+  return isCenterlineContour(contour.isClosed, values);
 }
 
 function isObject(value) {

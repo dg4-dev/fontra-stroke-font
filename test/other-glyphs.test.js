@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   WRAPPED_LAYER_IDENTIFIERS,
   makeGlyphExpander,
+  makeStrokedTest,
   wrapGlyphLayers,
 } from "../src/other-glyphs.js";
 import { StrokeSettings } from "../src/settings.js";
@@ -70,4 +71,46 @@ test("glyphs without open contours, and the setting off, are drawn as they are",
   assert.equal(expand(fakePositionedGlyph({ contours: [square] }), null), null);
   settings.set("otherGlyphs", false);
   assert.equal(expand(fakePositionedGlyph({ contours: [line] }), null), null);
+});
+
+test("stroked glyphs that Fontra takes for empty ones are drawn, without a placeholder", () => {
+  const empty = (positionedGlyph) => !positionedGlyph.isEmpty;
+  const definitions = [
+    { identifier: "fontra.selected.glyph", selectionFilter: empty, draw() {} },
+    { identifier: "fontra.hovered.glyph", selectionFilter: empty, draw() {} },
+    {
+      identifier: "fontra.empty.selected.glyph",
+      selectionFilter: (positionedGlyph) => positionedGlyph.isEmpty,
+      draw() {},
+    },
+    {
+      identifier: "fontra.undefined.glyph",
+      selectionFilter: (positionedGlyph) =>
+        positionedGlyph.isUndefined || positionedGlyph.isEmpty,
+      draw() {},
+    },
+  ];
+  const settings = new StrokeSettings(memoryStorage());
+  const isStroked = makeStrokedTest(settings);
+  wrapGlyphLayers(definitions, () => null, isStroked);
+  // Wrapping again keeps Fontra's own filters underneath
+  wrapGlyphLayers(definitions, () => null, isStroked);
+  const stroke = { ...fakePositionedGlyph({ contours: [line] }), isEmpty: true };
+  const blank = { ...fakePositionedGlyph({ contours: [] }), isEmpty: true };
+  const undefinedGlyph = { ...blank, isUndefined: true };
+  const [selected, hovered, emptyBox, placeholder] = definitions.map(
+    (d) => d.selectionFilter
+  );
+  assert.equal(emptyBox(stroke), false);
+  assert.equal(emptyBox(blank), true);
+  assert.equal(selected(stroke), true);
+  assert.equal(hovered(stroke), true);
+  assert.equal(placeholder(stroke), false);
+  assert.equal(selected(blank), false);
+  assert.equal(placeholder(blank), true);
+  assert.equal(placeholder(undefinedGlyph), true);
+  // With the strokes of the other glyphs off, Fontra decides as before
+  settings.set("otherGlyphs", false);
+  assert.equal(selected(stroke), false);
+  assert.equal(placeholder(stroke), true);
 });

@@ -1,11 +1,19 @@
-// The sidebar panel: preview visibility and the stroke values of the source
-// being edited.
+// The sidebar panel: preview visibility, the stroke values of the source
+// being edited, and the values of the selected points.
 
 import { describeStrokeSource } from "./current-source.js";
 import {
+  CLEARED_POINT_VALUES,
+  closedContourPoints,
+  describeSelectedPoints,
+  editPointValues,
+  editingSourceIndices,
+  pointValuesForField,
+  selectedPointIndices,
+} from "./point-edit.js";
+import {
   CAPS,
   JOINS,
-  MIN_MITER_LIMIT,
   SHARED_OFFSET_KEYS,
   sanitizeOffsetValue,
   setSourceDefaults,
@@ -106,6 +114,21 @@ const styles = `
   .note:empty {
     display: none;
   }
+  button {
+    justify-self: start;
+    padding: 0.2em 0.8em;
+    border-radius: 0.25em;
+    border: 0.5px solid var(--horizontal-rule-color, #8884);
+    background-color: var(--text-input-background-color, #fff);
+    color: inherit;
+    font: inherit;
+  }
+  button:disabled {
+    opacity: 0.5;
+  }
+  [hidden] {
+    display: none !important;
+  }
 `;
 
 export function definePanelElement() {
@@ -123,13 +146,14 @@ export function definePanelElement() {
       this.sceneController = editor.sceneController;
       this.settings = settings;
       this._state = null;
+      this._pointState = null;
       this.attachShadow({ mode: "open" });
       this._render();
 
       settings.addListener(() => this._syncSettings());
       const scheduleUpdate = () => this._scheduleUpdate();
       this.sceneController.sceneSettingsController?.addKeyListener(
-        ["selectedGlyphName", "selectedGlyph", "positionedLines"],
+        ["selectedGlyphName", "selectedGlyph", "positionedLines", "selection"],
         scheduleUpdate
       );
       this.sceneController.addCurrentGlyphChangeListener?.(scheduleUpdate);
@@ -161,7 +185,15 @@ export function definePanelElement() {
         ? sceneModel.getLocationForGlyph?.(positionedGlyph.glyphName)
         : undefined;
       this._state = describeStrokeSource(positionedGlyph, location);
+      this._pointState = positionedGlyph
+        ? describeSelectedPoints(
+            positionedGlyph,
+            location,
+            this.sceneController.selection
+          )
+        : null;
       this._syncValues();
+      this._syncPointValues();
     }
 
     _render() {
@@ -177,13 +209,42 @@ export function definePanelElement() {
       this._fields = el(
         "div",
         { class: "fields" },
-        ...this._numberField("width", t("field.width"), { min: 0, step: 1 }),
+        ...this._numberField("width", t("field.width")),
         ...this._selectField("cap", t("field.cap"), CAPS, "cap"),
         ...this._selectField("join", t("field.join"), JOINS, "join"),
-        ...this._numberField("miterLimit", t("field.miterLimit"), {
-          min: MIN_MITER_LIMIT,
-          step: 0.1,
-        })
+        ...this._numberField("miterLimit", t("field.miterLimit"))
+      );
+
+      this._pointsLabel = el("div", { class: "source" });
+      this._pointsNote = el("div", { class: "note" });
+      this._pointFields = el(
+        "div",
+        { class: "fields" },
+        ...this._numberField("width", t("field.width"), "point"),
+        ...this._numberField("left", t("field.left"), "point"),
+        ...this._numberField("right", t("field.right"), "point"),
+        ...this._selectField("join", t("field.join"), ["", ...JOINS], "join", "point"),
+        ...this._numberField("miterLimit", t("field.miterLimit"), "point")
+      );
+      this._clearButton = el(
+        "button",
+        { type: "button", onclick: () => this._clearPointValues() },
+        t("points.clear")
+      );
+      this._closedCheckbox = el("input", {
+        type: "checkbox",
+        id: "stroke-font-point-closedCenterline",
+        onchange: (event) => this._setClosedCenterline(event.target.checked),
+      });
+      this._closedRow = el(
+        "div",
+        { class: "row" },
+        this._closedCheckbox,
+        el(
+          "label",
+          { for: "stroke-font-point-closedCenterline" },
+          t("points.closedCenterline")
+        )
       );
 
       const panel = el(
@@ -196,7 +257,8 @@ export function definePanelElement() {
           this._checkbox("visible", t("setting.visible")),
           this._checkbox("outlineOnly", t("setting.outlineOnly")),
           this._opacitySlider(),
-          this._checkbox("otherGlyphs", t("setting.otherGlyphs"))
+          this._checkbox("otherGlyphs", t("setting.otherGlyphs")),
+          this._checkbox("handles", t("setting.handles"))
         ),
         el("hr"),
         this._sourceLabel,
@@ -204,11 +266,18 @@ export function definePanelElement() {
         this._fields,
         this._sharedNote,
         el("hr"),
+        this._pointsLabel,
+        this._pointsNote,
+        this._closedRow,
+        this._pointFields,
+        this._clearButton,
+        el("hr"),
         el("div", { class: "hint" }, t("panel.hint"))
       );
       root.appendChild(panel);
       this._syncSettings();
       this._syncValues();
+      this._syncPointValues();
     }
 
     _checkbox(key, label) {
@@ -245,32 +314,57 @@ export function definePanelElement() {
       );
     }
 
-    _numberField(key, label, { min, step }) {
-      const id = `stroke-font-${key}`;
+    // target "source" changes the source's value, "point" the selected points'
+    _numberField(key, label, target = "source") {
+      const id = `stroke-font-${target}-${key}`;
       const input = el("input", {
         "type": "number",
         id,
-        min,
-        step,
+        // No min or step: the values are checked by sanitizeOffsetValue(), and
+        // with them the browser would flag values such as interpolated widths
+        // as invalid, in the browser's language rather than Fontra's
+        "step": "any",
         "data-key": key,
+        // While typing, the field is not refreshed from the glyph
+        "oninput": () => (input.dataset.typing = "true"),
         // "change" fires on Enter or when leaving the field, so that typing a
         // number makes one undo step rather than one per keystroke
-        "onchange": (event) => this._changeValue(key, event.target.value),
+        "onchange": (event) => {
+          delete input.dataset.typing;
+          this._onChange(target, key, event.target.value);
+        },
+        "onblur": () => {
+          if (input.dataset.typing) {
+            delete input.dataset.typing;
+            this._syncValues();
+            this._syncPointValues();
+          }
+        },
       });
       return [el("label", { for: id }, label), input];
     }
 
-    _selectField(key, label, choices, stringPrefix) {
-      const id = `stroke-font-${key}`;
+    _selectField(key, label, choices, stringPrefix, target = "source") {
+      const id = `stroke-font-${target}-${key}`;
       const select = el("select", {
         id,
         "data-key": key,
-        "onchange": (event) => this._changeValue(key, event.target.value),
+        "onchange": (event) => this._onChange(target, key, event.target.value),
       });
       for (const choice of choices) {
-        select.append(el("option", { value: choice }, t(`${stringPrefix}.${choice}`)));
+        const text =
+          choice === "" ? t("point.sourceValue") : t(`${stringPrefix}.${choice}`);
+        select.append(el("option", { value: choice }, text));
       }
       return [el("label", { for: id }, label), select];
+    }
+
+    _onChange(target, key, value) {
+      if (target === "point") {
+        this._changePointValue(key, value);
+      } else {
+        this._changeValue(key, value);
+      }
     }
 
     _syncSettings() {
@@ -320,12 +414,135 @@ export function definePanelElement() {
         const key = input.dataset.key;
         const value = state ? formatValue(state.style[key]) : "";
         // Leave a field alone while it is being typed into
-        if (this.shadowRoot.activeElement !== input && input.value !== String(value)) {
+        if (!input.dataset.typing && input.value !== String(value)) {
           input.value = String(value);
         }
         input.disabled =
           !editable || (key === "miterLimit" && state.style.join !== "miter");
       }
+    }
+
+    _syncPointValues() {
+      if (!this._pointFields) {
+        return;
+      }
+      const state = this._pointState;
+      const sourceState = this._state;
+      const editable = !!state?.editable;
+      this._pointsLabel.textContent = state
+        ? t("points.title", state.count)
+        : t("points.noneTitle");
+      // Between sources, the note above the source's values already says why
+      // nothing can be changed
+      this._pointsNote.textContent = !state
+        ? t("points.none")
+        : sourceState && !sourceState.isDefaultSource && state.editable
+          ? t("points.sharedJoin", sourceState.defaultSourceName)
+          : "";
+      this._pointFields.hidden = !state;
+      this._clearButton.hidden = !state;
+      // Only for points on closed contours; mixed when some of those contours
+      // are centerlines and some are not
+      this._closedRow.hidden = state?.closedCenterline === undefined;
+      this._closedCheckbox.checked = state?.closedCenterline === true;
+      this._closedCheckbox.indeterminate = state?.closedCenterline === null;
+      this._closedCheckbox.disabled = !editable;
+      this._clearButton.disabled = !editable || !state.stored;
+      this._pointFields.setAttribute("aria-disabled", String(!editable));
+      for (const input of this._pointFields.querySelectorAll("[data-key]")) {
+        const key = input.dataset.key;
+        const value = state?.fields[key];
+        const text = value === undefined ? "" : formatValue(value);
+        if (!input.dataset.typing && input.value !== text) {
+          input.value = text;
+        }
+        if (input.tagName === "INPUT") {
+          // Several points with different values, or the source's miter limit
+          input.placeholder =
+            value === undefined
+              ? "—"
+              : key === "miterLimit" && state
+                ? formatValue(state.sourceStyle.miterLimit)
+                : "";
+        }
+        input.disabled = !editable;
+      }
+    }
+
+    async _changePointValue(key, rawValue) {
+      const state = this._pointState;
+      const sourceState = this._state;
+      if (!state?.editable || !sourceState?.atSource) {
+        return;
+      }
+      let value;
+      if (rawValue !== "") {
+        value = sanitizeOffsetValue(key, rawValue);
+        if (value === undefined) {
+          this._syncPointValues();
+          return;
+        }
+      }
+      if (value === undefined && key !== "join" && key !== "miterLimit") {
+        // An emptied width field: nothing to change
+        this._syncPointValues();
+        return;
+      }
+      const undoKey =
+        key === "join"
+          ? "undo.pointJoin"
+          : key === "miterLimit"
+            ? "undo.pointMiterLimit"
+            : "undo.pointWidth";
+      await this._editPoints(
+        (stored) => pointValuesForField(stored, key, value),
+        t(undoKey)
+      );
+    }
+
+    async _clearPointValues() {
+      await this._editPoints(() => CLEARED_POINT_VALUES, t("undo.pointClear"));
+    }
+
+    async _setClosedCenterline(on) {
+      const path =
+        this.sceneController.sceneModel?.getSelectedPositionedGlyph?.()?.glyph?.path;
+      const pointIndices = closedContourPoints(
+        path,
+        selectedPointIndices(this.sceneController.selection)
+      );
+      await this._editPoints(
+        () => ({ centerline: on ? true : undefined }),
+        t("undo.closedCenterline"),
+        pointIndices
+      );
+    }
+
+    async _editPoints(makeValues, undoLabel, points) {
+      const sourceState = this._state;
+      const pointIndices =
+        points ?? selectedPointIndices(this.sceneController.selection);
+      const varGlyph =
+        this.sceneController.sceneModel?.getSelectedPositionedGlyph?.()?.varGlyph;
+      const sourceIndices = editingSourceIndices(
+        varGlyph,
+        sourceState.sourceIndex,
+        this.sceneController.editingLayerNames ?? []
+      );
+      try {
+        await this.sceneController.editNamedGlyphAndRecordChanges(
+          sourceState.glyphName,
+          (glyph) => {
+            editPointValues(glyph, sourceIndices, pointIndices, makeValues, {
+              defaultIndex: sourceState.defaultSourceIndex,
+            });
+            return undoLabel;
+          }
+        );
+      } catch (e) {
+        console.error("[stroke-font] could not change the point values", e);
+      }
+      this.update();
     }
 
     async _changeValue(key, rawValue) {

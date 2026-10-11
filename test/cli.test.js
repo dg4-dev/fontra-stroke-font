@@ -264,3 +264,83 @@ test("a glyph that twists in some sources only gets a warning", () => {
   assert.equal(report.twists.length, 1);
   assert.match(report.twists[0], /^n \(Bold\), contour 1: twists around \(250, \d+\)/);
 });
+
+test("points are stroked with their own widths", () => {
+  const folder = tempFolder();
+  const out = tempFolder();
+  const lib = `<key>xyz.fontra.glyph.source.customData</key>
+      <dict><key>xyz.dg4.stroke</key><dict><key>points</key><dict>
+        <key>dot</key><dict><key>width</key><integer>300</integer></dict>
+      </dict></dict></dict>`;
+  for (const [path, text] of Object.entries(snapshot(fixtures))) {
+    const target = join(folder, path);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      path.endsWith(join("Test-Light.ufo", "glyphs", "period.glif"))
+        ? text
+            .replace('type="move"/>', 'type="move" identifier="dot"/>')
+            .replace("<dict>\n    </dict>", `<dict>${lib}</dict>`)
+        : text
+    );
+  }
+  assert.equal(
+    readGlif(
+      readFileSync(
+        join(folder, "ufos", "Test-Light.ufo", "glyphs", "period.glif"),
+        "utf-8"
+      )
+    ).outline[0].contour.points[0].attrs.identifier,
+    "dot"
+  );
+  const report = expandDesignspace(
+    join(folder, "designspace", "Test.designspace"),
+    out
+  );
+  assert.deepEqual(report.warnings, []);
+  const dot = readGlif(
+    readFileSync(join(out, "Test-Light.ufo", "glyphs", "period.glif"), "utf-8")
+  ).outline[0].contour;
+  assert.equal(Math.max(...dot.points.map((p) => p.x)), 250);
+});
+
+test("closed contours marked as centerlines are stroked, in every source", () => {
+  const folder = tempFolder();
+  const out = tempFolder();
+  // Mark the square of o as a centerline in the default source (Light) only
+  const lib = `<lib><dict><key>xyz.fontra.glyph.source.customData</key>
+      <dict><key>xyz.dg4.stroke</key><dict><key>points</key><dict>
+        <key>s1</key><dict><key>centerline</key><true/></dict>
+      </dict></dict></dict></dict></lib>`;
+  for (const [path, text] of Object.entries(snapshot(fixtures))) {
+    const target = join(folder, path);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(
+      target,
+      path.endsWith(join("Test-Light.ufo", "glyphs", "o.glif"))
+        ? text
+            .replace(
+              '<point x="100" y="0" type="line"/>',
+              '<point x="100" y="0" type="line" identifier="s1"/>'
+            )
+            .replace("</outline>", `</outline>${lib}`)
+        : text
+    );
+  }
+  const report = expandDesignspace(
+    join(folder, "designspace", "Test.designspace"),
+    out
+  );
+  assert.deepEqual(report.warnings, []);
+  const outlines = ["Test-Light.ufo", "Test-Bold.ufo"].map(
+    (ufo) => readGlif(readFileSync(join(out, ufo, "glyphs", "o.glif"), "utf-8")).outline
+  );
+  // 4 bands and 4 joins instead of the square
+  for (const outline of outlines) {
+    assert.equal(outline.length, 8);
+  }
+  assert.equal(
+    outlineSignature(outlines[0].map((item) => item.contour)),
+    outlineSignature(outlines[1].map((item) => item.contour))
+  );
+});

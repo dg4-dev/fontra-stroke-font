@@ -14,18 +14,21 @@ const BISECTION_STEPS = 40;
  * The twist zones of a segment: parameter intervals where the edge on one
  * side runs backwards, sorted by t0.
  * @param {{type: string, points: object[]}} segment a "line" or "cubic" segment
- * @param {number} half the distance from the centerline to each edge
+ * @param {number | ((side: string, t: number) => number)} half the distance
+ *   from the centerline to each edge, or a function giving it per side along
+ *   the segment
  * @returns {{side: "left"|"right", t0: number, t1: number}[]}
  */
 export function findTwistZones(segment, half) {
-  if (segment.type === "line" || !(half > 0)) {
+  if (segment.type === "line") {
     return [];
   }
+  const distanceAt = typeof half === "function" ? half : () => half;
   const zones = [];
   for (const side of ["left", "right"]) {
     // The edge on the left (d = +half) runs backwards where 1 - d·k < 0
-    const d = side === "left" ? half : -half;
-    const twists = (t) => d * curvatureAt(segment, t) > 1;
+    const sign = side === "left" ? 1 : -1;
+    const twists = (t) => sign * distanceAt(side, t) * curvatureAt(segment, t) > 1;
     let start = null;
     let previous = twists(0);
     if (previous) {

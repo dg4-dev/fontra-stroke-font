@@ -6,8 +6,9 @@
 // and the values stay the same, so that redrawing many glyphs (the text
 // around the glyph being edited) does not stroke them all again.
 
-import { strokeStyleForGlyph } from "./current-source.js";
+import { hasClosedCenterlines, strokeStyleForGlyph } from "./current-source.js";
 import { strokeOffsetContour } from "./geometry/offset.js";
+import { isCenterlineContour } from "./stroke-data.js";
 
 /**
  * Variable glyphs of component bases. Fontra loads glyphs asynchronously, so
@@ -63,25 +64,30 @@ export class ComponentGlyphs {
  * @param {object} positionedGlyph an entry of Fontra's positioned lines
  * @param {object} [location] the glyph's source location
  * @param {ComponentGlyphs} [componentGlyphs]
- * @returns {{outlines: object[], twists: object[]}} outlines in glyph
- *   coordinates; twists of the glyph's own contours only
+ * @returns {{outlines: object[], twists: object[], strokedClosed: {own:
+ *   Set<number>, components: Map<number, Set<number>>}}} outlines in glyph
+ *   coordinates; twists of the glyph's own contours only; the closed contours
+ *   that were stroked as centerlines (by contour index, of the glyph's own
+ *   path and of each component's path, by component index)
  */
 export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
   const glyph = positionedGlyph?.glyph;
   const outlines = [];
   let twists = [];
+  const strokedClosed = { own: new Set(), components: new Map() };
   if (glyph?.path?.numContours) {
     const style = strokeStyleForGlyph(positionedGlyph, location);
     if (style) {
       const own = strokeOpenContours(glyph.path, style);
       outlines.push(...own.outlines);
       twists = own.twists;
+      strokedClosed.own = new Set(own.strokedClosed);
     }
   }
-  for (const component of glyph?.components ?? []) {
+  for (const [componentIndex, component] of (glyph?.components ?? []).entries()) {
     const name = component.compo?.name;
     const path = component.path;
-    if (!name || !hasOpenContours(path)) {
+    if (!name || !path?.numContours) {
       continue;
     }
     const varGlyph = componentGlyphs?.get(name);
@@ -89,16 +95,76 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
       continue;
     }
     // The component's glyph between its sources: at the parent's location,
-    // with the component's own axis values
+    // with the component's own axis values. Its path is the component's, for
+    // the values of its points.
     const style = strokeStyleForGlyph(
-      { glyphName: name, varGlyph, glyph: { varGlyph } },
+      { glyphName: name, varGlyph, glyph: { varGlyph, path } },
       { ...location, ...component.compo.location }
     );
     if (style) {
-      outlines.push(...strokeOpenContours(path, style).outlines);
+      if (style.points && isMirrored(component.compo.transformation)) {
+        style.points = mirrorPointValues(style.points);
+      }
+      const stroked = strokeOpenContours(path, style);
+      outlines.push(...stroked.outlines);
+      if (stroked.strokedClosed.length) {
+        strokedClosed.components.set(componentIndex, new Set(stroked.strokedClosed));
+      }
     }
   }
-  return { outlines, twists };
+  return { outlines, twists, strokedClosed };
+}
+
+/**
+ * Whether a glyph of the text may have centerlines: open contours of its own
+ * or in its components, or closed contours marked as centerlines in its glyph
+ * or in a component's glyph (once that is loaded).
+ */
+export function glyphHasCenterlines(positionedGlyph, componentGlyphs) {
+  const glyph = positionedGlyph?.glyph;
+  if (!glyph) {
+    return false;
+  }
+  const varGlyph = positionedGlyph.varGlyph ?? glyph.varGlyph;
+  if (hasOpenContours(glyph.path) || hasClosedCenterlines(varGlyph)) {
+    return true;
+  }
+  return (glyph.components ?? []).some(
+    (component) =>
+      hasOpenContours(component.path) ||
+      (component.path?.numContours > 0 &&
+        hasClosedCenterlines(componentGlyphs?.get(component.compo?.name)))
+  );
+}
+
+/**
+ * Whether a component's transformation flips its glyph over: then the left
+ * of the centerline in the glyph is on its right in the component.
+ */
+export function isMirrored(transformation) {
+  const scaleX = transformation?.scaleX ?? 1;
+  const scaleY = transformation?.scaleY ?? 1;
+  return scaleX * scaleY < 0;
+}
+
+/** Point values with left and right swapped. */
+export function mirrorPointValues(points) {
+  return points.map((contour) =>
+    contour.map((values) => {
+      if (!values || (values.left === undefined && values.right === undefined)) {
+        return values;
+      }
+      const { left, right, ...rest } = values;
+      const swapped = { ...rest };
+      if (right !== undefined) {
+        swapped.left = right;
+      }
+      if (left !== undefined) {
+        swapped.right = left;
+      }
+      return swapped;
+    })
+  );
 }
 
 export function hasOpenContours(path) {
@@ -108,8 +174,10 @@ export function hasOpenContours(path) {
 const cache = new WeakMap();
 
 /**
- * Stroked outlines of the open contours of a Fontra path, and the places
- * where the strokes twist. Reused while the points and the style stay the same.
+ * Stroked outlines of the centerlines of a Fontra path (its open contours,
+ * and the closed contours marked as centerlines in style.points), the places
+ * where the strokes twist, and the indices of the closed contours stroked.
+ * Reused while the points and the style stay the same.
  */
 export function strokeOpenContours(path, style) {
   const key = cacheKey(path, style);
@@ -125,8 +193,10 @@ export function strokeOpenContours(path, style) {
 function strokeOpenContoursUncached(path, style) {
   const outlines = [];
   const twists = [];
+  const strokedClosed = [];
   for (let contourIndex = 0; contourIndex < path.numContours; contourIndex++) {
-    if (path.contourInfo[contourIndex].isClosed) {
+    const isClosed = path.contourInfo[contourIndex].isClosed;
+    if (!isCenterlineContour(isClosed, style.points?.[contourIndex])) {
       continue;
     }
     let contour;
@@ -137,11 +207,20 @@ function strokeOpenContoursUncached(path, style) {
       // rather than break drawing.
       continue;
     }
+    const values = style.points?.[contourIndex];
+    if (values) {
+      contour.points.forEach((point, i) => {
+        point.values = values[i];
+      });
+    }
     const stroked = strokeOffsetContour(contour, style);
     outlines.push(...stroked.contours);
     twists.push(...stroked.twists.map((twist) => ({ ...twist, contourIndex })));
+    if (isClosed) {
+      strokedClosed.push(contourIndex);
+    }
   }
-  return { outlines, twists };
+  return { outlines, twists, strokedClosed };
 }
 
 // Fontra may change a path in place while points are dragged, so the key
@@ -155,6 +234,7 @@ function cacheKey(path, style) {
     style.cap,
     style.join,
     style.miterLimit,
+    style.points ? JSON.stringify(style.points) : "",
     contours,
     Array.from(path.pointTypes ?? []).join(","),
     Array.from(path.coordinates ?? []).join(","),

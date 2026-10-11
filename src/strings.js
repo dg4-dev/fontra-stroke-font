@@ -39,10 +39,27 @@ export const strings = {
     "undo.cap": "Change stroke cap",
     "undo.join": "Change stroke join",
     "undo.miterLimit": "Change miter limit",
+    "field.left": "Left",
+    "field.right": "Right",
+    "point.sourceValue": "Source’s",
+    "points.title": "Selected points: {0}",
+    "points.noneTitle": "Points",
+    "points.none":
+      "Select points of a centerline to give them their own widths. A point in the middle without a width of its own follows the points around it.",
+    "points.sharedJoin":
+      "Point joins are the same in all sources; they are saved in the default source, “{0}”.",
+    "points.clear": "Clear point values",
+    "undo.pointWidth": "Change point width",
+    "undo.pointJoin": "Change point join",
+    "undo.pointMiterLimit": "Change point miter limit",
+    "undo.pointClear": "Clear point values",
+    "tool.title": "Stroke widths: drag the handles on the edges of points",
+    "setting.handles": "Show width handles with other tools too",
+    "menu.pointJoin": "Join of the point",
+    "points.closedCenterline": "Stroke the closed contour as a centerline",
+    "undo.closedCenterline": "Change stroked closed contours",
     "panel.hint":
-      "Open contours are centerlines, stroked with these values. Closed contours " +
-      "stay as they are. The values belong to the source being edited and are " +
-      "saved with the font.",
+      "Open contours are centerlines, stroked with these values. A closed contour is an ordinary outline, unless it is marked as a centerline (select one of its points). The values belong to the source being edited and are saved with the font.",
   },
   "ja": {
     "sidebar.tab": "ストロークフォント",
@@ -74,9 +91,27 @@ export const strings = {
     "undo.cap": "端の形の変更",
     "undo.join": "角の形の変更",
     "undo.miterLimit": "マイターリミットの変更",
+    "field.left": "左",
+    "field.right": "右",
+    "point.sourceValue": "ソースの値",
+    "points.title": "選択中の点: {0}",
+    "points.noneTitle": "点",
+    "points.none":
+      "中心線の点を選ぶと、点ごとの太さを付けられます。途中の点で値が無いものは、前後の点に合わせた太さになります。",
+    "points.sharedJoin":
+      "点ごとの角の形は全ソース共通で、デフォルトソース「{0}」に保存されます。",
+    "points.clear": "点の値を消す",
+    "undo.pointWidth": "点の太さの変更",
+    "undo.pointJoin": "点の角の形の変更",
+    "undo.pointMiterLimit": "点のマイターリミットの変更",
+    "undo.pointClear": "点の値の消去",
+    "tool.title": "ストロークの太さ（点の縁のハンドルをドラッグ）",
+    "setting.handles": "ほかのツールでも太さのハンドルを表示",
+    "menu.pointJoin": "点の角の形",
+    "points.closedCenterline": "閉じた輪郭も中心線としてなぞる",
+    "undo.closedCenterline": "閉じた輪郭をなぞるかの変更",
     "panel.hint":
-      "閉じていない輪郭を中心線として、これらの値でなぞります。閉じた輪郭はそのままです。" +
-      "値は編集中のソースのもので、フォントに保存されます。",
+      "閉じていない輪郭を中心線として、これらの値でなぞります。閉じた輪郭は普通の輪郭ですが、中心線としてなぞる印を付けることもできます（輪郭の点を選んでください）。値は編集中のソースのもので、フォントに保存されます。",
   },
   "zh-CN": {
     "sidebar.tab": "笔画字体",
@@ -106,9 +141,26 @@ export const strings = {
     "undo.cap": "修改笔画端点",
     "undo.join": "修改笔画转角",
     "undo.miterLimit": "修改斜接限制",
+    "field.left": "左侧",
+    "field.right": "右侧",
+    "point.sourceValue": "源的值",
+    "points.title": "选中的点: {0}",
+    "points.noneTitle": "点",
+    "points.none":
+      "选择中心线上的点,即可为其设置单独的宽度。中间没有自身宽度的点会随前后的点变化。",
+    "points.sharedJoin": "点的转角在所有源中相同,保存在默认源“{0}”中。",
+    "points.clear": "清除点的值",
+    "undo.pointWidth": "修改点的宽度",
+    "undo.pointJoin": "修改点的转角",
+    "undo.pointMiterLimit": "修改点的斜接限制",
+    "undo.pointClear": "清除点的值",
+    "tool.title": "笔画宽度(拖动点边缘的手柄)",
+    "setting.handles": "使用其他工具时也显示宽度手柄",
+    "menu.pointJoin": "点的转角",
+    "points.closedCenterline": "将闭合轮廓作为中心线描边",
+    "undo.closedCenterline": "修改闭合轮廓的描边",
     "panel.hint":
-      "未闭合的轮廓作为中心线,按这些数值描绘笔画。闭合的轮廓保持不变。" +
-      "这些数值属于正在编辑的源,并随字体保存。",
+      "开放轮廓是中心线,用这些值描边。闭合轮廓是普通轮廓,也可以标记为中心线(请选择它的点)。这些值属于正在编辑的源,并随字体一起保存。",
   },
   "zh-TW": {
     "sidebar.tab": "筆畫字型",
@@ -138,9 +190,26 @@ export const strings = {
     "undo.cap": "修改筆畫端點",
     "undo.join": "修改筆畫轉角",
     "undo.miterLimit": "修改斜接限制",
+    "field.left": "左側",
+    "field.right": "右側",
+    "point.sourceValue": "源的值",
+    "points.title": "選取的點: {0}",
+    "points.noneTitle": "點",
+    "points.none":
+      "選取中心線上的點,即可為其設定個別的寬度。中間沒有自身寬度的點會隨前後的點變化。",
+    "points.sharedJoin": "點的轉角在所有源中相同,儲存在預設源「{0}」中。",
+    "points.clear": "清除點的值",
+    "undo.pointWidth": "修改點的寬度",
+    "undo.pointJoin": "修改點的轉角",
+    "undo.pointMiterLimit": "修改點的斜接限制",
+    "undo.pointClear": "清除點的值",
+    "tool.title": "筆畫寬度(拖曳點邊緣的控點)",
+    "setting.handles": "使用其他工具時也顯示寬度控點",
+    "menu.pointJoin": "點的轉角",
+    "points.closedCenterline": "將閉合輪廓作為中心線描邊",
+    "undo.closedCenterline": "修改閉合輪廓的描邊",
     "panel.hint":
-      "未封閉的輪廓作為中心線,依這些數值描繪筆畫。封閉的輪廓保持不變。" +
-      "這些數值屬於正在編輯的源,並隨字型儲存。",
+      "開放輪廓是中心線,用這些值描邊。閉合輪廓是一般輪廓,也可以標記為中心線(請選取它的點)。這些值屬於正在編輯的源,並隨字型一起儲存。",
   },
   "de": {
     "sidebar.tab": "Strichschrift",
@@ -172,10 +241,27 @@ export const strings = {
     "undo.cap": "Linienende ändern",
     "undo.join": "Ecke ändern",
     "undo.miterLimit": "Gehrungsgrenze ändern",
+    "field.left": "Links",
+    "field.right": "Rechts",
+    "point.sourceValue": "Wert der Source",
+    "points.title": "Ausgewählte Punkte: {0}",
+    "points.noneTitle": "Punkte",
+    "points.none":
+      "Wähle Punkte einer Mittellinie aus, um ihnen eigene Breiten zu geben. Ein Punkt in der Mitte ohne eigene Breite folgt den Punkten um ihn herum.",
+    "points.sharedJoin":
+      "Die Ecken der Punkte sind in allen Sources gleich; sie werden in der Standard-Source „{0}“ gespeichert.",
+    "points.clear": "Punktwerte löschen",
+    "undo.pointWidth": "Punktbreite ändern",
+    "undo.pointJoin": "Punktecke ändern",
+    "undo.pointMiterLimit": "Gehrungsgrenze des Punkts ändern",
+    "undo.pointClear": "Punktwerte löschen",
+    "tool.title": "Strichbreiten: Anfasser an den Kanten der Punkte ziehen",
+    "setting.handles": "Breitenanfasser auch bei anderen Werkzeugen anzeigen",
+    "menu.pointJoin": "Ecke des Punkts",
+    "points.closedCenterline": "Geschlossene Kontur als Mittellinie ziehen",
+    "undo.closedCenterline": "Geschlossene Mittellinien ändern",
     "panel.hint":
-      "Offene Konturen sind Mittellinien und werden mit diesen Werten " +
-      "nachgezogen. Geschlossene Konturen bleiben, wie sie sind. Die Werte " +
-      "gehören zur bearbeiteten Source und werden mit dem Font gespeichert.",
+      "Offene Konturen sind Mittellinien und werden mit diesen Werten gezogen. Eine geschlossene Kontur ist eine gewöhnliche Kontur, außer sie ist als Mittellinie markiert (wähle einen ihrer Punkte aus). Die Werte gehören zur bearbeiteten Source und werden mit der Schrift gespeichert.",
   },
   "nl": {
     "sidebar.tab": "Lijnfont",
@@ -207,10 +293,27 @@ export const strings = {
     "undo.cap": "Lijnuiteinde wijzigen",
     "undo.join": "Hoek wijzigen",
     "undo.miterLimit": "Verstekgrens wijzigen",
+    "field.left": "Links",
+    "field.right": "Rechts",
+    "point.sourceValue": "Waarde van de source",
+    "points.title": "Geselecteerde punten: {0}",
+    "points.noneTitle": "Punten",
+    "points.none":
+      "Selecteer punten van een middellijn om ze een eigen breedte te geven. Een punt in het midden zonder eigen breedte volgt de punten eromheen.",
+    "points.sharedJoin":
+      "De hoeken van punten zijn in alle sources gelijk; ze worden opgeslagen in de standaardsource ‘{0}’.",
+    "points.clear": "Puntwaarden wissen",
+    "undo.pointWidth": "Puntbreedte wijzigen",
+    "undo.pointJoin": "Punthoek wijzigen",
+    "undo.pointMiterLimit": "Verstekgrens van punt wijzigen",
+    "undo.pointClear": "Puntwaarden wissen",
+    "tool.title": "Lijnbreedtes: sleep de grepen aan de randen van punten",
+    "setting.handles": "Breedtegrepen ook bij ander gereedschap tonen",
+    "menu.pointJoin": "Hoek van het punt",
+    "points.closedCenterline": "Gesloten contour als middellijn trekken",
+    "undo.closedCenterline": "Gesloten middellijnen wijzigen",
     "panel.hint":
-      "Open contouren zijn middenlijnen en worden met deze waarden getrokken. " +
-      "Gesloten contouren blijven zoals ze zijn. De waarden horen bij de source " +
-      "die je bewerkt en worden met het font opgeslagen.",
+      "Open contouren zijn middellijnen en worden met deze waarden getrokken. Een gesloten contour is een gewone contour, tenzij hij als middellijn is gemarkeerd (selecteer een van zijn punten). De waarden horen bij de source die wordt bewerkt en worden met het font opgeslagen.",
   },
   "fr": {
     "sidebar.tab": "Police à traits",
@@ -242,10 +345,28 @@ export const strings = {
     "undo.cap": "Modifier l’extrémité du trait",
     "undo.join": "Modifier la jointure du trait",
     "undo.miterLimit": "Modifier la limite de raccord",
+    "field.left": "Gauche",
+    "field.right": "Droite",
+    "point.sourceValue": "Valeur de la source",
+    "points.title": "Points sélectionnés : {0}",
+    "points.noneTitle": "Points",
+    "points.none":
+      "Sélectionnez des points d’une ligne centrale pour leur donner leur propre épaisseur. Un point au milieu sans épaisseur propre suit les points qui l’entourent.",
+    "points.sharedJoin":
+      "Les jointures des points sont les mêmes dans toutes les sources ; elles sont enregistrées dans la source par défaut, « {0} ».",
+    "points.clear": "Effacer les valeurs des points",
+    "undo.pointWidth": "Modifier l’épaisseur du point",
+    "undo.pointJoin": "Modifier la jointure du point",
+    "undo.pointMiterLimit": "Modifier la limite de raccord du point",
+    "undo.pointClear": "Effacer les valeurs des points",
+    "tool.title":
+      "Épaisseurs du trait : faites glisser les poignées sur les bords des points",
+    "setting.handles": "Afficher les poignées d’épaisseur avec les autres outils aussi",
+    "menu.pointJoin": "Jointure du point",
+    "points.closedCenterline": "Tracer le contour fermé comme ligne centrale",
+    "undo.closedCenterline": "Modifier les lignes centrales fermées",
     "panel.hint":
-      "Les contours ouverts sont des lignes médianes, tracées avec ces valeurs. " +
-      "Les contours fermés restent tels quels. Les valeurs appartiennent à la " +
-      "source en cours d’édition et sont enregistrées avec la police.",
+      "Les contours ouverts sont des lignes centrales, tracées avec ces valeurs. Un contour fermé est un contour ordinaire, sauf s’il est marqué comme ligne centrale (sélectionnez un de ses points). Les valeurs appartiennent à la source en cours d’édition et sont enregistrées avec la fonte.",
   },
   "it": {
     "sidebar.tab": "Font a tratto",
@@ -277,10 +398,28 @@ export const strings = {
     "undo.cap": "Modifica estremità del tratto",
     "undo.join": "Modifica angolo del tratto",
     "undo.miterLimit": "Modifica limite di smussatura",
+    "field.left": "Sinistra",
+    "field.right": "Destra",
+    "point.sourceValue": "Valore della sorgente",
+    "points.title": "Punti selezionati: {0}",
+    "points.noneTitle": "Punti",
+    "points.none":
+      "Seleziona i punti di una linea centrale per dare loro uno spessore proprio. Un punto in mezzo senza spessore proprio segue i punti intorno.",
+    "points.sharedJoin":
+      "Gli angoli dei punti sono uguali in tutte le sorgenti; vengono salvati nella sorgente predefinita, «{0}».",
+    "points.clear": "Cancella i valori dei punti",
+    "undo.pointWidth": "Modifica spessore del punto",
+    "undo.pointJoin": "Modifica angolo del punto",
+    "undo.pointMiterLimit": "Modifica limite di smussatura del punto",
+    "undo.pointClear": "Cancella i valori dei punti",
+    "tool.title": "Spessori del tratto: trascina le maniglie sui bordi dei punti",
+    "setting.handles":
+      "Mostra le maniglie dello spessore anche con gli altri strumenti",
+    "menu.pointJoin": "Angolo del punto",
+    "points.closedCenterline": "Traccia il contorno chiuso come linea centrale",
+    "undo.closedCenterline": "Modifica le linee centrali chiuse",
     "panel.hint":
-      "I contorni aperti sono linee centrali, tracciate con questi valori. I " +
-      "contorni chiusi restano come sono. I valori appartengono alla sorgente " +
-      "in modifica e vengono salvati con il font.",
+      "I contorni aperti sono linee centrali, tracciate con questi valori. Un contorno chiuso è un contorno normale, a meno che non sia segnato come linea centrale (seleziona uno dei suoi punti). I valori appartengono alla sorgente in modifica e vengono salvati con il font.",
   },
   "es-ES": {
     "sidebar.tab": "Fuente de trazos",
@@ -312,10 +451,28 @@ export const strings = {
     "undo.cap": "Cambiar extremo del trazo",
     "undo.join": "Cambiar esquina del trazo",
     "undo.miterLimit": "Cambiar límite de inglete",
+    "field.left": "Izquierda",
+    "field.right": "Derecha",
+    "point.sourceValue": "Valor de la matriz",
+    "points.title": "Puntos seleccionados: {0}",
+    "points.noneTitle": "Puntos",
+    "points.none":
+      "Selecciona puntos de una línea central para darles su propio grosor. Un punto intermedio sin grosor propio sigue a los puntos que lo rodean.",
+    "points.sharedJoin":
+      "Las esquinas de los puntos son iguales en todas las matrices y se guardan en la matriz predeterminada, «{0}».",
+    "points.clear": "Borrar los valores de los puntos",
+    "undo.pointWidth": "Cambiar grosor del punto",
+    "undo.pointJoin": "Cambiar esquina del punto",
+    "undo.pointMiterLimit": "Cambiar límite de inglete del punto",
+    "undo.pointClear": "Borrar los valores de los puntos",
+    "tool.title":
+      "Grosores del trazo: arrastra los tiradores de los bordes de los puntos",
+    "setting.handles": "Mostrar los tiradores de grosor también con otras herramientas",
+    "menu.pointJoin": "Esquina del punto",
+    "points.closedCenterline": "Trazar el contorno cerrado como línea central",
+    "undo.closedCenterline": "Cambiar las líneas centrales cerradas",
     "panel.hint":
-      "Los contornos abiertos son líneas centrales, trazadas con estos valores. " +
-      "Los contornos cerrados quedan como están. Los valores pertenecen a la " +
-      "matriz que se está editando y se guardan con la tipografía.",
+      "Los contornos abiertos son líneas centrales, trazadas con estos valores. Un contorno cerrado es un contorno normal, salvo que esté marcado como línea central (selecciona uno de sus puntos). Los valores pertenecen a la matriz que se está editando y se guardan con la tipografía.",
   },
   "es-419": {
     "sidebar.tab": "Fuente de trazos",
@@ -347,10 +504,28 @@ export const strings = {
     "undo.cap": "Cambiar extremo del trazo",
     "undo.join": "Cambiar esquina del trazo",
     "undo.miterLimit": "Cambiar límite de inglete",
+    "field.left": "Izquierda",
+    "field.right": "Derecha",
+    "point.sourceValue": "Valor de la matriz",
+    "points.title": "Puntos seleccionados: {0}",
+    "points.noneTitle": "Puntos",
+    "points.none":
+      "Selecciona puntos de una línea central para darles su propio grosor. Un punto intermedio sin grosor propio sigue a los puntos que lo rodean.",
+    "points.sharedJoin":
+      "Las esquinas de los puntos son iguales en todas las matrices y se guardan en la matriz predeterminada, “{0}”.",
+    "points.clear": "Borrar los valores de los puntos",
+    "undo.pointWidth": "Cambiar grosor del punto",
+    "undo.pointJoin": "Cambiar esquina del punto",
+    "undo.pointMiterLimit": "Cambiar límite de inglete del punto",
+    "undo.pointClear": "Borrar los valores de los puntos",
+    "tool.title":
+      "Grosores del trazo: arrastra los tiradores de los bordes de los puntos",
+    "setting.handles": "Mostrar los tiradores de grosor también con otras herramientas",
+    "menu.pointJoin": "Esquina del punto",
+    "points.closedCenterline": "Trazar el contorno cerrado como línea central",
+    "undo.closedCenterline": "Cambiar las líneas centrales cerradas",
     "panel.hint":
-      "Los contornos abiertos son líneas centrales, trazadas con estos valores. " +
-      "Los contornos cerrados quedan como están. Los valores pertenecen a la " +
-      "matriz que se está editando y se guardan con la tipografía.",
+      "Los contornos abiertos son líneas centrales, trazadas con estos valores. Un contorno cerrado es un contorno normal, salvo que esté marcado como línea central (selecciona uno de sus puntos). Los valores pertenecen a la matriz que se está editando y se guardan con la tipografía.",
   },
   "pt-BR": {
     "sidebar.tab": "Fonte de traços",
@@ -382,10 +557,27 @@ export const strings = {
     "undo.cap": "Alterar terminal do traço",
     "undo.join": "Alterar canto do traço",
     "undo.miterLimit": "Alterar limite de esquadria",
+    "field.left": "Esquerda",
+    "field.right": "Direita",
+    "point.sourceValue": "Valor da matriz",
+    "points.title": "Pontos selecionados: {0}",
+    "points.noneTitle": "Pontos",
+    "points.none":
+      "Selecione pontos de uma linha central para dar a eles uma espessura própria. Um ponto no meio sem espessura própria segue os pontos ao redor.",
+    "points.sharedJoin":
+      "Os cantos dos pontos são iguais em todas as matrizes e são salvos na matriz padrão, “{0}”.",
+    "points.clear": "Limpar os valores dos pontos",
+    "undo.pointWidth": "Alterar espessura do ponto",
+    "undo.pointJoin": "Alterar canto do ponto",
+    "undo.pointMiterLimit": "Alterar limite de esquadria do ponto",
+    "undo.pointClear": "Limpar os valores dos pontos",
+    "tool.title": "Espessuras do traço: arraste as alças nas bordas dos pontos",
+    "setting.handles": "Mostrar as alças de espessura também com outras ferramentas",
+    "menu.pointJoin": "Canto do ponto",
+    "points.closedCenterline": "Traçar o contorno fechado como linha central",
+    "undo.closedCenterline": "Alterar as linhas centrais fechadas",
     "panel.hint":
-      "Contornos abertos são linhas centrais, traçadas com estes valores. " +
-      "Contornos fechados ficam como estão. Os valores pertencem à matriz em " +
-      "edição e são salvos com a tipografia.",
+      "Contornos abertos são linhas centrais, traçadas com estes valores. Um contorno fechado é um contorno comum, a menos que esteja marcado como linha central (selecione um de seus pontos). Os valores pertencem à matriz em edição e são salvos com a fonte.",
   },
   "pt-PT": {
     "sidebar.tab": "Tipo de traços",
@@ -417,10 +609,27 @@ export const strings = {
     "undo.cap": "Alterar terminal do traço",
     "undo.join": "Alterar canto do traço",
     "undo.miterLimit": "Alterar limite de esquadria",
+    "field.left": "Esquerda",
+    "field.right": "Direita",
+    "point.sourceValue": "Valor da matriz",
+    "points.title": "Pontos selecionados: {0}",
+    "points.noneTitle": "Pontos",
+    "points.none":
+      "Selecione pontos de uma linha central para lhes dar uma espessura própria. Um ponto no meio sem espessura própria segue os pontos à sua volta.",
+    "points.sharedJoin":
+      "Os cantos dos pontos são iguais em todas as matrizes e são guardados na matriz predefinida, «{0}».",
+    "points.clear": "Apagar os valores dos pontos",
+    "undo.pointWidth": "Alterar espessura do ponto",
+    "undo.pointJoin": "Alterar canto do ponto",
+    "undo.pointMiterLimit": "Alterar limite de esquadria do ponto",
+    "undo.pointClear": "Apagar os valores dos pontos",
+    "tool.title": "Espessuras do traço: arraste as pegas nos limites dos pontos",
+    "setting.handles": "Mostrar as pegas de espessura também com outras ferramentas",
+    "menu.pointJoin": "Canto do ponto",
+    "points.closedCenterline": "Traçar o contorno fechado como linha central",
+    "undo.closedCenterline": "Alterar as linhas centrais fechadas",
     "panel.hint":
-      "Os contornos abertos são linhas centrais, traçadas com estes valores. " +
-      "Os contornos fechados ficam como estão. Os valores pertencem à matriz em " +
-      "edição e são guardados com o tipo de letra.",
+      "Contornos abertos são linhas centrais, traçadas com estes valores. Um contorno fechado é um contorno comum, a não ser que esteja marcado como linha central (selecione um dos seus pontos). Os valores pertencem à matriz em edição e são guardados com o tipo de letra.",
   },
   "ru": {
     "sidebar.tab": "Штриховой шрифт",
@@ -451,10 +660,27 @@ export const strings = {
     "undo.cap": "Изменение концов обводки",
     "undo.join": "Изменение углов обводки",
     "undo.miterLimit": "Изменение предела среза",
+    "field.left": "Слева",
+    "field.right": "Справа",
+    "point.sourceValue": "Значение мастера",
+    "points.title": "Выбранные точки: {0}",
+    "points.noneTitle": "Точки",
+    "points.none":
+      "Выберите точки средней линии, чтобы задать им собственную толщину. Точка в середине без собственной толщины следует за соседними точками.",
+    "points.sharedJoin":
+      "Углы точек одинаковы во всех мастерах и сохраняются в мастере по умолчанию «{0}».",
+    "points.clear": "Очистить значения точек",
+    "undo.pointWidth": "Изменение толщины точки",
+    "undo.pointJoin": "Изменение угла точки",
+    "undo.pointMiterLimit": "Изменение предела среза точки",
+    "undo.pointClear": "Очистка значений точек",
+    "tool.title": "Толщина обводки: перетаскивайте маркеры на краях точек",
+    "setting.handles": "Показывать маркеры толщины и в других инструментах",
+    "menu.pointJoin": "Угол точки",
+    "points.closedCenterline": "Обводить замкнутый контур как среднюю линию",
+    "undo.closedCenterline": "Изменение замкнутых средних линий",
     "panel.hint":
-      "Незамкнутые контуры — это средние линии, обводимые с этими значениями. " +
-      "Замкнутые контуры остаются как есть. Значения относятся к " +
-      "редактируемому мастеру и сохраняются вместе со шрифтом.",
+      "Открытые контуры — это средние линии, обводимые с этими значениями. Замкнутый контур — обычный контур, если он не отмечен как средняя линия (выберите одну из его точек). Значения относятся к редактируемому мастеру и сохраняются вместе со шрифтом.",
   },
 };
 
