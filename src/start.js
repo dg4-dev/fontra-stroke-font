@@ -37,7 +37,7 @@ export function start(editor, pluginPath) {
   wrapGlyphLayers(
     visualizationLayers.definitions,
     makeGlyphExpander(settings, componentGlyphs),
-    makeStrokedTest(settings)
+    makeStrokedTest(settings, componentGlyphs)
   );
   const tool = new StrokeWidthTool(editor, `${pluginPath}/tool-icon.svg`);
   insertLayerDefinition(
@@ -58,7 +58,8 @@ export function start(editor, pluginPath) {
           item,
           sceneModel.getLocationForGlyph?.(item.glyphName),
           componentGlyphs
-        ).outlines
+        ).outlines,
+      componentGlyphs
     );
   sceneSettingsController?.addKeyListener?.("positionedLines", () => widenAll());
   widenAll();

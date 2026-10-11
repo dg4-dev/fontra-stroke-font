@@ -75,8 +75,9 @@ test("open contours inside components are stroked with their own glyph's values"
     yMax: 600,
   });
   assert.deepEqual(twists, []);
-  // Components without open contours are not looked up
-  assert.deepEqual(componentGlyphs.requested, ["acute"]);
+  // Components with closed contours only are looked up too: their glyph may
+  // mark them as centerlines
+  assert.deepEqual(componentGlyphs.requested, ["acute", "box"]);
 });
 
 test("components are skipped until their glyph is loaded", () => {

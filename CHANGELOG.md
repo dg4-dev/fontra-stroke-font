@@ -9,6 +9,7 @@ Each section can be pasted as the notes of the matching GitHub release.
 - **Widths per point**: a point of a centerline can have its own width, the same on both sides or different on each side, and a corner its own join and miter limit. Between points the width follows a smooth curve along the centerline; a point in the middle without a width of its own follows the points around it, so adding a point does not change the stroke
 - **Stroke width tool**: handles on the edges of the points, dragged to change the width on both sides (or on one side with Alt); a double click removes a point's values, and the context menu sets the join of the selected points. Elsewhere the tool works like the pointer tool
 - **Panel**: the values of the selected points, changed for all of them at once; a button to clear them; a setting to show the handles with the other tools too
+- **Closed centerlines**: a closed contour can be marked as a centerline and is then stroked as a loop, for o, 0, D, Q and the like (in the panel, or in the context menu of the stroke width tool). Loops without corners become rings; loops with corners get joins. Marks are kept per contour, on its points, and are the same in all sources
 - Per-point values are written to every source being edited, interpolated between sources with the same points, used for components (with left and right swapped in flipped ones), and used by the command-line tool
 
 ### Fixed

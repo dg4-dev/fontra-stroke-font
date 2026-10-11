@@ -13,22 +13,23 @@
 // cached on Fontra's glyph controller (_representationCache.convexHull), used
 // for nothing but finding the glyph under the pointer.
 
-import { hasOpenContours } from "./glyph-strokes.js";
+import { glyphHasCenterlines } from "./glyph-strokes.js";
 
 /**
  * @param {object[]} positionedLines Fontra's sceneSettings.positionedLines,
  *   changed in place
  * @param {(positionedGlyph: object) => object[]} strokedOutlines the stroked
  *   shapes of a glyph (closed unpacked contours, in glyph coordinates)
+ * @param {object} [componentGlyphs] see glyph-strokes.js
  * @returns {number} how many glyphs were changed
  */
-export function widenHitAreas(positionedLines, strokedOutlines) {
+export function widenHitAreas(positionedLines, strokedOutlines, componentGlyphs) {
   let count = 0;
   for (const line of positionedLines ?? []) {
     let changed = false;
     for (const item of line.glyphs ?? []) {
       const glyph = item.glyph;
-      if (!glyph || item.isUndefined || !hasCenterlines(glyph)) {
+      if (!glyph || item.isUndefined || !glyphHasCenterlines(item, componentGlyphs)) {
         continue;
       }
       let outlines;
@@ -67,13 +68,6 @@ export function widenHitAreas(positionedLines, strokedOutlines) {
     }
   }
   return count;
-}
-
-function hasCenterlines(glyph) {
-  return (
-    hasOpenContours(glyph.path) ||
-    (glyph.components ?? []).some((component) => hasOpenContours(component.path))
-  );
 }
 
 /** The convex hull of points, counter-clockwise (monotone chain). */

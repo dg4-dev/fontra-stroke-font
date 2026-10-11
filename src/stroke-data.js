@@ -12,6 +12,8 @@
 //
 // Values of the offset method: width (or left / right), cap, join, miterLimit.
 // Values of the nib method: major, minor, angle. Both methods: cornerRadius.
+// Points also have centerline: true on the on-curve points of a closed
+// contour that is a centerline (stroked as a loop) rather than an outline.
 // Missing values fall back to the source defaults, then to the built-in ones,
 // except the widths of points: a point in the middle of a centerline without a
 // width of its own takes the width between the points around it that have one
@@ -50,6 +52,10 @@ export const POINT_OFFSET_KEYS = Object.freeze([
   "join",
   "miterLimit",
 ]);
+
+// Point values that must be the same in all sources: those of the default
+// source are used (as cap and join of the source defaults)
+export const SHARED_POINT_KEYS = Object.freeze(["join", "centerline"]);
 
 /**
  * The stroke method of a glyph. Glyphs without settings use the offset method.
@@ -196,7 +202,20 @@ export function sanitizePointValues(stored) {
       values[key] = value;
     }
   }
+  if (stored.centerline === true) {
+    values.centerline = true;
+  }
   return Object.keys(values).length ? values : undefined;
+}
+
+/**
+ * Whether a contour is a centerline: an open one always, a closed one when
+ * one of its points has centerline: true.
+ * @param {boolean} isClosed
+ * @param {(object|undefined)[]} [values] the values of its points
+ */
+export function isCenterlineContour(isClosed, values) {
+  return !isClosed || !!values?.some((pointValues) => pointValues?.centerline);
 }
 
 /**
@@ -330,10 +349,11 @@ export function normalizeNibAngle(angle) {
 }
 
 /**
- * Only open contours are centerlines; closed contours are ordinary outlines.
+ * Whether a contour is a centerline, from the values of its points (see
+ * isCenterlineContour()).
  */
-export function isCenterline(contour) {
-  return !contour.isClosed;
+export function isCenterline(contour, values) {
+  return isCenterlineContour(contour.isClosed, values);
 }
 
 function isObject(value) {

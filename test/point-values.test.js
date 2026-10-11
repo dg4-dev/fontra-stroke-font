@@ -6,6 +6,7 @@ import { strokeGlyph } from "../src/glyph-strokes.js";
 import { locatePoint, pathPoints } from "../src/path-points.js";
 import {
   centerlinePoints,
+  closedContourPoints,
   describeSelectedPoints,
   editPointValues,
   editingSourceIndices,
@@ -166,7 +167,7 @@ test("a source uses the join of the default source's point", () => {
   assert.deepEqual(style.points[0][1], { width: 30, join: "bevel" });
 });
 
-test("selected points: only on-curve points of open contours", () => {
+test("selected points: on-curve points, of open and closed contours", () => {
   const path = fakePath([
     { points: [on(0, 0), off(50, 50), on(100, 0)], isClosed: false },
     { points: [on(0, 0), on(10, 0), on(0, 10)], isClosed: true },
@@ -176,8 +177,40 @@ test("selected points: only on-curve points of open contours", () => {
   );
   assert.deepEqual(indices, [1, 2, 3]);
   assert.deepEqual(centerlinePoints(path, indices), [
-    { pointIndex: 2, contourIndex: 0, contourPointIndex: 2 },
+    { pointIndex: 2, contourIndex: 0, contourPointIndex: 2, isClosed: false },
+    { pointIndex: 3, contourIndex: 1, contourPointIndex: 0, isClosed: true },
   ]);
+  // All on-curve points of the closed contours of the selected points
+  assert.deepEqual(closedContourPoints(path, indices), [3, 4, 5]);
+});
+
+test("closed contours become centerlines when marked in the default source", () => {
+  const ring = (id) => ({
+    points: [withId(on(0, 0), id), on(100, 0), on(100, 100), on(0, 100)],
+    isClosed: true,
+  });
+  const glyph = fakePositionedGlyph({
+    contours: [ring("b")],
+    sources: [
+      { customData: pointsData({ a: { centerline: true } }) },
+      { customData: {} },
+    ],
+    sourceContours: [[ring("a")], [ring("b")]],
+    sourceIndex: 1,
+  });
+  // The second source has no marks of its own; the default source's count
+  const { outlines, strokedClosed } = strokeGlyph(glyph, {});
+  assert.ok(outlines.length > 0);
+  assert.deepEqual([...strokedClosed.own], [0]);
+  const described = describeSelectedPoints(glyph, {}, new Set(["point/2"]));
+  assert.equal(described.closedCenterline, true);
+  // Unmarked, it stays an outline
+  const plain = fakePositionedGlyph({ contours: [ring("b")] });
+  assert.deepEqual(strokeGlyph(plain, {}).outlines, []);
+  assert.equal(
+    describeSelectedPoints(plain, {}, new Set(["point/2"])).closedCenterline,
+    false
+  );
 });
 
 test("changing one field of a point", () => {
