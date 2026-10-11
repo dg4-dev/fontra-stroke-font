@@ -2,9 +2,23 @@
 
 /** A path with the parts of Fontra's VarPackedPath that the plugin uses. */
 export function fakePath(contours) {
+  let endPoint = -1;
   return {
     numContours: contours.length,
-    contourInfo: contours.map((c) => ({ isClosed: c.isClosed })),
+    contourInfo: contours.map((c) => {
+      endPoint += c.points.length;
+      return { isClosed: c.isClosed, endPoint };
+    }),
+    coordinates: contours.flatMap((c) => c.points.flatMap((p) => [p.x, p.y])),
+    pointTypes: contours.flatMap((c) => c.points.map((p) => p.type ?? "on")),
+    drawContourToPath2d(path2d, index) {
+      const [first, ...rest] = contours[index].points;
+      path2d.moveTo(first.x, first.y);
+      for (const p of rest) {
+        path2d.lineTo(p.x, p.y);
+      }
+      path2d.closePath();
+    },
     getUnpackedContour(index) {
       const c = contours[index];
       return { points: c.points.map((p) => ({ ...p })), isClosed: c.isClosed };
@@ -19,6 +33,7 @@ export function fakePath(contours) {
 export function fakePositionedGlyph(options) {
   const {
     contours = [],
+    components = [],
     glyphCustomData = {},
     sources = [{ name: "Regular", customData: {} }],
     nearestSourceIndex = 0,
@@ -48,9 +63,18 @@ export function fakePositionedGlyph(options) {
     },
   };
   return {
-    glyphName: "a",
+    glyphName: options.glyphName ?? "a",
     varGlyph,
-    glyph: { path: fakePath(contours), sourceIndex, varGlyph },
+    glyph: {
+      path: fakePath(contours),
+      sourceIndex,
+      varGlyph,
+      // [{ name, contours, location? }] as Fontra's ComponentController
+      components: components.map(({ name, contours, location = {} }) => ({
+        compo: { name, location },
+        path: fakePath(contours),
+      })),
+    },
   };
 }
 
@@ -83,5 +107,24 @@ export class FakeContext {
   }
   stroke() {
     this.calls.push(["stroke", this.strokeStyle, this.lineWidth]);
+  }
+}
+
+/** Records Path2D calls. */
+export class FakePath2D {
+  constructor() {
+    this.calls = [];
+  }
+  moveTo(x, y) {
+    this.calls.push(["moveTo", x, y]);
+  }
+  lineTo(x, y) {
+    this.calls.push(["lineTo", x, y]);
+  }
+  bezierCurveTo(...args) {
+    this.calls.push(["bezierCurveTo", ...args]);
+  }
+  closePath() {
+    this.calls.push(["closePath"]);
   }
 }

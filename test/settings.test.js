@@ -34,6 +34,7 @@ test("changes are saved and reported once", () => {
   settings.set("visible", false);
   assert.deepEqual(seen, [["visible", false]]);
   assert.deepEqual(JSON.parse(storage.data["fontra-plugin-stroke-font.settings"]), {
+    ...DEFAULT_SETTINGS,
     visible: false,
   });
   assert.throws(() => settings.set("nope", 1));
@@ -54,4 +55,16 @@ test("broken or missing storage does not break the settings", () => {
   settings.set("visible", false);
   assert.equal(settings.get("visible"), false);
   assert.equal(new StrokeSettings(undefined).get("visible"), true);
+});
+
+test("the fill opacity is kept within its range", () => {
+  const settings = new StrokeSettings(memoryStorage());
+  settings.set("fillOpacity", 2);
+  assert.equal(settings.get("fillOpacity"), 1);
+  settings.set("fillOpacity", 0);
+  assert.equal(settings.get("fillOpacity"), 0.05);
+  settings.set("fillOpacity", "abc");
+  assert.equal(settings.get("fillOpacity"), DEFAULT_SETTINGS.fillOpacity);
+  settings.set("fillOpacity", 0.5);
+  assert.equal(settings.get("fillOpacity"), 0.5);
 });

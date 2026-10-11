@@ -1,8 +1,7 @@
-// The visualization layer that fills the stroked shape of the open contours
+// The visualization layer that shows the stroked shape of the open contours
 // (centerlines) of the glyph being edited.
 
-import { strokeStyleForGlyph } from "./current-source.js";
-import { strokeOffsetContour } from "./geometry/offset.js";
+import { strokeGlyph } from "./glyph-strokes.js";
 
 export const LAYER_IDENTIFIER = "fontra-plugin.stroke-font.preview";
 
@@ -10,7 +9,12 @@ export const LAYER_IDENTIFIER = "fontra-plugin.stroke-font.preview";
 // so that the centerline stays visible on top of the preview.
 const LAYER_Z_INDEX = 480;
 
-export function makeStrokeLayerDefinition() {
+/**
+ * @param {object} [options]
+ * @param {object} [options.settings] display settings (see settings.js)
+ * @param {object} [options.componentGlyphs] see glyph-strokes.js
+ */
+export function makeStrokeLayerDefinition({ settings, componentGlyphs } = {}) {
   return {
     identifier: LAYER_IDENTIFIER,
     name: "Stroke preview",
@@ -22,40 +26,46 @@ export function makeStrokeLayerDefinition() {
     userSwitchable: false,
     zIndex: LAYER_Z_INDEX,
     // Sizes in screen pixels; Fontra converts them to glyph units
-    screenParameters: { markerRadius: 7, markerWidth: 2 },
+    screenParameters: { markerRadius: 7, markerWidth: 2, outlineWidth: 1.5 },
     colors: {
-      fillColor: "hsla(215, 90%, 45%, 0.3)",
+      fillColor: "hsl(215, 90%, 45%)",
+      outlineColor: "hsl(215, 90%, 40%)",
       twistColor: "hsla(10, 90%, 50%, 0.9)",
     },
     colorsDarkMode: {
-      fillColor: "hsla(215, 90%, 65%, 0.35)",
+      fillColor: "hsl(215, 90%, 65%)",
+      outlineColor: "hsl(215, 90%, 70%)",
       twistColor: "hsla(10, 90%, 62%, 0.9)",
     },
     draw: ({ context, positionedGlyph, parameters, model }) => {
       const location = model?.getLocationForGlyph?.(positionedGlyph?.glyphName);
-      drawStrokePreview(context, positionedGlyph, location, parameters);
+      drawStrokePreview(context, positionedGlyph, location, parameters, {
+        outlineOnly: settings?.get("outlineOnly") ?? false,
+        fillOpacity: settings?.get("fillOpacity") ?? 0.3,
+        componentGlyphs,
+      });
     },
   };
 }
 
-export function drawStrokePreview(context, positionedGlyph, location, parameters) {
-  const path = positionedGlyph?.glyph?.path;
-  if (!path?.numContours) {
-    return;
-  }
-  const style = strokeStyleForGlyph(positionedGlyph, location);
-  if (!style) {
-    return;
-  }
-  const { outlines, twists } = strokeOpenContours(path, style);
+export function drawStrokePreview(
+  context,
+  positionedGlyph,
+  location,
+  parameters,
+  { outlineOnly = false, fillOpacity = 0.3, componentGlyphs } = {}
+) {
+  const { outlines, twists } = strokeGlyph(positionedGlyph, location, componentGlyphs);
   if (outlines.length) {
-    context.beginPath();
-    for (const contour of outlines) {
-      appendContour(context, contour);
+    if (outlineOnly) {
+      drawOutline(context, outlines, parameters.outlineColor, parameters.outlineWidth);
+    } else {
+      context.globalAlpha = fillOpacity;
+      context.fillStyle = parameters.fillColor;
+      // The bands, joins and caps overlap and all run counter-clockwise
+      fillPath(context, outlinesToPath(outlines, context));
+      context.globalAlpha = 1;
     }
-    context.fillStyle = parameters.fillColor;
-    // The bands, joins and caps overlap and all run counter-clockwise
-    context.fill("nonzero");
   }
   // Rings where the stroke twists (bends more sharply than half the width)
   if (twists.length) {
@@ -69,35 +79,84 @@ export function drawStrokePreview(context, positionedGlyph, location, parameters
   }
 }
 
+let scratchCanvas = null;
+
 /**
- * Stroked outlines of the open contours of a Fontra path, and the places
- * where the strokes twist.
+ * Draw only the outer edge of overlapping outlines: the edges where outlines
+ * overlap would otherwise show as lines inside the shape. The outlines are
+ * stroked twice as wide on a scratch canvas, the filled shape is erased from
+ * it, and what is left (the outer half of the stroke) is copied over.
  */
-export function strokeOpenContours(path, style) {
-  const outlines = [];
-  const twists = [];
-  for (let contourIndex = 0; contourIndex < path.numContours; contourIndex++) {
-    if (path.contourInfo[contourIndex].isClosed) {
-      continue;
+export function drawOutline(context, outlines, color, width) {
+  const path = outlinesToPath(outlines, context);
+  const canvas = context.canvas;
+  if (
+    typeof OffscreenCanvas !== "function" ||
+    !canvas?.width ||
+    !context.getTransform
+  ) {
+    // No scratch canvas: stroke every outline, inner edges included
+    context.strokeStyle = color;
+    context.lineWidth = width;
+    if (path) {
+      context.stroke(path);
+    } else {
+      context.stroke();
     }
-    let contour;
-    try {
-      contour = path.getUnpackedContour(contourIndex);
-    } catch (e) {
-      // A contour that is being drawn can be momentarily malformed; skip it
-      // rather than break drawing.
-      continue;
-    }
-    const stroked = strokeOffsetContour(contour, style);
-    outlines.push(...stroked.contours);
-    twists.push(...stroked.twists.map((twist) => ({ ...twist, contourIndex })));
+    return;
   }
-  return { outlines, twists };
+  if (
+    !scratchCanvas ||
+    scratchCanvas.width !== canvas.width ||
+    scratchCanvas.height !== canvas.height
+  ) {
+    scratchCanvas = new OffscreenCanvas(canvas.width, canvas.height);
+  }
+  const scratch = scratchCanvas.getContext("2d");
+  scratch.setTransform(1, 0, 0, 1, 0, 0);
+  scratch.clearRect(0, 0, canvas.width, canvas.height);
+  scratch.setTransform(context.getTransform());
+  scratch.lineJoin = "round";
+  scratch.strokeStyle = color;
+  scratch.lineWidth = width * 2;
+  scratch.stroke(path);
+  scratch.globalCompositeOperation = "destination-out";
+  scratch.fill(path, "nonzero");
+  scratch.globalCompositeOperation = "source-over";
+  context.save();
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.drawImage(scratchCanvas, 0, 0);
+  context.restore();
 }
 
-function appendContour(context, contour) {
+function fillPath(context, path) {
+  if (path) {
+    context.fill(path, "nonzero");
+  } else {
+    context.fill("nonzero");
+  }
+}
+
+/**
+ * The outlines as a Path2D (or, where Path2D is missing, as the current path
+ * of the context, which is then returned as undefined).
+ */
+export function outlinesToPath(outlines, context) {
+  const path = typeof Path2D === "function" ? new Path2D() : null;
+  const target = path ?? context;
+  if (!path) {
+    context.beginPath();
+  }
+  for (const contour of outlines) {
+    appendContour(target, contour);
+  }
+  return path ?? undefined;
+}
+
+/** Add a closed unpacked contour to a Path2D or a canvas context. */
+export function appendContour(target, contour) {
   const points = contour.points;
-  context.moveTo(points[0].x, points[0].y);
+  target.moveTo(points[0].x, points[0].y);
   let controls = [];
   for (let i = 1; i <= points.length; i++) {
     const point = points[i % points.length];
@@ -107,11 +166,11 @@ function appendContour(context, contour) {
     }
     if (controls.length === 2) {
       const [c1, c2] = controls;
-      context.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, point.x, point.y);
+      target.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, point.x, point.y);
     } else {
-      context.lineTo(point.x, point.y);
+      target.lineTo(point.x, point.y);
     }
     controls = [];
   }
-  context.closePath();
+  target.closePath();
 }

@@ -1,6 +1,8 @@
 // Fontra plugin entry point. Fontra imports this module and calls
 // start(editor, pluginPath) once the glyph editor has been set up.
 
+import { ComponentGlyphs } from "./glyph-strokes.js";
+import { makeGlyphExpander, wrapGlyphLayers } from "./other-glyphs.js";
 import { PANEL_IDENTIFIER, definePanelElement } from "./panel.js";
 import { StrokeSettings } from "./settings.js";
 import { t } from "./strings.js";
@@ -14,8 +16,20 @@ export function start(editor, pluginPath) {
   }
 
   const settings = new StrokeSettings();
-  insertLayerDefinition(visualizationLayers.definitions, makeStrokeLayerDefinition());
+  const componentGlyphs = new ComponentGlyphs(editor.fontController, () =>
+    editor.canvasController.requestUpdate()
+  );
+  insertLayerDefinition(
+    visualizationLayers.definitions,
+    makeStrokeLayerDefinition({ settings, componentGlyphs })
+  );
   visualizationLayers.toggle(LAYER_IDENTIFIER, settings.get("visible"));
+  // The other glyphs of the text: Fontra's own layers draw them
+  wrapGlyphLayers(
+    visualizationLayers.definitions,
+    makeGlyphExpander(settings, componentGlyphs)
+  );
+  visualizationLayers.requestUpdate?.();
 
   settings.addListener((key, value) => {
     if (key === "visible") {
