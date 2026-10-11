@@ -10,6 +10,7 @@ import {
   sanitizeOffsetValue,
   setSourceDefaults,
 } from "./stroke-data.js";
+import { FILL_OPACITY_MAX, FILL_OPACITY_MIN } from "./settings.js";
 import { t } from "./strings.js";
 
 export const PANEL_IDENTIFIER = "stroke-font";
@@ -37,6 +38,30 @@ const styles = `
     grid-template-columns: auto 1fr;
     gap: 0.4em;
     align-items: center;
+  }
+  .group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+  }
+  .slider-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 0.6em;
+    align-items: center;
+  }
+  .slider-row output {
+    min-width: 3em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  input[type="range"] {
+    width: 100%;
+    margin: 0;
+  }
+  input[type="range"]:disabled,
+  input[type="checkbox"]:disabled {
+    opacity: 0.5;
   }
   .fields {
     display: grid;
@@ -165,7 +190,14 @@ export function definePanelElement() {
         "div",
         { class: "panel" },
         el("div", { class: "title" }, t("panel.title")),
-        this._checkbox("visible", t("setting.visible")),
+        el(
+          "div",
+          { class: "group" },
+          this._checkbox("visible", t("setting.visible")),
+          this._checkbox("outlineOnly", t("setting.outlineOnly")),
+          this._opacitySlider(),
+          this._checkbox("otherGlyphs", t("setting.otherGlyphs"))
+        ),
         el("hr"),
         this._sourceLabel,
         this._note,
@@ -188,6 +220,29 @@ export function definePanelElement() {
         "onchange": (event) => this.settings.set(key, event.target.checked),
       });
       return el("div", { class: "row" }, input, el("label", { for: id }, label));
+    }
+
+    _opacitySlider() {
+      const id = "stroke-font-fillOpacity";
+      const output = el("output", { for: id });
+      const input = el("input", {
+        "type": "range",
+        id,
+        "min": Math.round(FILL_OPACITY_MIN * 100),
+        "max": Math.round(FILL_OPACITY_MAX * 100),
+        "step": 1,
+        "data-range-setting": "fillOpacity",
+        "oninput": (event) =>
+          this.settings.set("fillOpacity", event.target.value / 100),
+      });
+      input._output = output;
+      return el(
+        "div",
+        { class: "slider-row" },
+        el("label", { for: id }, t("setting.fillOpacity")),
+        input,
+        output
+      );
     }
 
     _numberField(key, label, { min, step }) {
@@ -221,6 +276,17 @@ export function definePanelElement() {
     _syncSettings() {
       for (const input of this.shadowRoot.querySelectorAll("input[data-setting]")) {
         input.checked = !!this.settings.get(input.dataset.setting);
+      }
+      const visible = this.settings.get("visible");
+      const outlineOnly = this.settings.get("outlineOnly");
+      this.shadowRoot.querySelector('[data-setting="outlineOnly"]').disabled = !visible;
+      for (const input of this.shadowRoot.querySelectorAll(
+        "input[data-range-setting]"
+      )) {
+        const percent = Math.round(this.settings.get(input.dataset.rangeSetting) * 100);
+        input.value = String(percent);
+        input._output.textContent = `${percent}%`;
+        input.disabled = !visible || outlineOnly;
       }
     }
 

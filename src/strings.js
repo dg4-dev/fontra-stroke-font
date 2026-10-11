@@ -14,6 +14,9 @@ export const strings = {
     "panel.title": "Stroke font",
     "setting.visible": "Show stroke preview",
     "source.current": "Source: {0}",
+    "setting.outlineOnly": "Draw the edge only",
+    "setting.fillOpacity": "Fill opacity",
+    "setting.otherGlyphs": "Show strokes on the other glyphs",
     "source.between": "Between sources",
     "source.notAtSource":
       "Between sources: the preview uses values interpolated between the sources. Go to a source to change its values.",
@@ -46,6 +49,9 @@ export const strings = {
     "panel.title": "ストロークフォント",
     "setting.visible": "なぞった形を表示",
     "source.current": "ソース: {0}",
+    "setting.outlineOnly": "縁だけを表示",
+    "setting.fillOpacity": "塗りの濃さ",
+    "setting.otherGlyphs": "編集中以外のグリフもなぞって表示",
     "source.between": "ソースの間",
     "source.notAtSource":
       "ソースの位置ではありません。表示には、ソースの値を補間した値を使っています。値を変えるには、ソースの位置に移動してください。",
@@ -77,6 +83,9 @@ export const strings = {
     "panel.title": "笔画字体",
     "setting.visible": "显示笔画预览",
     "source.current": "源: {0}",
+    "setting.outlineOnly": "仅显示边缘",
+    "setting.fillOpacity": "填充不透明度",
+    "setting.otherGlyphs": "在其他字形上也显示笔画",
     "source.between": "源之间",
     "source.notAtSource":
       "当前不在源的位置: 预览使用各源数值的插值。要修改数值,请切换到某个源。",
@@ -106,6 +115,9 @@ export const strings = {
     "panel.title": "筆畫字型",
     "setting.visible": "顯示筆畫預覽",
     "source.current": "源: {0}",
+    "setting.outlineOnly": "僅顯示邊緣",
+    "setting.fillOpacity": "填色不透明度",
+    "setting.otherGlyphs": "在其他字符上也顯示筆畫",
     "source.between": "源之間",
     "source.notAtSource":
       "目前不在源的位置: 預覽使用各源數值的內插值。要修改數值,請切換到某個源。",
@@ -135,6 +147,9 @@ export const strings = {
     "panel.title": "Strichschrift",
     "setting.visible": "Strichvorschau anzeigen",
     "source.current": "Source: {0}",
+    "setting.outlineOnly": "Nur den Rand zeichnen",
+    "setting.fillOpacity": "Deckkraft der Füllung",
+    "setting.otherGlyphs": "Striche auch auf den anderen Glyphen zeigen",
     "source.between": "Zwischen Sources",
     "source.notAtSource":
       "Nicht an einer Source: Die Vorschau verwendet zwischen den Sources interpolierte Werte. Wechsle zu einer Source, um ihre Werte zu ändern.",
@@ -167,6 +182,9 @@ export const strings = {
     "panel.title": "Lijnfont",
     "setting.visible": "Lijnvoorbeeld tonen",
     "source.current": "Source: {0}",
+    "setting.outlineOnly": "Alleen de rand tekenen",
+    "setting.fillOpacity": "Dekking van de vulling",
+    "setting.otherGlyphs": "Lijnen ook op de andere glyphs tonen",
     "source.between": "Tussen sources",
     "source.notAtSource":
       "Niet op een source: het voorbeeld gebruikt waarden die tussen de sources geïnterpoleerd zijn. Ga naar een source om de waarden te wijzigen.",
@@ -199,6 +217,9 @@ export const strings = {
     "panel.title": "Police à traits",
     "setting.visible": "Afficher l’aperçu du trait",
     "source.current": "Source : {0}",
+    "setting.outlineOnly": "Dessiner seulement le contour",
+    "setting.fillOpacity": "Opacité du remplissage",
+    "setting.otherGlyphs": "Afficher les traits sur les autres glyphes",
     "source.between": "Entre les sources",
     "source.notAtSource":
       "Pas sur une source : l’aperçu utilise des valeurs interpolées entre les sources. Placez-vous sur une source pour modifier ses valeurs.",
@@ -231,6 +252,9 @@ export const strings = {
     "panel.title": "Font a tratto",
     "setting.visible": "Mostra anteprima del tratto",
     "source.current": "Sorgente: {0}",
+    "setting.outlineOnly": "Disegna solo il bordo",
+    "setting.fillOpacity": "Opacità del riempimento",
+    "setting.otherGlyphs": "Mostra i tratti anche sugli altri glifi",
     "source.between": "Tra le sorgenti",
     "source.notAtSource":
       "Non su una sorgente: l’anteprima usa valori interpolati tra le sorgenti. Spostati su una sorgente per modificarne i valori.",
@@ -263,6 +287,9 @@ export const strings = {
     "panel.title": "Fuente de trazos",
     "setting.visible": "Mostrar vista previa del trazo",
     "source.current": "Matriz: {0}",
+    "setting.outlineOnly": "Dibujar solo el borde",
+    "setting.fillOpacity": "Opacidad del relleno",
+    "setting.otherGlyphs": "Mostrar los trazos en los demás glifos",
     "source.between": "Entre matrices",
     "source.notAtSource":
       "No estás en una matriz: la vista previa usa valores interpolados entre las matrices. Ve a una matriz para cambiar sus valores.",
@@ -295,6 +322,9 @@ export const strings = {
     "panel.title": "Fuente de trazos",
     "setting.visible": "Mostrar vista previa del trazo",
     "source.current": "Matriz: {0}",
+    "setting.outlineOnly": "Dibujar solo el borde",
+    "setting.fillOpacity": "Opacidad del relleno",
+    "setting.otherGlyphs": "Mostrar los trazos en los demás glifos",
     "source.between": "Entre matrices",
     "source.notAtSource":
       "No estás en una matriz: la vista previa usa valores interpolados entre las matrices. Ve a una matriz para cambiar sus valores.",
@@ -327,6 +357,9 @@ export const strings = {
     "panel.title": "Fonte de traços",
     "setting.visible": "Mostrar prévia do traço",
     "source.current": "Matriz: {0}",
+    "setting.outlineOnly": "Desenhar só a borda",
+    "setting.fillOpacity": "Opacidade do preenchimento",
+    "setting.otherGlyphs": "Mostrar os traços nos outros glifos",
     "source.between": "Entre matrizes",
     "source.notAtSource":
       "Fora de uma matriz: a prévia usa valores interpolados entre as matrizes. Vá até uma matriz para alterar seus valores.",
@@ -359,6 +392,9 @@ export const strings = {
     "panel.title": "Tipo de traços",
     "setting.visible": "Mostrar pré-visualização do traço",
     "source.current": "Matriz: {0}",
+    "setting.outlineOnly": "Desenhar só o contorno",
+    "setting.fillOpacity": "Opacidade do preenchimento",
+    "setting.otherGlyphs": "Mostrar os traços nos outros glifos",
     "source.between": "Entre matrizes",
     "source.notAtSource":
       "Fora de uma matriz: a pré-visualização usa valores interpolados entre as matrizes. Vá até uma matriz para alterar os seus valores.",
@@ -391,6 +427,9 @@ export const strings = {
     "panel.title": "Штриховой шрифт",
     "setting.visible": "Показывать обводку",
     "source.current": "Мастер: {0}",
+    "setting.outlineOnly": "Рисовать только край",
+    "setting.fillOpacity": "Непрозрачность заливки",
+    "setting.otherGlyphs": "Показывать обводку на других глифах",
     "source.between": "Между мастерами",
     "source.notAtSource":
       "Не в позиции мастера: для просмотра значения интерполируются между мастерами. Перейдите к мастеру, чтобы изменить его значения.",

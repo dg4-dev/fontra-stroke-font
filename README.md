@@ -49,17 +49,24 @@ After registering, reopen the glyph editor to load the plugin.
 
 Draw an open contour (with the pen tool, end a contour without closing it) in the glyph being edited. The plugin fills its stroked shape in translucent blue under the centerline. The preview follows while you drag points and handles. Closed contours are ordinary outlines and are not stroked; a glyph can mix both.
 
+The other glyphs of the text are drawn with their stroked shapes too, as they will look in the font. Open contours inside components are stroked too, with the values of the component's own glyph at the component's location. The width is not scaled when the component is.
+
 Where the centerline bends more sharply than half the width (the radius of the bend is smaller than half the width), the stroke twists: its inner edge would run backwards. The plugin fills such places without holes and marks them with a red ring. See [Twists](#twists).
 
 A stroke font tab (an S-shaped stroke icon) is added to the right sidebar of the glyph editor.
 
 | Setting | Description |
 | --- | --- |
-| Show stroke preview | Shows or hides the preview. Saved in the browser's localStorage |
+| Show stroke preview | Shows or hides the preview on the glyph being edited |
+| Draw the edge only | Draws the outer edge of the stroked shape instead of filling it |
+| Fill opacity | How strongly the preview is filled (5–100%) |
+| Show strokes on the other glyphs | Draws the other glyphs of the text with their stroked shapes, as they will look in the font. Off: Fontra draws them itself, and fills each centerline as if it were closed |
 | Width | Distance between the two edges of the stroke |
 | Cap | Shape of the ends: butt (flat at the end point), round, or square (extends half the width beyond the end point). The same in all sources |
 | Join | Shape of corners: miter (pointed), round, or bevel (cut off). Smooth points do not make corners. The same in all sources |
 | Miter limit | A miter longer than this many times the width becomes a bevel, as in SVG: for an angle θ between the two lines, the miter is `1 / sin(θ / 2)` times the width. Only used with the miter join |
+
+The first four are display settings, saved in the browser's localStorage.
 
 Width and miter limit belong to the source being edited, so each source (for example Light and Bold) has its own values. Between sources they are interpolated the same way Fontra interpolates the outlines, and the panel shows the interpolated values (the fields are disabled there; go to a source to change them). Cap and join cannot be interpolated, and the outlines of the sources would not match if they differed, so all sources use the ones of the default source: the panel saves them there, whichever source is being edited. All values are saved with the font and can be undone.
 
@@ -166,7 +173,8 @@ The exception is a twist that only some sources have. In a source that twists, t
 ## Limitations
 
 - Between a source where a stroke twists and one where it does not, in-between outlines come out thinner on the inside of the bend (see [Compatible sources](#compatible-sources))
-- The preview is drawn only on the glyph being edited, and does not appear in Fontra's font overview or in other glyphs of the text (#16)
+- The stroked shapes are drawn in the glyph editor only. Fontra's font overview shows the centerlines
+- To draw the other glyphs with their strokes, the plugin wraps the draw functions of four of Fontra's visualization layers (`fontra.context.glyphs`, `fontra.selected.glyph`, `fontra.hovered.glyph`, `fontra.all.glyphs`) and hands them the stroked shapes instead of the centerlines
 - The preview does not appear in Fontra's "View → Glyph editor appearance" menu. Items in that menu need an internal Fontra action registration that plugins cannot make. Use the sidebar panel to toggle it instead
 - The plugin relies on internal APIs of Fontra's editor (`editor.visualizationLayers`, `editor.addSidebarPanel()`, `sceneController.editNamedGlyphAndRecordChanges()` and others). Changes in Fontra may break it
 
@@ -184,7 +192,9 @@ src/
     compatible.js       Stroking all sources of a glyph with the same points
   stroke-data.js      Reading and writing the stroke data in customData
   current-source.js   Which source's values apply to the glyph in the editor
+  glyph-strokes.js    Stroked shapes of a glyph and its components, reused while unchanged
   stroke-layer.js     Fontra visualization layer for the preview
+  other-glyphs.js     Wrapping Fontra's layers that draw the other glyphs
   panel.js            Sidebar panel
   settings.js         Display settings, saved to localStorage
   strings.js          UI strings for each of Fontra's display languages

@@ -5,8 +5,14 @@
 const STORAGE_KEY = "fontra-plugin-stroke-font.settings";
 
 export const DEFAULT_SETTINGS = Object.freeze({
-  visible: true,
+  visible: true, // the preview on the glyph being edited
+  otherGlyphs: true, // stroked shapes on the other glyphs of the text
+  outlineOnly: false, // draw the edge of the preview instead of filling it
+  fillOpacity: 0.3, // of the preview fill on the glyph being edited
 });
+
+export const FILL_OPACITY_MIN = 0.05;
+export const FILL_OPACITY_MAX = 1;
 
 export class StrokeSettings {
   constructor(storage = safeLocalStorage()) {
@@ -67,7 +73,18 @@ export class StrokeSettings {
 }
 
 function sanitize(key, value) {
-  return typeof DEFAULT_SETTINGS[key] === "boolean" ? !!value : value;
+  const defaultValue = DEFAULT_SETTINGS[key];
+  if (typeof defaultValue === "boolean") {
+    return !!value;
+  }
+  const number = Number(value);
+  if (value === null || value === "" || !Number.isFinite(number)) {
+    return defaultValue;
+  }
+  if (key === "fillOpacity") {
+    return Math.min(FILL_OPACITY_MAX, Math.max(FILL_OPACITY_MIN, number));
+  }
+  return number;
 }
 
 function safeLocalStorage() {

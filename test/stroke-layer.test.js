@@ -244,3 +244,35 @@ test("without a working model, the nearest source gives the numbers", () => {
   };
   assert.equal(strokeStyleForGlyph(between, { wght: 500 }).width, 120);
 });
+
+test("the fill uses the opacity setting", () => {
+  const context = new FakeContext();
+  const alphas = [];
+  Object.defineProperty(context, "globalAlpha", {
+    set: (value) => alphas.push(value),
+    get: () => alphas.at(-1),
+  });
+  drawStrokePreview(
+    context,
+    fakePositionedGlyph({ contours: [line] }),
+    {},
+    PARAMETERS,
+    {
+      fillOpacity: 0.6,
+    }
+  );
+  assert.deepEqual(alphas, [0.6, 1]);
+});
+
+test("without a scratch canvas, the edge-only mode strokes every outline", () => {
+  const context = new FakeContext();
+  drawStrokePreview(
+    context,
+    fakePositionedGlyph({ contours: [line] }),
+    {},
+    { ...PARAMETERS, outlineColor: "navy", outlineWidth: 2 },
+    { outlineOnly: true }
+  );
+  assert.ok(!context.calls.some(([name]) => name === "fill"));
+  assert.deepEqual(context.calls.at(-1), ["stroke", "navy", 2]);
+});
