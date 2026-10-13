@@ -81,9 +81,8 @@ A lone on-curve point becomes a dot with round or square caps, as in SVG.
 
 An on-curve point of a centerline can have a width of its own, the same on both sides or different on each side (left and right, looking along the contour), and a corner point can have its own join and miter limit.
 
-- Between points, the width follows a smooth curve along the length of the centerline through the points that have a width (a monotone cubic: between two points it never goes beyond their widths, and the edges do not bend at smooth points)
-- An end of a centerline without a width of its own has the source's width. A loop (a closed centerline) has no ends: its widths go round it from the points that have one, so one point's width makes the whole loop that wide
-- A point in the middle without a width of its own has the width of that curve at its place. So adding a point to a centerline (splitting a segment) does not change the stroke, and removing a point without a width does not either
+- A point without a width of its own has the source's width
+- Between two points, the width changes evenly along the length of the centerline, so a straight segment keeps straight edges. A loop (a closed centerline) goes round from its last point to its first
 
 **In the panel**, select points of centerlines: the fields under the source's values show the width, left and right widths, join and miter limit the stroke has at those points, and change them for all of them at once. "Clear point values" removes the selected points' own values.
 
@@ -110,7 +109,7 @@ Choose "Elliptical nib" or "Rectangular nib" under "Stroke with" in the panel. T
 | Minor axis | Length of the nib across its angle. A rectangle with a minor axis of 0 is a flat nib; an ellipse is drawn at least 1 unit across |
 | Angle | Direction of the major axis, in degrees counter-clockwise from horizontal, from 0 to 180 (a nib turned by 180° is the same nib) |
 
-The source's values and the values of points work as widths do (see [Widths per point](#widths-per-point)): a point can have its own major axis, minor axis and angle; between points they follow a smooth curve along the centerline; the ends without values of their own have the source's. An angle takes the short way round between points, so going from 170° to 10° turns through 180°, not through 90°. Between sources, the angles of all sources are first turned by half turns to within 90° of the default source's (at each point, of its angle there), so that the nib turns the short way from the default source.
+The source's values and the values of points work as widths do (see [Widths per point](#widths-per-point)): a point can have its own major axis, minor axis and angle; a point without them has the source's; between two points they change evenly along the centerline. An angle takes the short way round between points, so going from 170° to 10° turns through 180°, not through 90°. Between sources, the angles of all sources are first turned by half turns to within 90° of the default source's (at each point, of its angle there), so that the nib turns the short way from the default source.
 
 **On the canvas**, the stroke width tool draws the nib at each point, with a handle at each end of its axes (a flat nib has none on its minor axis).
 
@@ -170,7 +169,7 @@ The values go in each source's `customData`, so that they can vary along the axe
 
 The width method's `defaults` and `points` (`width`, `left`, `right`, `join`, `miterLimit`) are read and written, and `centerline: true` on the on-curve points of a closed contour that is stroked as a centerline (only the default source's marks count). The nib method's `shape`, and `major`, `minor`, `angle` in `defaults` and `points` (built-in defaults 120, 30 and 45°), are read and written. A rectangle with `minor` 0 is a flat nib. Choosing the width method in the panel removes the glyph's `xyz.dg4.stroke`. `cornerRadius` is not used yet; the format is fixed already so that data made now keeps working in later versions.
 
-For points, a missing width works differently from the other values: a point in the middle of a centerline without a width takes the width between the points around it that have one, rather than the source's (see [Widths per point](#widths-per-point)). Between sources, points are matched by their index in the glyph's path, not by identifier, since each source's layer has identifiers of its own; so per-point values are only interpolated between sources with the same points.
+Between sources, points are matched by their index in the glyph's path, not by identifier, since each source's layer has identifiers of its own; so per-point values are only interpolated between sources with the same points.
 
 When Fontra saves a designspace and UFOs, the glyph's `customData` goes to the lib of the glyph in the default source (`xyz.fontra.customData`), and each source's `customData` to the lib of the glyph in that source's layer (`xyz.fontra.glyph.source.customData`). Point identifiers are kept in UFOs; other point attributes are not, which is why per-point values are keyed by identifier.
 
@@ -217,7 +216,7 @@ Only the sources listed in the designspace are expanded. Glyphs that have axes o
 
 ### Nibs
 
-A nib is an ellipse or a rectangle of the size and angle at each place, moved along the centerline. As with widths, the numbers follow a smooth curve along the centerline between the points that set them (an angle takes the short way round, so 170° to 10° turns through 180°), and the nib at each place is used as it is there.
+A nib is an ellipse or a rectangle of the size and angle at each place, moved along the centerline. As with widths, the numbers change evenly along the centerline between two points (an angle takes the short way round, so 170° to 10° turns through 180°), and the nib at each place is used as it is there.
 
 - **Ellipse**: seen through the linear map that turns the nib into a circle of radius 1, the centerline is another curve, and its stroke is the width stroke of width 2 of that curve. The map turns it back into the stroke of the nib, keeping lines, curves and directions, so twists are handled as below. An ellipse is at least 1 unit across in each direction
 - **Rectangle**: each edge is drawn by the corner of the nib farthest out to that side, and that corner changes where the centerline runs parallel to a side of the nib. Between those places, the band is the nib's diagonal swept along the centerline; the band is cut where the corner changes and at every smooth point, and the whole nib is placed there. A flat nib is a rectangle without width
@@ -229,7 +228,7 @@ Where the centerline bends with a radius smaller than half the width, an edge at
 
 ### Compatible sources
 
-A variable font needs the same points in all sources. A straight segment keeps straight edges while its width does not change; when its width changes in any source, its edges are fitted with curves in all sources. For each centerline, the CLI first strokes every source on its own, then splits each edge in every source at the places where any source splits it (where an edge starts or stops following the evolute, and the cusps of the evolute; for a rectangular nib, where the corner that draws the edge changes), gives each part the largest number of pieces any source needs, and strokes all sources again with that layout. The points of all sources then lie on the same normals of the centerline, and with the Hermite handles, an in-between outline matches a stroke of the in-between width up to the tolerance.
+A variable font needs the same points in all sources. A straight segment always has straight edges, since its width changes evenly along it. For each centerline, the CLI first strokes every source on its own, then splits each edge in every source at the places where any source splits it (where an edge starts or stops following the evolute, and the cusps of the evolute; for a rectangular nib, where the corner that draws the edge changes), gives each part the largest number of pieces any source needs, and strokes all sources again with that layout. The points of all sources then lie on the same normals of the centerline, and with the Hermite handles, an in-between outline matches a stroke of the in-between width up to the tolerance.
 
 The exception is a twist that only some sources have. In a source that twists, the inner edge is held at the radius of the bend, so near the twist the in-between outlines come out thinner on the inside than a stroke of that width would be (in the tests, up to 10 units at three quarters of the way from width 60 to 140 on a bend of radius 56). The CLI warns about such glyphs. To avoid it, make the bend rounder in the source that twists, or add a source in between.
 

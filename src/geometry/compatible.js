@@ -8,8 +8,7 @@
 // part gets the largest number of pieces any source needs. Every source is
 // then stroked again with the merged layout. Since the edges are split at the
 // same parameters in all sources, the points of different sources lie on the
-// same normals of the centerline, and the outlines interpolate well. A line
-// whose width changes in some sources gets curved edges in all of them.
+// same normals of the centerline, and the outlines interpolate well.
 
 import { strokeContour } from "./stroke.js";
 import { mergeBreaks } from "./sweep.js";

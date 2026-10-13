@@ -14,10 +14,9 @@
 // Values of the nib method: major, minor, angle. Both methods: cornerRadius.
 // Points also have centerline: true on the on-curve points of a closed
 // contour that is a centerline (stroked as a loop) rather than an outline.
-// Missing values fall back to the source defaults, then to the built-in ones,
-// except the widths of points: a point in the middle of a centerline without a
-// width of its own takes the width between the points around it that have one
-// (see geometry/widths.js), so that adding a point does not change the stroke.
+// Missing values fall back to the source defaults, then to the built-in ones.
+// Between two points, numbers change evenly along the centerline (see
+// geometry/widths.js).
 //
 // Nib values: major and minor are the full lengths of the nib's axes (of the
 // ellipse, or the sides of the rectangle; a rectangle with minor 0 is a flat

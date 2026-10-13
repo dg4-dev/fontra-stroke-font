@@ -67,7 +67,7 @@ export const strings = {
     "setting.handles": "Show handles with other tools too",
     "tool.title": "Stroke widths and nibs: drag the handles of points",
     "points.none":
-      "Select points of a centerline to give them their own widths or nibs. A point in the middle without a value of its own follows the points around it.",
+      "Select points of a centerline to give them their own widths or nibs. A point without a value of its own uses the source’s.",
     "panel.hint":
       "Open contours are centerlines, stroked with these values. A closed contour is an ordinary outline, unless it is marked as a centerline (select one of its points). The values belong to the source being edited and are saved with the font.",
   },
@@ -129,7 +129,7 @@ export const strings = {
     "setting.handles": "ほかのツールでもハンドルを表示",
     "tool.title": "ストロークの太さとペン先（点のハンドルをドラッグ）",
     "points.none":
-      "中心線の点を選ぶと、点ごとの太さやペン先を付けられます。途中の点で値が無いものは、前後の点に合わせた値になります。",
+      "中心線の点を選ぶと、点ごとの太さやペン先を付けられます。値の無い点は、ソースの値になります。",
     "panel.hint":
       "閉じていない輪郭を中心線として、これらの値でなぞります。閉じた輪郭は普通の輪郭ですが、中心線としてなぞる印を付けることもできます（輪郭の点を選んでください）。値は編集中のソースのもので、フォントに保存されます。",
   },
@@ -189,7 +189,7 @@ export const strings = {
     "setting.handles": "使用其他工具时也显示手柄",
     "tool.title": "笔画宽度和笔尖(拖动点的手柄)",
     "points.none":
-      "选择中心线上的点,即可为其设置单独的宽度或笔尖。中间没有自身数值的点会随前后的点变化。",
+      "选择中心线上的点,即可为其设置单独的宽度或笔尖。没有自身数值的点使用源的数值。",
     "panel.hint":
       "开放轮廓是中心线,用这些值描边。闭合轮廓是普通轮廓,也可以标记为中心线(请选择它的点)。这些值属于正在编辑的源,并随字体一起保存。",
   },
@@ -249,7 +249,7 @@ export const strings = {
     "setting.handles": "使用其他工具時也顯示控點",
     "tool.title": "筆畫寬度和筆尖(拖曳點的控點)",
     "points.none":
-      "選取中心線上的點,即可為其設定個別的寬度或筆尖。中間沒有自身數值的點會隨前後的點變化。",
+      "選取中心線上的點,即可為其設定個別的寬度或筆尖。沒有自身數值的點使用源的數值。",
     "panel.hint":
       "開放輪廓是中心線,用這些值描邊。閉合輪廓是一般輪廓,也可以標記為中心線(請選取它的點)。這些值屬於正在編輯的源,並隨字型一起儲存。",
   },
@@ -312,7 +312,7 @@ export const strings = {
     "setting.handles": "Anfasser auch bei anderen Werkzeugen anzeigen",
     "tool.title": "Strichbreiten und Federspitzen: Anfasser der Punkte ziehen",
     "points.none":
-      "Wähle Punkte einer Mittellinie aus, um ihnen eigene Breiten oder Federspitzen zu geben. Ein Punkt in der Mitte ohne eigenen Wert folgt den Punkten um ihn herum.",
+      "Wähle Punkte einer Mittellinie aus, um ihnen eigene Breiten oder Federspitzen zu geben. Ein Punkt ohne eigenen Wert verwendet den der Source.",
     "panel.hint":
       "Offene Konturen sind Mittellinien und werden mit diesen Werten gezogen. Eine geschlossene Kontur ist eine gewöhnliche Kontur, außer sie ist als Mittellinie markiert (wähle einen ihrer Punkte aus). Die Werte gehören zur bearbeiteten Source und werden mit der Schrift gespeichert.",
   },
@@ -374,7 +374,7 @@ export const strings = {
     "setting.handles": "Grepen ook bij ander gereedschap tonen",
     "tool.title": "Lijnbreedtes en penpunten: sleep de grepen van punten",
     "points.none":
-      "Selecteer punten van een middellijn om ze een eigen breedte of penpunt te geven. Een punt in het midden zonder eigen waarde volgt de punten eromheen.",
+      "Selecteer punten van een middellijn om ze een eigen breedte of penpunt te geven. Een punt zonder eigen waarde gebruikt die van de source.",
     "panel.hint":
       "Open contouren zijn middellijnen en worden met deze waarden getrokken. Een gesloten contour is een gewone contour, tenzij hij als middellijn is gemarkeerd (selecteer een van zijn punten). De waarden horen bij de source die wordt bewerkt en worden met het font opgeslagen.",
   },
@@ -436,7 +436,7 @@ export const strings = {
     "setting.handles": "Afficher les poignées avec les autres outils aussi",
     "tool.title": "Épaisseurs et plumes : faites glisser les poignées des points",
     "points.none":
-      "Sélectionnez des points d’une ligne centrale pour leur donner leur propre épaisseur ou plume. Un point au milieu sans valeur propre suit les points qui l’entourent.",
+      "Sélectionnez des points d’une ligne centrale pour leur donner leur propre épaisseur ou plume. Un point sans valeur propre utilise celle de la source.",
     "panel.hint":
       "Les contours ouverts sont des lignes centrales, tracées avec ces valeurs. Un contour fermé est un contour ordinaire, sauf s’il est marqué comme ligne centrale (sélectionnez un de ses points). Les valeurs appartiennent à la source en cours d’édition et sont enregistrées avec la fonte.",
   },
@@ -498,7 +498,7 @@ export const strings = {
     "setting.handles": "Mostra le maniglie anche con gli altri strumenti",
     "tool.title": "Spessori e pennini: trascina le maniglie dei punti",
     "points.none":
-      "Seleziona i punti di una linea centrale per dare loro uno spessore o un pennino proprio. Un punto in mezzo senza valore proprio segue i punti intorno.",
+      "Seleziona i punti di una linea centrale per dare loro uno spessore o un pennino proprio. Un punto senza valore proprio usa quello della sorgente.",
     "panel.hint":
       "I contorni aperti sono linee centrali, tracciate con questi valori. Un contorno chiuso è un contorno normale, a meno che non sia segnato come linea centrale (seleziona uno dei suoi punti). I valori appartengono alla sorgente in modifica e vengono salvati con il font.",
   },
@@ -560,7 +560,7 @@ export const strings = {
     "setting.handles": "Mostrar los tiradores también con otras herramientas",
     "tool.title": "Grosores y plumillas: arrastra los tiradores de los puntos",
     "points.none":
-      "Selecciona puntos de una línea central para darles su propio grosor o plumilla. Un punto intermedio sin valor propio sigue a los puntos que lo rodean.",
+      "Selecciona puntos de una línea central para darles su propio grosor o plumilla. Un punto sin valor propio usa el de la matriz.",
     "panel.hint":
       "Los contornos abiertos son líneas centrales, trazadas con estos valores. Un contorno cerrado es un contorno normal, salvo que esté marcado como línea central (selecciona uno de sus puntos). Los valores pertenecen a la matriz que se está editando y se guardan con la tipografía.",
   },
@@ -622,7 +622,7 @@ export const strings = {
     "setting.handles": "Mostrar los tiradores también con otras herramientas",
     "tool.title": "Grosores y plumillas: arrastra los tiradores de los puntos",
     "points.none":
-      "Selecciona puntos de una línea central para darles su propio grosor o plumilla. Un punto intermedio sin valor propio sigue a los puntos que lo rodean.",
+      "Selecciona puntos de una línea central para darles su propio grosor o plumilla. Un punto sin valor propio usa el de la matriz.",
     "panel.hint":
       "Los contornos abiertos son líneas centrales, trazadas con estos valores. Un contorno cerrado es un contorno normal, salvo que esté marcado como línea central (selecciona uno de sus puntos). Los valores pertenecen a la matriz que se está editando y se guardan con la tipografía.",
   },
@@ -684,7 +684,7 @@ export const strings = {
     "setting.handles": "Mostrar as alças também com outras ferramentas",
     "tool.title": "Espessuras e penas: arraste as alças dos pontos",
     "points.none":
-      "Selecione pontos de uma linha central para dar a eles uma espessura ou pena própria. Um ponto no meio sem valor próprio segue os pontos ao redor.",
+      "Selecione pontos de uma linha central para dar a eles uma espessura ou pena própria. Um ponto sem valor próprio usa o da matriz.",
     "panel.hint":
       "Contornos abertos são linhas centrais, traçadas com estes valores. Um contorno fechado é um contorno comum, a menos que esteja marcado como linha central (selecione um de seus pontos). Os valores pertencem à matriz em edição e são salvos com a fonte.",
   },
@@ -746,7 +746,7 @@ export const strings = {
     "setting.handles": "Mostrar as pegas também com outras ferramentas",
     "tool.title": "Espessuras e aparos: arraste as pegas dos pontos",
     "points.none":
-      "Selecione pontos de uma linha central para lhes dar uma espessura ou um aparo próprio. Um ponto no meio sem valor próprio segue os pontos à sua volta.",
+      "Selecione pontos de uma linha central para lhes dar uma espessura ou um aparo próprio. Um ponto sem valor próprio usa o da matriz.",
     "panel.hint":
       "Contornos abertos são linhas centrais, traçadas com estes valores. Um contorno fechado é um contorno comum, a não ser que esteja marcado como linha central (selecione um dos seus pontos). Os valores pertencem à matriz em edição e são guardados com o tipo de letra.",
   },
@@ -808,7 +808,7 @@ export const strings = {
     "setting.handles": "Показывать маркеры и в других инструментах",
     "tool.title": "Толщина обводки и перья: перетаскивайте маркеры точек",
     "points.none":
-      "Выберите точки средней линии, чтобы задать им собственную толщину или перо. Точка в середине без собственного значения следует за соседними точками.",
+      "Выберите точки средней линии, чтобы задать им собственную толщину или перо. Точка без собственного значения использует значение мастера.",
     "panel.hint":
       "Открытые контуры — это средние линии, обводимые с этими значениями. Замкнутый контур — обычный контур, если он не отмечен как средняя линия (выберите одну из его точек). Значения относятся к редактируемому мастеру и сохраняются вместе со шрифтом.",
   },

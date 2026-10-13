@@ -2,18 +2,12 @@
 // No Fontra or DOM dependencies.
 //
 // Each side (left and right of the direction of the centerline) has its own
-// half width. A point sets it on a side when it has a value for that side
-// (see pointHalfWidths() in stroke-data.js). In between, the half width
-// follows a curve through the points that set it, along the length of the
-// centerline:
-// - an end point of the centerline that does not set it uses the source's
-//   default (half the source's width);
-// - a point in the middle that does not set it takes the value of the curve,
-//   so adding a point to a centerline does not change its stroke.
-// The curve is a monotone cubic (Fritsch–Carlson): it is smooth, so the edges
-// do not bend at smooth points, and between two points it never goes beyond
-// their values. Without any point widths, it is the source's width all along.
-// A closed centerline has no ends: its curve goes round the loop.
+// half width. Every on-curve point has one on each side: its own when it sets
+// it (see pointHalfWidths() in stroke-data.js), otherwise the source's (half
+// the source's width). Between two points, the half width changes evenly
+// along the length of the centerline, so the edges of a straight segment stay
+// straight. Without any point widths, it is the source's width all along. A
+// closed centerline goes round the loop.
 
 import { distance, pointAt } from "./bezier.js";
 
@@ -46,17 +40,17 @@ export function widthProfile(contour, segments, style) {
 }
 
 /**
- * Numbers along a centerline, from the values of its points, each following
- * a monotone cubic along the length of the centerline as the widths do (see
- * the top of this file).
+ * Numbers along a centerline, from the values of its points, each changing
+ * evenly along the length of the centerline between two points, as the
+ * widths do (see the top of this file).
  * @param {{points: object[], isClosed?: boolean}} contour unpacked contour
  * @param {object[]} segments centerlineSegments(contour)
  * @param {object} options
  * @param {string[]} options.keys the numbers
  * @param {(values: object|undefined, key: string) => number|undefined}
  *   [options.valueAt] the number a point sets; by default values[key]
- * @param {object} options.defaults the number of each key at an end of an
- *   open centerline that does not set it, and all along one without values
+ * @param {object} options.defaults the number of each key at a point that
+ *   does not set it
  * @param {object} [options.periods] keys whose numbers repeat with a period
  *   (such as an angle of 180°): each value is moved by whole periods to be
  *   within half a period of the one before it, so that the number takes the
@@ -90,24 +84,12 @@ export function valueProfile(contour, segments, options) {
       positions.set(segment.endIndex, starts[index] + lengths[index].length);
     }
   }
-  const firstIndex = segments[0]?.startIndex;
-  const lastIndex = segments.at(-1)?.endIndex;
-
   const curves = {};
   for (const key of keys) {
     const knots = [];
     for (const [pointIndex, position] of positions) {
-      let value = valueAt(contour.points[pointIndex]?.values, key);
-      if (
-        value === undefined &&
-        !contour.isClosed &&
-        (pointIndex === firstIndex || pointIndex === lastIndex)
-      ) {
-        value = defaults[key];
-      }
-      if (value !== undefined) {
-        knots.push({ x: position, y: value });
-      }
+      const value = valueAt(contour.points[pointIndex]?.values, key);
+      knots.push({ x: position, y: value ?? defaults[key] });
     }
     knots.sort((a, b) => a.x - b.x);
     const period = periods[key];
@@ -126,7 +108,7 @@ export function valueProfile(contour, segments, options) {
         ...knots.map(({ x, y }) => ({ x: x + total, y: y + drift }))
       );
     }
-    curves[key] = monotoneCubic(knots, defaults[key]);
+    curves[key] = piecewiseLinear(knots, defaults[key]);
   }
 
   const profileSegments = segments.map((segment, index) => {
@@ -194,13 +176,13 @@ export function segmentLength(segment) {
 }
 
 /**
- * A monotone cubic through the knots (Fritsch–Carlson), constant before the
+ * The numbers along straight lines between the knots, constant before the
  * first and after the last one; the fallback when there are no knots.
  * @param {{x: number, y: number}[]} knots
  * @returns {((x: number) => number) & {max: number,
  *   isConstantBetween: (a: number, b: number) => boolean}}
  */
-export function monotoneCubic(knots, fallback = 0) {
+export function piecewiseLinear(knots, fallback = 0) {
   const sorted = [...knots].sort((a, b) => a.x - b.x);
   // Knots at the same place (zero-length segments): the first one counts
   const xs = [];
@@ -220,30 +202,6 @@ export function monotoneCubic(knots, fallback = 0) {
     constant.isConstantBetween = () => true;
     return constant;
   }
-  const deltas = [];
-  for (let k = 0; k < n - 1; k++) {
-    deltas.push((ys[k + 1] - ys[k]) / (xs[k + 1] - xs[k]));
-  }
-  const slopes = [deltas[0]];
-  for (let k = 1; k < n - 1; k++) {
-    slopes.push(deltas[k - 1] * deltas[k] <= 0 ? 0 : (deltas[k - 1] + deltas[k]) / 2);
-  }
-  slopes.push(deltas[n - 2]);
-  for (let k = 0; k < n - 1; k++) {
-    if (Math.abs(deltas[k]) <= SAME_WIDTH) {
-      slopes[k] = 0;
-      slopes[k + 1] = 0;
-      continue;
-    }
-    const a = slopes[k] / deltas[k];
-    const b = slopes[k + 1] / deltas[k];
-    const sum = a * a + b * b;
-    if (sum > 9) {
-      const tau = 3 / Math.sqrt(sum);
-      slopes[k] = tau * a * deltas[k];
-      slopes[k + 1] = tau * b * deltas[k];
-    }
-  }
   const interval = (x) => {
     let low = 0;
     let high = n - 2;
@@ -257,7 +215,7 @@ export function monotoneCubic(knots, fallback = 0) {
     }
     return low;
   };
-  const curve = (x) => {
+  const line = (x) => {
     if (x <= xs[0]) {
       return ys[0];
     }
@@ -265,25 +223,16 @@ export function monotoneCubic(knots, fallback = 0) {
       return ys[n - 1];
     }
     const k = interval(x);
-    const h = xs[k + 1] - xs[k];
-    const u = (x - xs[k]) / h;
-    const u2 = u * u;
-    const u3 = u2 * u;
-    return (
-      (2 * u3 - 3 * u2 + 1) * ys[k] +
-      (u3 - 2 * u2 + u) * h * slopes[k] +
-      (-2 * u3 + 3 * u2) * ys[k + 1] +
-      (u3 - u2) * h * slopes[k + 1]
-    );
+    const u = (x - xs[k]) / (xs[k + 1] - xs[k]);
+    return ys[k] + (ys[k + 1] - ys[k]) * u;
   };
-  // Monotone between knots, so the largest value is at a knot
-  curve.max = Math.max(...ys);
-  curve.isConstantBetween = (a, b) => {
-    const from = interval(Math.max(a, xs[0]));
-    const to = interval(Math.min(b, xs[n - 1]));
+  line.max = Math.max(...ys);
+  line.isConstantBetween = (a, b) => {
     if (b <= xs[0] || a >= xs[n - 1]) {
       return true;
     }
+    const from = interval(Math.max(a, xs[0]));
+    const to = interval(Math.min(b, xs[n - 1]));
     for (let k = from; k <= to; k++) {
       // The part of the interval [xs[k], xs[k + 1]] inside [a, b]
       if (Math.min(b, xs[k + 1]) - Math.max(a, xs[k]) <= SAME_WIDTH) {
@@ -295,5 +244,5 @@ export function monotoneCubic(knots, fallback = 0) {
     }
     return true;
   };
-  return curve;
+  return line;
 }
