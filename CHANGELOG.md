@@ -16,6 +16,8 @@ Each section can be pasted as the notes of the matching GitHub release.
 - A point without a width (or nib) of its own now has the source's, instead of following the points around it, and between two points the width changes evenly along the centerline instead of along a smooth curve. Straight segments keep straight edges when their width changes. Fonts with widths per point made with 0.2.0 stroke differently where a point in the middle has no width of its own, or where the width changes along a straight segment
 - With a nib, a straight segment whose nib changes from one end to the other (in size or angle) has straight edges, touching the nibs at both ends, instead of edges that curve as the nib turns along it
 - The setting "Show width handles with other tools too" is now "Show handles with other tools too", for nib handles as well
+- New colors: the stroke preview (fill and edge) is gray, like the glyph's own outlines; the nibs are teal, the handles that size the nib or the width orange, the knob that turns the nib violet, and the handle under the pointer pink. Before, the preview, the nibs and all the handles were the same blue
+- With an elliptical nib, where the inner edge of a curve runs back on itself (where the curve bends tightly, or the nib turns quickly along it), the small loop the edge made there is cut out where the edge crosses itself, leaving a corner. The filled shape does not change; the loop showed in the outlines (and, before, a nib that turned quickly was not taken into account in finding such places)
 
 ## 0.2.0
 
@@ -35,8 +37,6 @@ Widths per point: a stroke can now get wider and thinner along its centerline, d
 - The number fields of the panel could show the browser's own "invalid value" message (in the browser's language) for values such as interpolated widths, and a field kept its old value when the selection changed after Enter
 - A faint seam could show where a join meets the strokes of a corner
 - Clicking a stroke in the glyph editor did not select its glyph outside the area of its centerlines, and for a glyph of straight two-point centerlines only within its advance width, which could select the glyph next to it instead (#29)
-
-- **Angle from the centerline**: a point's nib angle can be measured from the direction of the centerline instead of horizontal ("Angle from" in the panel and in the context menu of the stroke width tool), so that the nib turns with the centerline; at a corner, from halfway between the directions in and out. 0° from the centerline lies across it, where the nib draws its widest. Changing it rewrites the point's angle in every source so that the nib does not turn
 
 ### Changed
 

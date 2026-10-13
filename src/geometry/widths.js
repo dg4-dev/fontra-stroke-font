@@ -9,7 +9,7 @@
 // straight. Without any point widths, it is the source's width all along. A
 // closed centerline goes round the loop.
 
-import { distance, pointAt } from "./bezier.js";
+import { derivativeAt, distance } from "./bezier.js";
 
 // Samples per curve for measuring its length
 const LENGTH_SAMPLES = 32;
@@ -151,26 +151,43 @@ function pointHalfWidth(values, side) {
 
 /**
  * The length of a segment, and a function giving the length from its start
- * to its parameter t.
+ * to its parameter t. Between the samples, the length follows the speed of
+ * the segment (a cubic Hermite curve), so that its rate of change has no
+ * jumps: the nib method looks at how fast the nib changes along a segment.
  */
 export function segmentLength(segment) {
   if (segment.type === "line") {
     const length = distance(segment.points[0], segment.points[1]);
     return { length, at: (t) => length * t };
   }
+  const h = 1 / LENGTH_SAMPLES;
+  const speed = (t) => {
+    const d = derivativeAt(segment, t);
+    return Math.hypot(d.x, d.y);
+  };
+  const speeds = [speed(0)];
   const table = [0];
-  let previous = segment.points[0];
   for (let i = 1; i <= LENGTH_SAMPLES; i++) {
-    const point = pointAt(segment, i / LENGTH_SAMPLES);
-    table.push(table[i - 1] + distance(previous, point));
-    previous = point;
+    speeds.push(speed(i * h));
+    // Simpson's rule
+    table.push(
+      table[i - 1] + (h / 6) * (speeds[i - 1] + 4 * speed((i - 0.5) * h) + speeds[i])
+    );
   }
   return {
     length: table[LENGTH_SAMPLES],
     at(t) {
       const position = Math.min(1, Math.max(0, t)) * LENGTH_SAMPLES;
       const i = Math.min(LENGTH_SAMPLES - 1, Math.floor(position));
-      return table[i] + (table[i + 1] - table[i]) * (position - i);
+      const u = position - i;
+      const u2 = u * u;
+      const u3 = u2 * u;
+      return (
+        table[i] * (2 * u3 - 3 * u2 + 1) +
+        h * speeds[i] * (u3 - 2 * u2 + u) +
+        table[i + 1] * (-2 * u3 + 3 * u2) +
+        h * speeds[i + 1] * (u3 - u2)
+      );
     },
   };
 }

@@ -22,10 +22,13 @@
 // Elliptical nib: seen through M⁻¹, the nib is a unit circle and the
 // centerline another curve c. The stroke of c with a circle of radius 1 is
 // what the offset method draws for width 2, and M maps it back: the edge
-// point at t is C(t) + M·ñ(t), with ñ the unit normal of c, and where c bends
-// with a radius under 1 (twists, see twist.js), the edge follows the centers
-// of curvature of c, as in offset.js. A linear map keeps lines, Bézier curves,
-// insides and directions, so this keeps what the offset method guarantees.
+// point at t is C(t) + M·ñ(t), with ñ the unit normal of c. A linear map keeps
+// lines, Bézier curves, insides and directions. Where c bends with a radius
+// under 1, or the nib turns or stretches fast enough along it (see nibBend()),
+// the edge runs backwards and makes a loop; the loop is cut out where the
+// edge crosses itself, which leaves the outer edge with a corner there. A
+// loop that does not close within its segment is a twist (see twist.js): the
+// edge follows the centers of curvature of c there instead, as in offset.js.
 //
 // Rectangular nib: the edge on each side is drawn by the corner of the nib
 // that is farthest out along the normal, and that corner changes where the
@@ -45,8 +48,9 @@
 // sweeps around it there. The same points whatever the angle, so the sources
 // of a glyph stay compatible.
 //
-// The layout (see sweep.js): an elliptical nib's edge is split where it
-// starts or stops following the evolute, at the cusps of the evolute, and
+// The layout (see sweep.js): an elliptical nib's edge is split where a loop is
+// cut out, where it starts or stops following the evolute, at the cusps of
+// the evolute, and
 // where fitting it needs more than the most pieces (see fitCurveSplitting());
 // both edges of a rectangular nib are split where the corner can change
 // (where the centerline runs parallel to a side of the nib), whatever the
@@ -74,7 +78,13 @@ import { fitCurve, fitCurveSplitting } from "./fit.js";
 import { DEFAULT_TOLERANCE, MAX_SUBDIVISIONS } from "./offset.js";
 import { circleContour, polygonContour } from "./shapes.js";
 import { innerBreaks, mergeBreaks, sweepContour, validBreaks } from "./sweep.js";
-import { evoluteCusps, findZones, sharpestBend, signChanges } from "./twist.js";
+import {
+  evoluteCusps,
+  findZones,
+  loopCrossing,
+  sharpestBend,
+  signChanges,
+} from "./twist.js";
 import { segmentLength, valueProfile } from "./widths.js";
 
 /**
@@ -105,7 +115,7 @@ export function strokeNibContour(contour, style, options = {}) {
     maxSubdivisions: options.maxSubdivisions ?? MAX_SUBDIVISIONS,
   };
   const segments = centerlineSegments(contour);
-  const { profile, at } = nibAlong(contour, style, segments);
+  const { profile, at, changes } = nibAlong(contour, style, segments);
   const isRect = style.shape === "rect";
   const minAxis = isRect ? 0 : MIN_ELLIPSE_AXIS;
   const nibAt = (index, t) => {
@@ -122,7 +132,7 @@ export function strokeNibContour(contour, style, options = {}) {
       const nib = (t) => nibAt(index, t);
       return isRect
         ? rectSegment(segment, index, nib, forced, fitOptions)
-        : ellipseSegment(segment, index, nib, forced, fitOptions);
+        : ellipseSegment(segment, index, nib, forced, fitOptions, changes(index));
     },
     cornerShape(previous, current) {
       return shapeAt(
@@ -159,8 +169,10 @@ export function strokeNibContour(contour, style, options = {}) {
  *   points' values
  * @param {{major: number, minor: number, angle: number}} style
  * @returns {{profile: object, at: (index: number, t: number) =>
- *   {major: number, minor: number, angle: number}}} the numbers of the points
- *   along the centerline (see valueProfile()), and the nib on a segment
+ *   {major: number, minor: number, angle: number},
+ *   changes: (index: number) => boolean}} the numbers of the points along
+ *   the centerline (see valueProfile()), the nib on a segment, and whether it
+ *   changes along the segment
  */
 export function nibAlong(contour, style, segments = centerlineSegments(contour)) {
   const profile = valueProfile(contour, segments, {
@@ -178,6 +190,13 @@ export function nibAlong(contour, style, segments = centerlineSegments(contour))
         minor: numbers.minor(t),
         angle: numbers.angle(t) + frame(index, t),
       };
+    },
+    changes(index) {
+      const numbers = profile.segments[index];
+      return (
+        frame.turns(index) ||
+        ["major", "minor", "angle"].some((key) => numbers[key](0) !== numbers[key](1))
+      );
     },
   };
 }
@@ -286,7 +305,7 @@ function segmentFrames(contour, segments) {
       along,
     };
   });
-  return (index, t) => {
+  const at = (index, t) => {
     const frame = frames[index];
     if (!frame) {
       return 0;
@@ -297,6 +316,9 @@ function segmentFrames(contour, segments) {
     const end = frame.endFrom ? own + frame.endCorrection + CENTERLINE_ZERO : 0;
     return start + (end - start) * s;
   };
+  // Whether the frame of a segment turns along it
+  at.turns = (index) => !!frames[index];
+  return at;
 }
 
 // --- The nib as a linear map --------------------------------------------------
@@ -348,16 +370,46 @@ export function rectContour(center, nib) {
 // --- Elliptical nib -----------------------------------------------------------
 
 /**
- * The curvature, at t, of the centerline seen through the nib there (where
- * the nib is a unit circle): positive where it turns left.
+ * How much the edge on the left bends, at t, seen through the nib there
+ * (where the nib is a unit circle): the curvature of the centerline (positive
+ * where it turns left), plus what the nib's turning and stretching adds.
+ * Where it is over 1 (under −1 for the edge on the right), the edge would run
+ * backwards. With A = M⁻¹·M′ (how the nib changes along t), the edge point
+ * C + M·ñ moves along the tangent t̃ of c by |c′|·(1 − k) + t̃·A·ñ + ñ·A·t̃;
+ * that is 0 for a nib that keeps its size and angle, or that grows evenly,
+ * but not for an elliptical nib that turns or stretches.
+ * @param {(t: number) => object} nibAt the nib along the segment
+ * @param {boolean} [changes] false when the nib is the same all along
  */
-function nibCurvature(segment, nib, t) {
-  for (const u of [t, Math.min(1, t + 1e-4), Math.max(0, t - 1e-4)]) {
+export function nibBend(segment, nibAt, t, changes = true) {
+  const step = 1e-4;
+  for (const u of [t, Math.min(1, t + step), Math.max(0, t - step)]) {
+    const nib = nibAt(u);
     const d1 = toNib(nib, derivativeAt(segment, u));
     const speedSquared = dot(d1, d1);
     if (speedSquared > EPSILON) {
+      const speed = Math.sqrt(speedSquared);
       const d2 = toNib(nib, secondDerivativeAt(segment, u));
-      return cross(d1, d2) / (speedSquared * Math.sqrt(speedSquared));
+      const curvature = cross(d1, d2) / (speedSquared * speed);
+      const tangent = scale(d1, 1 / speed);
+      if (!changes) {
+        return curvature;
+      }
+      const normal = leftNormal(tangent);
+      // A·v = M⁻¹·M′·v, from the nibs a little before and after
+      const before = Math.max(0, u - step);
+      const after = Math.min(1, u + step);
+      const change = (v) =>
+        toNib(
+          nib,
+          scale(
+            sub(fromNib(nibAt(after), v), fromNib(nibAt(before), v)),
+            1 / (after - before)
+          )
+        );
+      // The tangent turns by k·|c′| − ñ·A·t̃ (c′ = M⁻¹·C′ changes with M too)
+      const stretch = dot(tangent, change(normal)) + dot(normal, change(tangent));
+      return curvature - stretch / speed;
     }
   }
   return 0;
@@ -365,42 +417,32 @@ function nibCurvature(segment, nib, t) {
 
 /**
  * A point on an edge of an elliptical nib: the point of the nib farthest out
- * towards the side, or, where the centerline seen through the nib bends with
- * a radius under 1, that far along the same direction as the radius.
+ * towards the side, or, where the edge would run backwards (see nibBend()),
+ * the point along the same direction where it stops: 1 / bend of the way.
+ * @param {(t: number) => object} nibAt the nib along the segment
+ * @param {number} [bend] how much the edge bends there, towards the side (see
+ *   nibBend()); 0 for the point farthest out
  */
-export function ellipseEdgePoint(segment, side, nib, t) {
+export function ellipseEdgePoint(segment, side, nibAt, t, bend = 0) {
   const sign = side === "left" ? 1 : -1;
-  const bend = sign * nibCurvature(segment, nib, t);
   const distance = bend > 1 ? 1 / bend : 1;
+  const nib = nibAt(t);
   const direction = normalize(toNib(nib, tangentAt(segment, t))) ?? { x: 1, y: 0 };
   const normal = scale(leftNormal(direction), sign * distance);
   return add(pointAt(segment, t), fromNib(nib, normal));
 }
 
-function ellipseSegment(segment, index, nibAt, forcedLayout, fitOptions) {
+function ellipseSegment(segment, index, nibAt, forcedLayout, fitOptions, changes) {
   const bend = (side, t) =>
-    (side === "left" ? 1 : -1) * nibCurvature(segment, nibAt(t), t);
+    (side === "left" ? 1 : -1) * nibBend(segment, nibAt, t, changes);
   const zones = segment.type === "line" ? [] : findZones(bend);
-  const result = {
-    parts: [{ t0: 0, t1: 1 }],
-    layout: {},
-    mismatch: false,
-    twists: zones.map((zone) => ({
-      segmentIndex: index,
-      ...zone,
-      point: pointAt(
-        segment,
-        sharpestBend(segment, zone.side, zone.t0, zone.t1, (t) => bend(zone.side, t))
-      ),
-    })),
-  };
+  const result = { parts: [{ t0: 0, t1: 1 }], layout: {}, mismatch: false, twists: [] };
   for (const side of ["left", "right"]) {
     let forced = forcedLayout?.[side];
     if (forced && !validBreaks(forced.breaks)) {
       result.mismatch = true;
       forced = undefined;
     }
-    const edge = (t) => ellipseEdgePoint(segment, side, nibAt(t), t);
     if (segment.type === "line") {
       if (forced && (forced.line !== true || forced.breaks.length)) {
         result.mismatch = true;
@@ -409,17 +451,60 @@ function ellipseSegment(segment, index, nibAt, forcedLayout, fitOptions) {
       result.layout[side] = { breaks: [], pieces: [1], line: true };
       continue;
     }
+    // Where the edge runs backwards it makes a loop; the loop is cut out
+    // where the edge crosses itself, and the edge stays at that point
+    // meanwhile. A loop that does not close within the segment is a twist:
+    // there the edge follows the centers of curvature instead.
+    const farthest = (t) => ellipseEdgePoint(segment, side, nibAt, t);
+    const sideZones = zones.filter((zone) => zone.side === side);
+    const cuts = [];
+    const twists = [];
+    let from = 0;
+    for (const [k, zone] of sideZones.entries()) {
+      const cut = loopCrossing(
+        farthest,
+        zone.t0,
+        zone.t1,
+        from,
+        sideZones[k + 1]?.t0 ?? 1
+      );
+      if (cut) {
+        cuts.push(cut);
+        from = cut.tb;
+      } else {
+        twists.push(zone);
+        from = zone.t1;
+      }
+    }
+    result.twists.push(
+      ...twists.map((zone) => ({
+        segmentIndex: index,
+        ...zone,
+        point: pointAt(
+          segment,
+          sharpestBend(segment, side, zone.t0, zone.t1, (t) => bend(side, t))
+        ),
+      }))
+    );
+    const edge = (t) =>
+      cuts.find((cut) => t >= cut.ta && t <= cut.tb)?.point ??
+      ellipseEdgePoint(
+        segment,
+        side,
+        nibAt,
+        t,
+        twists.some((zone) => t >= zone.t0 && t <= zone.t1) ? bend(side, t) : 0
+      );
     const breaks =
       forced?.breaks ??
-      innerBreaks(
-        zones
-          .filter((zone) => zone.side === side)
-          .flatMap((zone) => [
-            zone.t0,
-            ...evoluteCusps(segment, side, zone.t0, zone.t1, (t) => bend(side, t)),
-            zone.t1,
-          ])
-      );
+      innerBreaks([
+        ...cuts.flatMap((cut) => [cut.ta, cut.tb]),
+        ...twists.flatMap((zone) => [
+          zone.t0,
+          ...evoluteCusps(segment, side, zone.t0, zone.t1, (t) => bend(side, t)),
+          zone.t1,
+        ]),
+      ]);
     // Near a twist, the edge of a thin nib moves fast along the centerline;
     // where the most pieces are not enough, the part is split
     const bounds = [0, ...breaks, 1];
@@ -450,6 +535,7 @@ function ellipseSegment(segment, index, nibAt, forcedLayout, fitOptions) {
     result.parts[0][side] = pieces;
     result.layout[side] = { breaks: allBreaks, pieces: counts };
   }
+  result.twists.sort((x, y) => x.t0 - y.t0);
   return result;
 }
 

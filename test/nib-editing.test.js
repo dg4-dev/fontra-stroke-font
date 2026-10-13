@@ -10,6 +10,7 @@ import {
   sanitizeStrokeValue,
   setGlyphStroke,
 } from "../src/stroke-data.js";
+import { makeStrokeLayerDefinition } from "../src/stroke-layer.js";
 import { StrokeWidthTool, glyphHandles } from "../src/width-tool.js";
 import { FakeContext, fakePositionedGlyph } from "./fakes.js";
 import { on } from "./helpers.js";
@@ -346,6 +347,46 @@ test("the handles layer draws the nibs with the setting", () => {
   const context = new FakeContext();
   drawNibs(context, nibHandles(bar("rect"), {}).nibs.slice(0, 1), parameters);
   assert.equal(context.calls.filter(([name]) => name === "lineTo").length, 4);
+});
+
+test("the preview, the nibs, the handles and the knob each have their own color", () => {
+  const handlesLayer = makeHandlesLayerDefinition({
+    tool: { isActive: true },
+    settings: new Map(),
+  });
+  const previewLayer = makeStrokeLayerDefinition();
+  for (const mode of ["colors", "colorsDarkMode"]) {
+    const parameters = { ...handlesLayer.screenParameters, ...handlesLayer[mode] };
+    const context = new FakeContext();
+    handlesLayer.draw({ context, positionedGlyph: bar(), parameters, model: {} });
+    const nibColors = context.calls
+      .filter(([name]) => name === "stroke")
+      .map(([, color]) => color);
+    const handleColors = context.calls
+      .filter(([name]) => name === "fill")
+      .map(([, , color]) => color);
+    // The nibs, then the stalks, then a ring for each knob
+    assert.equal(nibColors[0], parameters.nibColor);
+    assert.equal(nibColors[1], parameters.stalkColor);
+    assert.deepEqual(new Set(nibColors.slice(2)), new Set([parameters.knobColor]));
+    assert.deepEqual(new Set(handleColors), new Set([parameters.handleColor]));
+    const { fillColor, outlineColor } = previewLayer[mode];
+    const hue = (color) => Number(/^hsla?\((\d+)/.exec(color)[1]);
+    const marks = [
+      parameters.nibColor,
+      parameters.handleColor,
+      parameters.knobColor,
+      parameters.hoverColor,
+    ];
+    assert.equal(new Set(marks.map(hue)).size, marks.length, mode);
+    // The preview is gray; the marks are not
+    for (const color of [fillColor, outlineColor]) {
+      assert.match(color, /^hsl\(0, 0%, /);
+    }
+    for (const color of marks) {
+      assert.doesNotMatch(color, /, 0%, /);
+    }
+  }
 });
 
 test("stroke data: the method of a glyph, values of either method, angles", () => {

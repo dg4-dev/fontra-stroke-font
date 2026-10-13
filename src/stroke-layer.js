@@ -27,15 +27,17 @@ export function makeStrokeLayerDefinition({ settings, componentGlyphs } = {}) {
     zIndex: LAYER_Z_INDEX,
     // Sizes in screen pixels; Fontra converts them to glyph units
     screenParameters: { markerRadius: 7, markerWidth: 2, outlineWidth: 1.5 },
+    // Gray, like the glyph's own filled outlines, so that the handles and
+    // the nibs (see handles-layer.js) stand out from it
     colors: {
-      fillColor: "hsl(215, 90%, 45%)",
-      outlineColor: "hsl(215, 90%, 40%)",
-      twistColor: "hsla(10, 90%, 50%, 0.9)",
+      fillColor: "hsl(0, 0%, 15%)",
+      outlineColor: "hsl(0, 0%, 25%)",
+      twistColor: "hsla(5, 90%, 50%, 0.9)",
     },
     colorsDarkMode: {
-      fillColor: "hsl(215, 90%, 65%)",
-      outlineColor: "hsl(215, 90%, 70%)",
-      twistColor: "hsla(10, 90%, 62%, 0.9)",
+      fillColor: "hsl(0, 0%, 88%)",
+      outlineColor: "hsl(0, 0%, 80%)",
+      twistColor: "hsla(5, 90%, 62%, 0.9)",
     },
     draw: ({ context, positionedGlyph, parameters, model }) => {
       const location = model?.getLocationForGlyph?.(positionedGlyph?.glyphName);
