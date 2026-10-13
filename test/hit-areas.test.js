@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { strokeGlyph } from "../src/glyph-strokes.js";
-import { convexHull, widenHitAreas } from "../src/hit-areas.js";
-import { fakePositionedGlyph } from "./fakes.js";
+import { convexHull, widenComponentHitAreas, widenHitAreas } from "../src/hit-areas.js";
+import { STROKE_KEY } from "../src/stroke-data.js";
+import { FakePath2D, fakePositionedGlyph } from "./fakes.js";
 import { on } from "./helpers.js";
 
 test("the convex hull leaves out points inside it", () => {
@@ -56,4 +57,43 @@ test("glyphs with centerlines can be clicked on their strokes", () => {
   // Glyphs without centerlines are left alone
   assert.equal(plain.glyph._representationCache, undefined);
   assert.deepEqual(plain.bounds, { xMin: 0, yMin: 0, xMax: 10, yMax: 10 });
+});
+
+test("components with centerlines can be clicked on their strokes", () => {
+  globalThis.Path2D ??= FakePath2D;
+  const bar = fakePositionedGlyph({
+    glyphName: "bar",
+    sources: [
+      { customData: { [STROKE_KEY]: { defaults: { width: 40, cap: "butt" } } } },
+    ],
+  });
+  const glyph = fakePositionedGlyph({
+    components: [
+      { name: "bar", contours: [{ points: [on(0, 0), on(200, 0)], isClosed: false }] },
+      {
+        name: "box",
+        contours: [{ points: [on(0, 0), on(10, 0), on(10, 10)], isClosed: true }],
+      },
+    ],
+  }).glyph;
+  const componentGlyphs = { get: (name) => (name === "bar" ? bar.varGlyph : null) };
+  const stroked = strokeGlyph({ glyph }, {}, componentGlyphs);
+  assert.equal(widenComponentHitAreas(glyph, stroked), 1);
+  const [component, box] = glyph.components;
+  // Fontra's component controller reads these through its getters
+  assert.deepEqual(component._controlBounds, {
+    xMin: 0,
+    yMin: -20,
+    xMax: 200,
+    yMax: 20,
+  });
+  const moves = component._path2d.calls.filter(([name]) => name === "moveTo");
+  assert.equal(moves.length, 1);
+  // A component without centerlines is left alone
+  assert.equal(box._path2d, undefined);
+  // The same strokes again: nothing to do
+  assert.equal(
+    widenComponentHitAreas(glyph, strokeGlyph({ glyph }, {}, componentGlyphs)),
+    0
+  );
 });

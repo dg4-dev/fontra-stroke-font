@@ -19,6 +19,10 @@ Each section can be pasted as the notes of the matching GitHub release.
 - New colors: the stroke preview (fill and edge) is gray, like the glyph's own outlines, and the nibs and handles are orange, so that they stand out from it. Before, the preview, the nibs and the handles were all the same blue
 - With an elliptical nib, where the inner edge of a curve runs back on itself (where the curve bends tightly, or the nib turns quickly along it), the small loop the edge made there is cut out where the edge crosses itself, leaving a corner. The filled shape does not change; the loop showed in the outlines (and, before, a nib that turned quickly was not taken into account in finding such places)
 
+### Fixed
+
+- In the glyph being edited, a component whose glyph has centerlines could only be clicked on the area Fontra makes by closing its centerlines (nothing at all for a straight one), not on its strokes. Now it can be clicked anywhere on its strokes, and its hover and selection outlines follow them
+
 ## 0.2.0
 
 Widths per point: a stroke can now get wider and thinner along its centerline, differently on each side, and its corners can each have their own join. Widths are changed in the sidebar panel or by dragging handles on the canvas. Closed contours can be stroked as loops, for letters such as o, 0, D and Q.
