@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  EDIT_FILL_LAYER_IDENTIFIER,
   WRAPPED_LAYER_IDENTIFIERS,
   makeGlyphExpander,
+  makeOutlineFiller,
   makeStrokedTest,
+  wrapEditFillLayer,
   wrapGlyphLayers,
 } from "../src/other-glyphs.js";
 import { StrokeSettings } from "../src/settings.js";
+import { STROKE_KEY } from "../src/stroke-data.js";
 import { FakePath2D, fakePositionedGlyph } from "./fakes.js";
 import { on } from "./helpers.js";
 
@@ -113,4 +117,49 @@ test("stroked glyphs that Fontra takes for empty ones are drawn, without a place
   settings.set("otherGlyphs", false);
   assert.equal(selected(stroke), false);
   assert.equal(placeholder(stroke), true);
+});
+
+test("the glyph being edited is filled without its closed centerlines", () => {
+  const ring = {
+    points: [
+      { ...on(0, 0), attrs: { identifier: "a" } },
+      on(300, 0),
+      on(300, 300),
+      on(0, 300),
+    ],
+    isClosed: true,
+  };
+  const inner = {
+    points: [on(400, 0), on(500, 0), on(500, 100), on(400, 100)],
+    isClosed: true,
+  };
+  const marked = { [STROKE_KEY]: { points: { a: { centerline: true } } } };
+  const filled = [];
+  const definitions = [
+    {
+      identifier: EDIT_FILL_LAYER_IDENTIFIER,
+      draw: ({ positionedGlyph }) => filled.push(positionedGlyph.glyph),
+    },
+  ];
+  const fill = makeOutlineFiller(null);
+  assert.equal(wrapEditFillLayer(definitions, fill), true);
+  // Wrapping again does not wrap the wrapper
+  wrapEditFillLayer(definitions, fill);
+  const model = { getLocationForGlyph: () => ({}) };
+  const glyph = fakePositionedGlyph({
+    contours: [ring, inner],
+    sources: [{ name: "Regular", customData: marked }],
+  });
+  definitions[0].draw({ positionedGlyph: glyph, model });
+  // Only the outline is filled, not the ring stroked as a centerline
+  const moves = filled[0].closedContoursPath2d.calls.filter(
+    ([name]) => name === "moveTo"
+  );
+  assert.deepEqual(moves, [["moveTo", 400, 0]]);
+  assert.equal(filled[0].path, glyph.glyph.path);
+  // Without closed centerlines, Fontra fills the glyph as it is
+  const plain = fakePositionedGlyph({ contours: [ring, inner] });
+  definitions[0].draw({ positionedGlyph: plain, model });
+  assert.equal(filled[1], plain.glyph);
+  assert.equal(wrapEditFillLayer([], fill), false);
 });

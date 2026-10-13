@@ -6,7 +6,13 @@ import {
   HANDLES_LAYER_IDENTIFIER,
   makeHandlesLayerDefinition,
 } from "./handles-layer.js";
-import { makeGlyphExpander, makeStrokedTest, wrapGlyphLayers } from "./other-glyphs.js";
+import {
+  makeGlyphExpander,
+  makeOutlineFiller,
+  makeStrokedTest,
+  wrapEditFillLayer,
+  wrapGlyphLayers,
+} from "./other-glyphs.js";
 import { widenHitAreas } from "./hit-areas.js";
 import { PANEL_IDENTIFIER, definePanelElement } from "./panel.js";
 import { StrokeSettings } from "./settings.js";
@@ -38,6 +44,11 @@ export function start(editor, pluginPath) {
     visualizationLayers.definitions,
     makeGlyphExpander(settings, componentGlyphs),
     makeStrokedTest(settings, componentGlyphs)
+  );
+  // The glyph being edited: Fontra fills its closed contours lightly
+  wrapEditFillLayer(
+    visualizationLayers.definitions,
+    makeOutlineFiller(componentGlyphs)
   );
   const tool = new StrokeWidthTool(editor, `${pluginPath}/tool-icon.svg`);
   insertLayerDefinition(
