@@ -12,8 +12,20 @@
 // convex hull that include their stroked shapes. The hull is a representation
 // cached on Fontra's glyph controller (_representationCache.convexHull), used
 // for nothing but finding the glyph under the pointer.
+//
+// In the glyph being edited, Fontra finds the component under the pointer the
+// same way (scene-model.js, componentSelectionAtPoint()): by the component's
+// control bounds and by filling its path (both cached on Fontra's component
+// controller). For a component whose glyph has centerlines, these are made
+// from the stroked shapes instead (widenComponentHitAreas()), so that the
+// component can be clicked anywhere on its strokes. Fontra also outlines the
+// hovered and selected components with that path, which then follows the
+// strokes.
 
 import { glyphHasCenterlines } from "./glyph-strokes.js";
+import { appendContour } from "./stroke-layer.js";
+
+const WIDENED_WITH = Symbol("stroke-font component strokes");
 
 /**
  * @param {object[]} positionedLines Fontra's sceneSettings.positionedLines,
@@ -66,6 +78,48 @@ export function widenHitAreas(positionedLines, strokedOutlines, componentGlyphs)
         }
       }
     }
+  }
+  return count;
+}
+
+/**
+ * Give the components of a glyph with centerlines the path and control bounds
+ * of their stroked shapes (see the top of this file), in place.
+ * @param {object} glyph Fontra's glyph controller of the glyph being edited
+ * @param {{componentOutlines: Map<number, object[]>, strokedClosed: {components:
+ *   Map<number, Set<number>>}}} stroked strokeGlyph() of the glyph
+ * @returns {number} how many components were changed
+ */
+export function widenComponentHitAreas(glyph, stroked) {
+  let count = 0;
+  for (const [index, outlines] of stroked.componentOutlines ?? []) {
+    const component = glyph?.components?.[index];
+    // The strokes are cached, so the same outlines need no new path
+    if (!component?.path || component[WIDENED_WITH] === outlines) {
+      continue;
+    }
+    const strokedClosed = stroked.strokedClosed?.components?.get(index);
+    const path2d = new Path2D();
+    const path = component.path;
+    // The closed contours that are outlines, and the strokes
+    for (const [i, contour] of (path.contourInfo ?? []).entries()) {
+      if (contour.isClosed && !strokedClosed?.has(i)) {
+        path.drawContourToPath2d(path2d, i);
+      }
+    }
+    for (const contour of outlines) {
+      appendContour(path2d, contour);
+    }
+    const points = outlines.flatMap((contour) => contour.points);
+    let bounds = points.length ? pointsRect(points) : undefined;
+    const own = path.getControlBounds?.();
+    if (own) {
+      bounds = bounds ? unionRect(bounds, own) : own;
+    }
+    component._path2d = path2d;
+    component._controlBounds = bounds;
+    component[WIDENED_WITH] = outlines;
+    count++;
   }
   return count;
 }

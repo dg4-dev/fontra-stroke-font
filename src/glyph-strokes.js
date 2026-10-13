@@ -65,16 +65,19 @@ export class ComponentGlyphs {
  * @param {object} [location] the glyph's source location
  * @param {ComponentGlyphs} [componentGlyphs]
  * @returns {{outlines: object[], twists: object[], strokedClosed: {own:
- *   Set<number>, components: Map<number, Set<number>>}}} outlines in glyph
+ *   Set<number>, components: Map<number, Set<number>>},
+ *   componentOutlines: Map<number, object[]>}} outlines in glyph
  *   coordinates; twists of the glyph's own contours only; the closed contours
  *   that were stroked as centerlines (by contour index, of the glyph's own
- *   path and of each component's path, by component index)
+ *   path and of each component's path, by component index); the outlines of
+ *   each component with centerlines, by component index
  */
 export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
   const glyph = positionedGlyph?.glyph;
   const outlines = [];
   let twists = [];
   const strokedClosed = { own: new Set(), components: new Map() };
+  const componentOutlines = new Map();
   if (glyph?.path?.numContours) {
     const style = strokeStyleForGlyph(positionedGlyph, location);
     if (style) {
@@ -112,12 +115,15 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
       }
       const stroked = strokeOpenContours(path, style);
       outlines.push(...stroked.outlines);
+      if (stroked.outlines.length) {
+        componentOutlines.set(componentIndex, stroked.outlines);
+      }
       if (stroked.strokedClosed.length) {
         strokedClosed.components.set(componentIndex, new Set(stroked.strokedClosed));
       }
     }
   }
-  return { outlines, twists, strokedClosed };
+  return { outlines, twists, strokedClosed, componentOutlines };
 }
 
 /**

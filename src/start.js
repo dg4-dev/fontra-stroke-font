@@ -13,7 +13,7 @@ import {
   wrapEditFillLayer,
   wrapGlyphLayers,
 } from "./other-glyphs.js";
-import { widenHitAreas } from "./hit-areas.js";
+import { widenComponentHitAreas, widenHitAreas } from "./hit-areas.js";
 import { PANEL_IDENTIFIER, definePanelElement } from "./panel.js";
 import { StrokeSettings } from "./settings.js";
 import { t } from "./strings.js";
@@ -74,6 +74,8 @@ export function start(editor, pluginPath) {
     );
   sceneSettingsController?.addKeyListener?.("positionedLines", () => widenAll());
   widenAll();
+  // Make the components of the glyph being edited clickable by their strokes
+  wrapComponentHitTest(sceneModel, componentGlyphs);
 
   settings.addListener((key, value) => {
     if (key === "visible") {
@@ -85,6 +87,36 @@ export function start(editor, pluginPath) {
 
   addPanel(editor, settings, pluginPath);
   addTool(editor, tool);
+}
+
+// Fontra finds the component under the pointer with
+// sceneModel.componentSelectionAtPoint(); before it does, the components of
+// the glyph being edited get the hit areas of their strokes (see hit-areas.js)
+function wrapComponentHitTest(sceneModel, componentGlyphs) {
+  const original = sceneModel?.componentSelectionAtPoint;
+  if (typeof original !== "function" || original.strokeFontWrapped) {
+    return;
+  }
+  const wrapped = function (...args) {
+    try {
+      const positionedGlyph = this.getSelectedPositionedGlyph?.();
+      if (positionedGlyph?.glyph?.components?.length) {
+        widenComponentHitAreas(
+          positionedGlyph.glyph,
+          strokeGlyph(
+            positionedGlyph,
+            this.getLocationForGlyph?.(positionedGlyph.glyphName),
+            componentGlyphs
+          )
+        );
+      }
+    } catch (e) {
+      console.error("[stroke-font] could not stroke the components", e);
+    }
+    return original.apply(this, args);
+  };
+  wrapped.strokeFontWrapped = true;
+  sceneModel.componentSelectionAtPoint = wrapped;
 }
 
 function addTool(editor, tool) {
