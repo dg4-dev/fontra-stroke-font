@@ -4,11 +4,17 @@ import { test } from "node:test";
 import { pointAt } from "../src/geometry/bezier.js";
 import { centerlineSegments } from "../src/geometry/centerline.js";
 import { outlineSignature, strokeCompatibly } from "../src/geometry/compatible.js";
-import { makeNib, strokeNibContour } from "../src/geometry/nib.js";
+import {
+  ellipseContour,
+  makeNib,
+  rectContour,
+  strokeNibContour,
+} from "../src/geometry/nib.js";
 import { strokeOffsetContour } from "../src/geometry/offset.js";
 import { signedArea } from "../src/geometry/shapes.js";
 import { valueProfile } from "../src/geometry/widths.js";
-import { bounds, off, on, winding } from "./helpers.js";
+import { convexHull } from "../src/hit-areas.js";
+import { bounds, flattenContour, off, on, winding } from "./helpers.js";
 
 const KAPPA = 0.5522847498307936;
 
@@ -223,9 +229,11 @@ test("loops are covered by both nibs", () => {
   }
 });
 
-test("nib values of points change the nib along the centerline", () => {
+test("nib values of points change the nib along a curve", () => {
   const contour = openContour(
     { ...on(0, 0), values: { major: 40, angle: 170 } },
+    off(100, 200),
+    off(300, 200),
     { ...on(400, 0), values: { major: 160, angle: 10 } }
   );
   const style = nib({ minor: 20 });
@@ -235,6 +243,67 @@ test("nib values of points change the nib along the centerline", () => {
   const samples = sampleNibs(contour, style, 10);
   assert.ok(samples.every((s) => s.angle >= 170 - 1e-9 && s.angle <= 190 + 1e-9));
 });
+
+test("a straight segment is the hull of the nibs at its ends, with straight edges", () => {
+  const ends = [
+    { major: 40, angle: 170 },
+    { major: 160, angle: 10 },
+  ];
+  for (const shape of ["ellipse", "rect"]) {
+    const style = nib({ shape, minor: 20 });
+    const contour = openContour(
+      { ...on(0, 0), values: ends[0] },
+      { ...on(400, 0), values: ends[1] }
+    );
+    const { contours } = strokeNibContour(contour, style);
+    // The band, then the nibs at the ends
+    assert.ok(
+      contours[0].points.every((p) => !p.type),
+      shape
+    );
+    const hull = convexHull(
+      contour.points.flatMap((point) => {
+        const n = makeNib(point.values.major, 20, point.values.angle, 1);
+        return flattenContour(
+          shape === "rect" ? rectContour(point, n) : ellipseContour(point, n),
+          64
+        );
+      })
+    );
+    const box = bounds(contours);
+    let inside = 0;
+    for (let x = box.xMin - 10; x <= box.xMax + 10; x += 4) {
+      for (let y = box.yMin - 10; y <= box.yMax + 10; y += 4) {
+        const depth = insideConvex({ x, y }, hull);
+        const filled = winding({ x, y }, contours) !== 0;
+        if (depth > 1) {
+          assert.ok(filled, `${shape}: hole at ${x}, ${y}`);
+          inside++;
+        } else if (depth < -1) {
+          assert.ok(!filled, `${shape}: filled outside at ${x}, ${y}`);
+        }
+      }
+    }
+    assert.ok(inside > 100);
+  }
+});
+
+// How far a point is inside a counter-clockwise convex polygon (negative
+// outside)
+function insideConvex(point, polygon) {
+  let depth = Infinity;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    if (length > 0) {
+      const side =
+        ((b.x - a.x) * (point.y - a.y) - (b.y - a.y) * (point.x - a.x)) / length;
+      depth = Math.min(depth, side);
+    }
+  }
+  return depth;
+}
 
 test("every contour of a nib stroke is counter-clockwise, except a ring's hole", () => {
   for (const contour of [line, sCurve, hairpin, corner, sharpCorner]) {

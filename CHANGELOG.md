@@ -13,6 +13,7 @@ Each section can be pasted as the notes of the matching GitHub release.
 ### Changed
 
 - A point without a width (or nib) of its own now has the source's, instead of following the points around it, and between two points the width changes evenly along the centerline instead of along a smooth curve. Straight segments keep straight edges when their width changes. Fonts with widths per point made with 0.2.0 stroke differently where a point in the middle has no width of its own, or where the width changes along a straight segment
+- With a nib, a straight segment whose nib changes from one end to the other (in size or angle) has straight edges, touching the nibs at both ends, instead of edges that curve as the nib turns along it
 - The setting "Show width handles with other tools too" is now "Show handles with other tools too", for nib handles as well
 
 ## 0.2.0
