@@ -36,21 +36,23 @@ const bar = (shape = "ellipse", defaults = { major: 100, minor: 40, angle: 0 }) 
     sources: [nibSource(defaults)],
   });
 
-test("each point of a nib glyph has its nib and the ends of its axes", () => {
-  const { nibs, handles } = nibHandles(bar(), {});
+test("each point of a nib glyph has its nib, the ends of its axes and a knob", () => {
+  const { nibs, handles } = nibHandles(bar(), {}, { knobDistance: 30 });
   assert.equal(nibs.length, 2);
-  assert.equal(handles.length, 8);
+  assert.equal(handles.length, 10);
   const at = (pointIndex, side) =>
     handles.find((h) => h.pointIndex === pointIndex && h.side === side);
   assertPoint(at(1, "major+").handle, { x: 250, y: 0 });
   assertPoint(at(1, "major-").handle, { x: 150, y: 0 });
   assertPoint(at(1, "minor+").handle, { x: 200, y: 20 });
   assertPoint(at(1, "minor-").normal, { x: 0, y: -1 });
+  // The knob is beyond the "+" end of the major axis
+  assertPoint(at(1, "rotate").handle, { x: 280, y: 0 });
   // A flat nib has no minor handles
   const flat = nibHandles(bar("rect", { major: 100, minor: 0, angle: 30 }), {});
   assert.deepEqual(
     flat.handles.map((h) => h.axis),
-    ["major", "major", "major", "major"]
+    ["major", "major", "rotate", "major", "major", "rotate"]
   );
   // Width glyphs have none
   const widthGlyph = fakePositionedGlyph({
@@ -61,25 +63,37 @@ test("each point of a nib glyph has its nib and the ends of its axes", () => {
   assert.equal(glyphHandles(bar(), {}).nibs.length, 2);
 });
 
-test("dragging an end of the major axis turns and sizes the nib", () => {
+test("the knob turns the nib without sizing it", () => {
+  const { handles } = nibHandles(bar(), {}, { knobDistance: 30 });
+  const knob = handles.find((h) => h.pointIndex === 1 && h.side === "rotate");
+  const start = { major: 100, minor: 40, angle: 0 };
+  let drag = nibDrag(knob, start, { x: 200, y: 80 });
+  assertClose(drag.angle, 90, "angle");
+  // A quarter turn either way is the same nib
+  assertClose(Math.abs(drag.rotation), 90, "rotation");
+  assert.deepEqual(draggedNibValues(start, "rotate", drag), { angle: 90 });
+  // Shift: steps of 15°
+  drag = nibDrag(knob, start, { x: 250, y: 40 }, { shiftKey: true });
+  assertClose(drag.angle, 45, "snapped angle");
+});
+
+test("dragging an end of the major axis sizes the nib, or with Alt turns it too", () => {
   const { handles } = nibHandles(bar(), {});
   const plus = handles.find((h) => h.pointIndex === 1 && h.side === "major+");
   const minus = handles.find((h) => h.pointIndex === 1 && h.side === "major-");
   const start = { major: 100, minor: 40, angle: 0 };
-  // The end follows the pointer
-  let drag = nibDrag(plus, start, { x: 200, y: 80 });
-  assertClose(drag.length, 160, "length");
-  assertClose(drag.angle, 90, "angle");
+  // The length only, measured along the axis
+  let drag = nibDrag(plus, start, { x: 300, y: 40 });
+  assertClose(drag.length, 200, "length");
+  assertClose(drag.angle, 0, "angle");
+  assert.deepEqual(draggedNibValues(start, "major", drag), { major: 200 });
+  // Alt: the end follows the pointer
+  drag = nibDrag(plus, start, { x: 200, y: 80 }, { altKey: true });
+  assertClose(drag.length, 160, "length with Alt");
+  assertClose(drag.angle, 90, "angle with Alt");
   // The other end too: pointing down from the point is the same nib
-  drag = nibDrag(minus, start, { x: 200, y: 80 });
+  drag = nibDrag(minus, start, { x: 200, y: 80 }, { altKey: true });
   assertClose(drag.angle, 90, "angle from the other end");
-  // Shift: steps of 15°
-  drag = nibDrag(plus, start, { x: 250, y: 40 }, { shiftKey: true });
-  assertClose(drag.angle, 45, "snapped angle");
-  // Alt: the length only, measured along the axis
-  drag = nibDrag(plus, start, { x: 300, y: 40 }, { altKey: true });
-  assertClose(drag.length, 200, "length with Alt");
-  assertClose(drag.angle, 0, "angle with Alt");
 });
 
 test("dragging an end of the minor axis changes the minor axis only", () => {
@@ -107,8 +121,8 @@ test("all dragged points get the same ratio and rotation", () => {
   // A rotation through the end of the range turns the short way
   const turned = nibDrag(
     {
-      axis: "major",
-      side: "major+",
+      axis: "rotate",
+      side: "rotate",
       anchor: { x: 0, y: 0 },
       normal: {
         x: Math.cos((170 * Math.PI) / 180),
@@ -176,10 +190,17 @@ test("the tool drags nib handles as one undoable change", async () => {
   const { editor, results } = fakeEditor(glyph);
   const tool = new StrokeWidthTool(editor, "icon.svg");
   tool.activate();
-  await tool.handleDrag(events(mouse(240, 20), mouse(200, 80)), mouse(250, 0));
+  // The end of the major axis: the length only
+  await tool.handleDrag(events(mouse(270, 20), mouse(290, 0)), mouse(250, 0));
   assert.deepEqual(glyph.varGlyph.sources[0].customData[STROKE_KEY].points, {
-    b: { major: 160, angle: 90 },
+    b: { major: 180 },
   });
+  // The knob (24 pixels beyond, at one unit per pixel): the angle only
+  await tool.handleDrag(events(mouse(250, 50), mouse(200, 80)), mouse(314, 0));
+  assert.deepEqual(glyph.varGlyph.sources[0].customData[STROKE_KEY].points, {
+    b: { major: 180, angle: 90 },
+  });
+  results.splice(1);
   assert.equal(results.length, 1);
   assert.equal(results[0].undoLabel, "Change point nib");
   assert.equal(tool.dragLabel, undefined);

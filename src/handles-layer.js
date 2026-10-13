@@ -3,6 +3,7 @@
 // setting asks for it. In a glyph of the nib method, it also draws the nib
 // of each point, with the tool or when the setting asks for it.
 
+import { KNOB_DISTANCE } from "./nib-handles.js";
 import { glyphHandles } from "./width-tool.js";
 
 export const HANDLES_LAYER_IDENTIFIER = "fontra-plugin.stroke-font.width-handles";
@@ -29,6 +30,8 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
       lineWidth: 1,
       fontSize: 11,
       labelOffset: 10,
+      // Scaled to glyph units like the others, it tells how big a pixel is
+      knobDistance: KNOB_DISTANCE,
     },
     colors: {
       handleColor: "hsl(215, 90%, 45%)",
@@ -49,7 +52,11 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
         return;
       }
       const location = model?.getLocationForGlyph?.(positionedGlyph?.glyphName);
-      const { handles, nibs } = glyphHandles(positionedGlyph, location);
+      const { handles, nibs } = glyphHandles(
+        positionedGlyph,
+        location,
+        (parameters.knobDistance ?? KNOB_DISTANCE) / KNOB_DISTANCE
+      );
       if (nibs && showNibs) {
         drawNibs(context, nibs, parameters);
       }
@@ -98,16 +105,19 @@ export function drawHandles(context, handles, parameters, tool) {
   for (const item of handles) {
     const isActive =
       item.pointIndex === active?.pointIndex && item.side === active?.side;
-    context.fillStyle = isActive ? parameters.hoverColor : parameters.handleColor;
+    const color = isActive ? parameters.hoverColor : parameters.handleColor;
+    const radius = isActive ? parameters.hoverRadius : parameters.handleRadius;
     context.beginPath();
-    context.arc(
-      item.handle.x,
-      item.handle.y,
-      isActive ? parameters.hoverRadius : parameters.handleRadius,
-      0,
-      2 * Math.PI
-    );
-    context.fill();
+    context.arc(item.handle.x, item.handle.y, radius, 0, 2 * Math.PI);
+    if (item.axis === "rotate") {
+      // The turning knob is a ring, unlike the handles that size the nib
+      context.strokeStyle = color;
+      context.lineWidth = parameters.lineWidth * 1.5;
+      context.stroke();
+    } else {
+      context.fillStyle = color;
+      context.fill();
+    }
   }
   // The value being dragged, next to its handle
   if (tool?.draggedHandle && tool.dragLabel !== undefined) {

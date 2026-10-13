@@ -30,7 +30,7 @@ import {
   pointValuesForField,
   selectedPointIndices,
 } from "./point-edit.js";
-import { draggedNibValues, nibDrag, nibHandles } from "./nib-handles.js";
+import { KNOB_DISTANCE, draggedNibValues, nibDrag, nibHandles } from "./nib-handles.js";
 import {
   JOINS,
   STROKE_KEY,
@@ -162,12 +162,16 @@ export function handleAt(handles, point, margin) {
 /**
  * The handles of a glyph: width handles, or for a glyph of the nib method,
  * the handles and the nibs of its points (see nib-handles.js).
+ * @param {number} [onePixelUnit] glyph units per pixel, for placing the knob
+ *   that turns a nib
  * @returns {{handles: object[], nibs?: object[]}}
  */
-export function glyphHandles(positionedGlyph, location) {
+export function glyphHandles(positionedGlyph, location, onePixelUnit = 1) {
   const varGlyph = positionedGlyph?.varGlyph ?? positionedGlyph?.glyph?.varGlyph;
   if (getGlyphStroke(varGlyph?.glyph?.customData).type === "nib") {
-    const nib = nibHandles(positionedGlyph, location);
+    const nib = nibHandles(positionedGlyph, location, {
+      knobDistance: KNOB_DISTANCE * onePixelUnit,
+    });
     return { handles: nib?.handles ?? [], nibs: nib?.nibs ?? [] };
   }
   return { handles: widthHandles(positionedGlyph, location) };
@@ -284,7 +288,11 @@ export class StrokeWidthTool {
     return {
       positionedGlyph,
       location,
-      ...glyphHandles(positionedGlyph, location),
+      ...glyphHandles(
+        positionedGlyph,
+        location,
+        this.sceneController.onePixelUnit ?? this.canvasController.onePixelUnit
+      ),
     };
   }
 
@@ -515,9 +523,11 @@ export class StrokeWidthTool {
             { defaultIndex }
           );
           this.dragLabel =
-            handle.axis === "major"
-              ? `${formatNumber(drag.length)} · ${formatNumber(drag.angle)}°`
-              : formatNumber(drag.length);
+            handle.axis === "rotate"
+              ? `${formatNumber(drag.angle)}°`
+              : handle.axis === "major" && event.altKey
+                ? `${formatNumber(drag.length)} · ${formatNumber(drag.angle)}°`
+                : formatNumber(drag.length);
           await sendIncrementalChange(recorder.change(), true);
         }
         if (!moved) {
