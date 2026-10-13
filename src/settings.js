@@ -9,7 +9,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   otherGlyphs: true, // stroked shapes on the other glyphs of the text
   outlineOnly: false, // draw the edge of the preview instead of filling it
   fillOpacity: 0.3, // of the preview fill on the glyph being edited
-  handles: false, // the width handles with other tools than the width tool
+  handles: false, // the handles with other tools than the stroke width tool
+  nibs: true, // the nib of each point of a glyph of the nib method
 });
 
 export const FILL_OPACITY_MIN = 0.05;

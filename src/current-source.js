@@ -11,18 +11,22 @@
 // in the flattened path of a component.
 
 import { centerlineSegments } from "./geometry/centerline.js";
-import { widthProfile } from "./geometry/widths.js";
+import { valueProfile, widthProfile } from "./geometry/widths.js";
 import { pathPoints, startsWithPointStructure } from "./path-points.js";
 import {
   INTERPOLATED_OFFSET_KEYS,
+  NIB_KEYS,
   getGlyphStroke,
   getSourceStroke,
+  nearestNibAngle,
   nibStyleInGlyph,
   offsetStyleInGlyph,
   SHARED_POINT_KEYS,
   pointHalfWidths,
+  resolveNibStyle,
   resolveOffsetStyle,
   resolvePointValues,
+  sanitizeNibValue,
   sanitizeOffsetValue,
 } from "./stroke-data.js";
 
@@ -76,8 +80,6 @@ export function defaultSourceIndex(varGlyph) {
  * type "nib", see nibStyleInGlyph() in stroke-data.js). Its `points` hold the
  * values of the points of the glyph's path (per contour and point index,
  * undefined for points without values), when any point has values.
- *
- * Between sources, a nib style has the numbers of the nearest source.
  */
 export function strokeStyleForGlyph(positionedGlyph, location) {
   const { varGlyph, sourceIndex, atSource } = findStrokeSource(
@@ -91,12 +93,24 @@ export function strokeStyleForGlyph(positionedGlyph, location) {
       sources[sourceIndex]?.customData,
       varGlyph?.glyph?.customData
     );
-    // Between sources, the nearest source's points correspond by index
+    const path = positionedGlyph?.glyph?.path;
+    const interpolated = atSource
+      ? null
+      : interpolateNib(varGlyph, location, path, defaultIndex);
+    if (interpolated) {
+      Object.assign(style, interpolated.numbers);
+      if (interpolated.points) {
+        style.points = interpolated.points;
+      }
+      return style;
+    }
+    // At a source, or when interpolating fails, the (nearest) source's
+    // values; between sources its points correspond by index
     const points = sourcePointValues(
       varGlyph,
       sourceIndex,
       defaultIndex,
-      atSource ? positionedGlyph?.glyph?.path : undefined
+      atSource ? path : undefined
     );
     if (points) {
       style.points = points;
@@ -332,6 +346,157 @@ function pointVectors(varGlyph, sources, styles, path) {
 }
 
 /**
+ * The nib numbers at a location between sources, and the nib values of the
+ * points of the path there, interpolated with the glyph's own variation
+ * model. Before interpolating, every angle is turned by half turns to be
+ * within 90° of the default source's (at the same point, for points), so
+ * that the nib turns the short way from it.
+ *
+ * A point gets an interpolated number when any source sets it; the number
+ * of a source that does not is the one its nib has at that point. Returns
+ * null when interpolating fails.
+ * @param {object} [path] the glyph's path at the location
+ * @returns {{numbers: object, points?: object[][]}|null}
+ */
+export function interpolateNib(varGlyph, location, path, defaultIndex) {
+  try {
+    const model = varGlyph?.model;
+    if (!model) {
+      return null;
+    }
+    const sources = varGlyph.sources.filter((source) => !source.inactive);
+    const defaultSource =
+      varGlyph.sources[defaultIndex ?? defaultSourceIndex(varGlyph)] ?? sources[0];
+    const reference = resolveNibStyle(defaultSource?.customData);
+    const styles = sources.map((source) => resolveNibStyle(source.customData));
+    const vectors = styles.map((style) =>
+      NIB_KEYS.map((key) =>
+        key === "angle" ? nearestNibAngle(style.angle, reference.angle) : style[key]
+      )
+    );
+    const pointPart = path
+      ? nibPointVectors(varGlyph, sources, styles, path, sources.indexOf(defaultSource))
+      : null;
+    if (pointPart) {
+      for (const [i, vector] of pointPart.vectors.entries()) {
+        vectors[i].push(...vector);
+      }
+    }
+    const sourceLocation = varGlyph.expandNLIAxes?.(location ?? {}) ?? location ?? {};
+    const { instance } = model.interpolateFromDeltas(
+      sourceLocation,
+      model.getDeltas(vectors)
+    );
+    if (!Array.isArray(instance) || !instance.every(Number.isFinite)) {
+      return null;
+    }
+    const numbers = Object.fromEntries(
+      NIB_KEYS.map((key, i) => [key, sanitizeNibValue(key, instance[i])])
+    );
+    if (!path) {
+      return { numbers };
+    }
+    const points = pointPart
+      ? pointPart.build(instance.slice(NIB_KEYS.length))
+      : emptyPointValues(path);
+    applyDefaultJoins(
+      points,
+      varGlyph,
+      defaultIndex ?? defaultSourceIndex(varGlyph),
+      path
+    );
+    return points.some((contour) => contour.some(Boolean))
+      ? { numbers, points }
+      : { numbers };
+  } catch (e) {
+    return null;
+  }
+}
+
+// As pointVectors(), for the nib numbers of points
+function nibPointVectors(varGlyph, sources, styles, path, defaultPosition) {
+  if (!sources.some((source) => hasPointValues(source.customData))) {
+    return null;
+  }
+  const perSource = [];
+  for (const [i, source] of sources.entries()) {
+    const sourcePath = layerPath(varGlyph, source);
+    if (!sourcePath || !startsWithPointStructure(path, sourcePath)) {
+      return null;
+    }
+    const values = resolvePointValues(pathPoints(sourcePath), source.customData);
+    perSource.push({ path: sourcePath, values, style: styles[i] });
+  }
+  const entries = [];
+  const numContours = perSource[0].path.contourInfo.length;
+  for (const [c, contour] of pathPoints(path).entries()) {
+    if (c >= numContours) {
+      continue;
+    }
+    for (const [i, point] of contour.entries()) {
+      if (!point.onCurve) {
+        continue;
+      }
+      const set = perSource.map(({ values }) => values[c][i]);
+      for (const key of NIB_KEYS) {
+        if (set.some((v) => v?.[key] !== undefined)) {
+          entries.push({ c, i, key });
+        }
+      }
+    }
+  }
+  if (!entries.length) {
+    return null;
+  }
+  const atPoints = perSource.map(({ path: sourcePath, values, style }) => {
+    const profiles = new Map();
+    const profile = (c) => {
+      if (!profiles.has(c)) {
+        const contour = sourcePath.getUnpackedContour(c);
+        contour.points.forEach((point, i) => {
+          point.values = values[c][i];
+        });
+        profiles.set(c, nibProfile(contour, style));
+      }
+      return profiles.get(c);
+    };
+    return entries.map(({ c, i, key }) => profile(c).atPoint(i)?.[key] ?? style[key]);
+  });
+  const references = atPoints[defaultPosition] ?? atPoints[0];
+  const vectors = atPoints.map((numbers) =>
+    numbers.map((number, k) =>
+      entries[k].key === "angle" ? nearestNibAngle(number, references[k]) : number
+    )
+  );
+  const build = (numbers) => {
+    const points = path.contourInfo.map((contour, c) =>
+      new Array(
+        contour.endPoint + 1 - (c ? path.contourInfo[c - 1].endPoint + 1 : 0)
+      ).fill(undefined)
+    );
+    for (const [k, { c, i, key }] of entries.entries()) {
+      points[c][i] = { ...points[c][i], [key]: sanitizeNibValue(key, numbers[k]) };
+    }
+    return points;
+  };
+  return { vectors, build };
+}
+
+/**
+ * The nib numbers along a centerline (see valueProfile() in widths.js).
+ * @param {{points: object[], isClosed: boolean}} contour unpacked, with the
+ *   points' values
+ * @param {{major: number, minor: number, angle: number}} style
+ */
+export function nibProfile(contour, style) {
+  return valueProfile(contour, centerlineSegments(contour), {
+    keys: NIB_KEYS,
+    defaults: { major: style.major, minor: style.minor, angle: style.angle },
+    periods: { angle: 180 },
+  });
+}
+
+/**
  * Whether any closed contour of a glyph is marked as a centerline (in its
  * default source, which decides it for all sources).
  */
@@ -359,7 +524,8 @@ export function layerPath(varGlyph, source) {
  * is selected.
  * @returns {null | {glyphName: string, sourceIndex: number|undefined,
  *   sourceName: string, atSource: boolean, defaultSourceIndex: number|undefined,
- *   isDefaultSource: boolean, method: string, stored: object, style: object}}
+ *   isDefaultSource: boolean, method: string, shape?: string, stored: object,
+ *   style: object}}
  *   stored holds the source's own default values; style the values in use
  *   (interpolated between sources, with built-in defaults filled in)
  */
@@ -373,7 +539,7 @@ export function describeStrokeSource(positionedGlyph, location) {
   );
   const source = varGlyph?.sources?.[sourceIndex];
   const defaultIndex = defaultSourceIndex(varGlyph);
-  const method = getGlyphStroke(varGlyph?.glyph?.customData).type;
+  const { type: method, shape } = getGlyphStroke(varGlyph?.glyph?.customData);
   return {
     glyphName: positionedGlyph.glyphName,
     sourceIndex,
@@ -383,12 +549,11 @@ export function describeStrokeSource(positionedGlyph, location) {
     defaultSourceName: sourceDisplayName(varGlyph, varGlyph?.sources?.[defaultIndex]),
     isDefaultSource: atSource && sourceIndex === defaultIndex,
     method,
+    shape,
     stored: getSourceStroke(source?.customData).defaults,
-    // The panel edits offset values only for now
     style:
-      method === "offset"
-        ? strokeStyleForGlyph(positionedGlyph, location)
-        : resolveOffsetStyle(source?.customData),
+      strokeStyleForGlyph(positionedGlyph, location) ??
+      resolveOffsetStyle(source?.customData),
   };
 }
 

@@ -88,6 +88,36 @@ export function getGlyphStroke(glyphCustomData) {
 }
 
 /**
+ * Set the stroke method of a glyph, in place. The offset method is the
+ * default, so it removes the glyph's stroke data. Returns the customData.
+ * Like setSourceDefaults(), only what changes is assigned or deleted.
+ * @param {object} glyphCustomData customData of the variable glyph
+ * @param {string} type "offset" or "nib"
+ * @param {string} [shape] the nib shape, for the nib method
+ */
+export function setGlyphStroke(glyphCustomData, type, shape) {
+  const stored = glyphCustomData[STROKE_KEY];
+  if (type !== "nib") {
+    if (stored !== undefined) {
+      delete glyphCustomData[STROKE_KEY];
+    }
+    return glyphCustomData;
+  }
+  const nibShape = NIB_SHAPES.includes(shape) ? shape : NIB_SHAPES[0];
+  if (!isObject(stored)) {
+    glyphCustomData[STROKE_KEY] = { type: "nib", shape: nibShape };
+    return glyphCustomData;
+  }
+  if (stored.type !== "nib") {
+    stored.type = "nib";
+  }
+  if (stored.shape !== nibShape) {
+    stored.shape = nibShape;
+  }
+  return glyphCustomData;
+}
+
+/**
  * The raw stroke values of a source: its defaults and per-point values, as
  * stored (unknown keys are kept, nothing is filled in).
  * @param {object} sourceCustomData customData of a glyph source
@@ -416,6 +446,25 @@ export function makePointIdentifier(taken = new Set(), random = Math.random) {
  */
 export function normalizeNibAngle(angle) {
   return (((Number(angle) % 180) + 180) % 180) + 0; // + 0 turns -0 into 0
+}
+
+/**
+ * The angle turned by whole half turns to be within 90° of the reference:
+ * the same nib, turned the short way from the reference. Interpolating such
+ * angles turns the nib the short way (170° and 10° go through 180°).
+ */
+export function nearestNibAngle(angle, reference) {
+  return angle - 180 * Math.round((angle - reference) / 180);
+}
+
+/**
+ * A valid value for a key of either method, or undefined (see
+ * sanitizeOffsetValue() and sanitizeNibValue()).
+ */
+export function sanitizeStrokeValue(key, value) {
+  return NIB_KEYS.includes(key)
+    ? sanitizeNibValue(key, value)
+    : sanitizeOffsetValue(key, value);
 }
 
 /**

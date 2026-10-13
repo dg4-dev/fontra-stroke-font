@@ -1,8 +1,9 @@
-// The visualization layer that draws the width handles of the glyph being
-// edited: while the stroke width tool is selected, or with every tool when
-// the setting asks for it.
+// The visualization layer that draws the handles of the glyph being edited:
+// while the stroke width tool is selected, or with every tool when the
+// setting asks for it. In a glyph of the nib method, it also draws the nib
+// of each point, with the tool or when the setting asks for it.
 
-import { widthHandles } from "./width-tool.js";
+import { glyphHandles } from "./width-tool.js";
 
 export const HANDLES_LAYER_IDENTIFIER = "fontra-plugin.stroke-font.width-handles";
 
@@ -42,13 +43,45 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
       labelColor: "hsl(215, 30%, 90%)",
     },
     draw: ({ context, positionedGlyph, parameters, model }) => {
-      if (!tool?.isActive && !settings?.get("handles")) {
+      const showHandles = tool?.isActive || settings?.get("handles");
+      const showNibs = tool?.isActive || settings?.get("nibs");
+      if (!showHandles && !showNibs) {
         return;
       }
       const location = model?.getLocationForGlyph?.(positionedGlyph?.glyphName);
-      drawHandles(context, widthHandles(positionedGlyph, location), parameters, tool);
+      const { handles, nibs } = glyphHandles(positionedGlyph, location);
+      if (nibs && showNibs) {
+        drawNibs(context, nibs, parameters);
+      }
+      if (showHandles) {
+        drawHandles(context, handles, parameters, tool);
+      }
     },
   };
+}
+
+/** The outline of the nib of each point. */
+export function drawNibs(context, nibs, parameters) {
+  context.lineWidth = parameters.lineWidth;
+  context.strokeStyle = parameters.lineColor;
+  context.beginPath();
+  for (const { contour } of nibs) {
+    const points = contour.points;
+    context.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i <= points.length; i++) {
+      const point = points[i % points.length];
+      if (point.type) {
+        const next = points[(i + 1) % points.length];
+        const end = points[(i + 2) % points.length];
+        context.bezierCurveTo(point.x, point.y, next.x, next.y, end.x, end.y);
+        i += 2;
+      } else {
+        context.lineTo(point.x, point.y);
+      }
+    }
+    context.closePath();
+  }
+  context.stroke();
 }
 
 export function drawHandles(context, handles, parameters, tool) {
@@ -77,7 +110,7 @@ export function drawHandles(context, handles, parameters, tool) {
     context.fill();
   }
   // The value being dragged, next to its handle
-  if (tool?.draggedHandle && tool.dragValue !== undefined) {
+  if (tool?.draggedHandle && tool.dragLabel !== undefined) {
     const item = handles.find(
       (h) =>
         h.pointIndex === tool.draggedHandle.pointIndex &&
@@ -95,7 +128,7 @@ export function drawHandles(context, handles, parameters, tool) {
       context.textAlign =
         item.normal.x < -0.3 ? "right" : item.normal.x > 0.3 ? "left" : "center";
       context.textBaseline = "middle";
-      context.fillText(String(Math.round(tool.dragValue * 10) / 10), 0, 0);
+      context.fillText(tool.dragLabel, 0, 0);
       context.restore();
     }
   }

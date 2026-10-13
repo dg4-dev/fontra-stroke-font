@@ -6,7 +6,13 @@ Each section can be pasted as the notes of the matching GitHub release.
 
 ### Added
 
-- **Pen nibs**: glyphs of the nib method are stroked with an elliptical, rectangular or flat nib, in the preview and by the command-line tool. The size and angle of the nib can be set per source and per point, and follow the centerline between points. Corners and ends take the shape of the nib. The panel and the handles do not change nib values yet
+- **Pen nibs**: a glyph can be stroked with an elliptical, rectangular or flat nib instead of a width ("Stroke with" in the panel), in the preview and by the command-line tool. Corners and ends take the shape of the nib
+- The major axis, minor axis and angle of the nib are set per source and per point in the panel, and follow the centerline between points; between sources they are interpolated, with angles turning the short way (170° and 10° meet at 180°)
+- **Nib handles**: the stroke width tool draws the nib of each point with handles at the ends of its axes. Dragging an end of the major axis sizes and turns the nib (Alt: size only, Shift: steps of 15°), an end of the minor axis sizes the minor axis. A setting draws the nibs with the other tools too
+
+### Changed
+
+- The setting "Show width handles with other tools too" is now "Show handles with other tools too", for nib handles as well
 
 ## 0.2.0
 

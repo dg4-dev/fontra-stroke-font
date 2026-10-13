@@ -2,7 +2,7 @@
 
 A [Fontra](https://github.com/fontra/fontra) plugin for designing stroke fonts: draw centerlines (open contours, and closed contours marked as loops), stroke them with a width or a pen nib, and see the stroked shape while you edit.
 
-Centerlines are stroked with a width: one per source, and optionally per point, different on each side. Open contours are always centerlines; a closed contour is one when it is marked as such, for the loops of letters such as o, 0, D and Q. The values are changed in a sidebar panel or by dragging handles on the canvas, and are interpolated between sources; a command-line tool turns the centerlines into outlines for building fonts. Pen nibs and live corners come in later versions; the plan is in the issues, and the changes per version in [CHANGELOG.md](CHANGELOG.md).
+Centerlines are stroked with a width (one per source, and optionally per point, different on each side) or with a pen nib (an ellipse, a rectangle or a flat nib, with its size and angle per source and per point). Open contours are always centerlines; a closed contour is one when it is marked as such, for the loops of letters such as o, 0, D and Q. The values are changed in a sidebar panel or by dragging handles on the canvas, and are interpolated between sources; a command-line tool turns the centerlines into outlines for building fonts. Live corners come in a later version; the plan is in the issues, and the changes per version in [CHANGELOG.md](CHANGELOG.md).
 
 - **In the editor**: open contours are centerlines, and so are the closed contours you mark as such (the loops of o, 0, D, Q). The plugin draws the stroked shape on top of them as a preview; the font sources keep the centerlines
 - **Ways to stroke**: a width (per point, optionally different on each side) with caps, joins and a miter limit; or a pen nib (ellipse, rectangle or flat pen) with its size and angle per point
@@ -63,13 +63,15 @@ A stroke font tab (an S-shaped stroke icon) is added to the right sidebar of the
 | Draw the edge only | Draws the outer edge of the stroked shape instead of filling it |
 | Fill opacity | How strongly the preview is filled (5–100%) |
 | Show strokes on the other glyphs | Draws the other glyphs of the text with their stroked shapes, as they will look in the font. Off: Fontra draws them itself, and fills each centerline as if it were closed |
-| Show width handles with other tools too | Draws the handles of the stroke width tool (see [Widths per point](#widths-per-point)) whatever tool is selected. They can only be dragged with the stroke width tool |
+| Show handles with other tools too | Draws the handles of the stroke width tool (see [Widths per point](#widths-per-point) and [Pen nibs](#pen-nibs)) whatever tool is selected. They can only be dragged with the stroke width tool |
+| Show the nib at each point | Draws the outline of the nib at each point of a glyph stroked with a nib, whatever tool is selected (with the stroke width tool, it is always drawn) |
+| Stroke with | How the glyph is stroked: with a width, an elliptical nib or a rectangular nib. The same in all sources |
 | Width | Distance between the two edges of the stroke |
 | Cap | Shape of the ends: butt (flat at the end point), round, or square (extends half the width beyond the end point). The same in all sources |
 | Join | Shape of corners: miter (pointed), round, or bevel (cut off). Smooth points do not make corners. The same in all sources |
 | Miter limit | A miter longer than this many times the width becomes a bevel, as in SVG: for an angle θ between the two lines, the miter is `1 / sin(θ / 2)` times the width. Only used with the miter join |
 
-The first five are display settings, saved in the browser's localStorage.
+The first six are display settings, saved in the browser's localStorage. For a glyph stroked with a nib, the fields of the source are those of [Pen nibs](#pen-nibs) instead of width, cap, join and miter limit.
 
 Width and miter limit belong to the source being edited, so each source (for example Light and Bold) has its own values. Between sources they are interpolated the same way Fontra interpolates the outlines, and the panel shows the interpolated values (the fields are disabled there; go to a source to change them). Cap and join cannot be interpolated, and the outlines of the sources would not match if they differed, so all sources use the ones of the default source: the panel saves them there, whichever source is being edited. All values are saved with the font and can be undone.
 
@@ -97,6 +99,30 @@ An on-curve point of a centerline can have a width of its own, the same on both 
 When the dragged point is selected, all selected points change by the same amount. Elsewhere on the canvas the tool works like the pointer tool: points can be selected and moved without switching tools. The value being dragged is shown next to the handle.
 
 The values of points belong to the source being edited, like the source's values, and are interpolated between sources. When Fontra edits several sources at once, the values are written to all of them. The joins of points and the marks of closed contours are the same in all sources and are saved in the default source. The values are kept by point identifier: a point gets an identifier when values are written to it, and a point whose identifier another point already has (after duplicating or pasting a contour) gets a new one.
+
+### Pen nibs
+
+Choose "Elliptical nib" or "Rectangular nib" under "Stroke with" in the panel. The glyph's centerlines are then stroked by moving the nib along them: the stroke is what the nib covers, so it is thick where the centerline runs across the nib and thin where it runs along it, as with a broad-edged pen. Ends and corners take the shape of the nib.
+
+| Value | Description |
+| --- | --- |
+| Major axis | Length of the nib along its angle: the long axis of the ellipse, or the long side of the rectangle |
+| Minor axis | Length of the nib across its angle. A rectangle with a minor axis of 0 is a flat nib; an ellipse is drawn at least 1 unit across |
+| Angle | Direction of the major axis, in degrees counter-clockwise from horizontal, from 0 to 180 (a nib turned by 180° is the same nib) |
+
+The source's values and the values of points work as widths do (see [Widths per point](#widths-per-point)): a point can have its own major axis, minor axis and angle; between points they follow a smooth curve along the centerline; the ends without values of their own have the source's. An angle takes the short way round between points, so going from 170° to 10° turns through 180°, not through 90°. Between sources, the angles of all sources are first turned by half turns to within 90° of the default source's (at each point, of its angle there), so that the nib turns the short way from the default source.
+
+**On the canvas**, the stroke width tool draws the nib at each point, with a handle at each end of its axes (a flat nib has none on its minor axis).
+
+| Action | Changes |
+| --- | --- |
+| Drag an end of the major axis | Major axis and angle: the end follows the pointer, and the other end moves opposite it |
+| … with Alt (Option) | The major axis only |
+| … with Shift | The angle in steps of 15° |
+| Drag an end of the minor axis | The minor axis only |
+| Double-click a handle | Removes the point's own values |
+
+When the dragged point is selected, all selected points change the same way: their axes are scaled by the same ratio and turned by the same angle.
 
 ### Display language
 
@@ -142,7 +168,7 @@ The values go in each source's `customData`, so that they can vary along the axe
 | `major`, `minor`, `angle` | nib | Size of the nib and its angle in degrees (0 is horizontal, counter-clockwise), stored in `[0, 180)` |
 | `cornerRadius` | both | Radius of a live corner |
 
-The width method's `defaults` and `points` (`width`, `left`, `right`, `join`, `miterLimit`) are read and written, and `centerline: true` on the on-curve points of a closed contour that is stroked as a centerline (only the default source's marks count). Glyphs of the nib method are stroked with their nib (`shape`, and `major`, `minor`, `angle` in `defaults` and `points`; built-in defaults 120, 30 and 45°) in the preview and by the CLI, but the panel and the handles do not change nib values yet. A rectangle with `minor` 0 is a flat nib. `cornerRadius` is not used yet; the format is fixed already so that data made now keeps working in later versions.
+The width method's `defaults` and `points` (`width`, `left`, `right`, `join`, `miterLimit`) are read and written, and `centerline: true` on the on-curve points of a closed contour that is stroked as a centerline (only the default source's marks count). The nib method's `shape`, and `major`, `minor`, `angle` in `defaults` and `points` (built-in defaults 120, 30 and 45°), are read and written. A rectangle with `minor` 0 is a flat nib. Choosing the width method in the panel removes the glyph's `xyz.dg4.stroke`. `cornerRadius` is not used yet; the format is fixed already so that data made now keeps working in later versions.
 
 For points, a missing width works differently from the other values: a point in the middle of a centerline without a width takes the width between the points around it that have one, rather than the source's (see [Widths per point](#widths-per-point)). Between sources, points are matched by their index in the glyph's path, not by identifier, since each source's layer has identifiers of its own; so per-point values are only interpolated between sources with the same points.
 
@@ -217,7 +243,6 @@ The exception is a twist that only some sources have. In a source that twists, t
 - The preview does not appear in Fontra's "View → Glyph editor appearance" menu. Items in that menu need an internal Fontra action registration that plugins cannot make. Use the sidebar panel to toggle it instead
 - The handles can only be dragged with the stroke width tool, not with Fontra's pointer tool
 - Per-point values are interpolated only between sources whose glyphs have the same points; otherwise the preview between such sources uses the sources' values only
-- Between sources, the preview of a glyph of the nib method uses the nib of the nearest source
 - A component that is rotated, scaled or skewed keeps its nib as it is in the preview (a flipped one has its nib angle mirrored); in the font, the component's stroked outline is transformed
 - The plugin relies on internal APIs of Fontra's editor (`editor.visualizationLayers`, `editor.addSidebarPanel()`, `editor.addEditTool()`, `sceneController.editGlyph()`, `sceneController.editNamedGlyphAndRecordChanges()` and others). Changes in Fontra may break it
 
