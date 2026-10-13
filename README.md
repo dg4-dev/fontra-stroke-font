@@ -108,6 +108,9 @@ Choose "Elliptical nib" or "Rectangular nib" under "Stroke with" in the panel. T
 | Major axis | Length of the nib along its angle: the long axis of the ellipse, or the long side of the rectangle |
 | Minor axis | Length of the nib across its angle. A rectangle with a minor axis of 0 is a flat nib; an ellipse is drawn at least 1 unit across |
 | Angle | Direction of the major axis, in degrees counter-clockwise from horizontal, from 0 to 180 (a nib turned by 180° is the same nib) |
+| Angle from | Points only: "Horizontal", or "Centerline": the angle is then measured from the direction of the centerline at the point (0 lays the major axis along it), so the nib turns with the centerline. At a corner, the direction is halfway between the one in and the one out. The same in all sources |
+
+Between a point measured from the centerline and the next one, the nib turns with the centerline; between a point measured from horizontal and one measured from the centerline, it goes from one to the other along the segment. The context menu of the stroke width tool sets "Angle from" for the selected points too.
 
 The source's values and the values of points work as widths do (see [Widths per point](#widths-per-point)): a point can have its own major axis, minor axis and angle; a point without them has the source's; between two points they change evenly along the centerline. An angle takes the short way round between points, so going from 170° to 10° turns through 180°, not through 90°. Between sources, the angles of all sources are first turned by half turns to within 90° of the default source's (at each point, of its angle there), so that the nib turns the short way from the default source.
 
@@ -166,6 +169,7 @@ The values go in each source's `customData`, so that they can vary along the axe
 | `miterLimit` | width | 1 or more |
 | `centerline` | both | `true` on the on-curve points of a closed contour that is stroked as a centerline. Points only; only the default source's is used |
 | `major`, `minor`, `angle` | nib | Size of the nib and its angle in degrees (0 is horizontal, counter-clockwise), stored in `[0, 180)` |
+| `angleBase` | nib | `"centerline"` on a point whose angle is measured from the centerline instead of horizontal. Points only; only the default source's is used |
 | `cornerRadius` | both | Radius of a live corner |
 
 The width method's `defaults` and `points` (`width`, `left`, `right`, `join`, `miterLimit`) are read and written, and `centerline: true` on the on-curve points of a closed contour that is stroked as a centerline (only the default source's marks count). The nib method's `shape`, and `major`, `minor`, `angle` in `defaults` and `points` (built-in defaults 120, 30 and 45°), are read and written. A rectangle with `minor` 0 is a flat nib. Choosing the width method in the panel removes the glyph's `xyz.dg4.stroke`. `cornerRadius` is not used yet; the format is fixed already so that data made now keeps working in later versions.

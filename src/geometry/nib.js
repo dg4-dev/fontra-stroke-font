@@ -10,6 +10,14 @@
 // it stayed that size along the curve (as the offset method does with
 // widths). The edges, corners and ends are put together by sweep.js.
 //
+// A point's angle is from horizontal, or, when the point's angleBase is
+// "centerline", from the direction of the centerline at the point (halfway
+// between the directions in and out at a corner; see pointDirections()), so
+// that the nib turns with the centerline. Along a segment, the nib's angle is
+// a frame plus the angle values in between (see nibAlong()): the frame of an
+// end measured from the centerline follows the segment's direction, and that
+// of an end measured from horizontal is 0; in between, the two are blended.
+//
 // Elliptical nib: seen through M⁻¹, the nib is a unit circle and the
 // centerline another curve c. The stroke of c with a circle of radius 1 is
 // what the offset method draws for width 2, and M maps it back: the edge
@@ -49,6 +57,8 @@ import {
   cross,
   derivativeAt,
   dot,
+  endTangent,
+  isDegenerateSegment,
   leftNormal,
   normalize,
   pointAt,
@@ -64,7 +74,7 @@ import { DEFAULT_TOLERANCE, MAX_SUBDIVISIONS } from "./offset.js";
 import { circleContour, polygonContour } from "./shapes.js";
 import { innerBreaks, mergeBreaks, sweepContour, validBreaks } from "./sweep.js";
 import { evoluteCusps, findZones, sharpestBend, signChanges } from "./twist.js";
-import { valueProfile } from "./widths.js";
+import { segmentLength, valueProfile } from "./widths.js";
 
 /**
  * The smallest axis an ellipse is drawn with (font units): an ellipse with a
@@ -94,16 +104,12 @@ export function strokeNibContour(contour, style, options = {}) {
     maxSubdivisions: options.maxSubdivisions ?? MAX_SUBDIVISIONS,
   };
   const segments = centerlineSegments(contour);
-  const profile = valueProfile(contour, segments, {
-    keys: ["major", "minor", "angle"],
-    defaults: { major: style.major, minor: style.minor, angle: style.angle },
-    periods: { angle: 180 },
-  });
+  const { profile, at } = nibAlong(contour, style, segments);
   const isRect = style.shape === "rect";
   const minAxis = isRect ? 0 : MIN_ELLIPSE_AXIS;
   const nibAt = (index, t) => {
-    const numbers = profile.segments[index];
-    return makeNib(numbers.major(t), numbers.minor(t), numbers.angle(t), minAxis);
+    const { major, minor, angle } = at(index, t);
+    return makeNib(major, minor, angle, minAxis);
   };
   const shapeAt = (point, nib) =>
     isRect ? rectContour(point, nib) : ellipseContour(point, nib);
@@ -143,6 +149,134 @@ export function strokeNibContour(contour, style, options = {}) {
     },
   };
   return sweepContour(contour, segments, method, options.layout);
+}
+
+/**
+ * The nib along a centerline: its major and minor axes, and its angle from
+ * horizontal.
+ * @param {{points: object[], isClosed: boolean}} contour unpacked, with the
+ *   points' values
+ * @param {{major: number, minor: number, angle: number}} style
+ * @returns {{profile: object, at: (index: number, t: number) =>
+ *   {major: number, minor: number, angle: number}}} the numbers of the points
+ *   along the centerline (see valueProfile()), and the nib on a segment
+ */
+export function nibAlong(contour, style, segments = centerlineSegments(contour)) {
+  const profile = valueProfile(contour, segments, {
+    keys: ["major", "minor", "angle"],
+    defaults: { major: style.major, minor: style.minor, angle: style.angle },
+    periods: { angle: 180 },
+  });
+  const frame = segmentFrames(contour, segments);
+  return {
+    profile,
+    at(index, t) {
+      const numbers = profile.segments[index];
+      return {
+        major: numbers.major(t),
+        minor: numbers.minor(t),
+        angle: numbers.angle(t) + frame(index, t),
+      };
+    },
+  };
+}
+
+/** Whether a point's angle is measured from the centerline. */
+export function fromCenterline(values) {
+  return values?.angleBase === "centerline";
+}
+
+/**
+ * The direction of the centerline at each on-curve point at the end of a
+ * segment, in degrees from horizontal: the direction of the segments there,
+ * halfway between the one arriving and the one leaving at a corner.
+ * @returns {Map<number, number>} point index → degrees
+ */
+export function pointDirections(segments) {
+  const arriving = new Map();
+  const leaving = new Map();
+  for (const segment of segments) {
+    if (isDegenerateSegment(segment)) {
+      continue;
+    }
+    if (segment.startIndex !== undefined && !leaving.has(segment.startIndex)) {
+      leaving.set(segment.startIndex, startTangent(segment));
+    }
+    if (segment.endIndex !== undefined) {
+      arriving.set(segment.endIndex, endTangent(segment));
+    }
+  }
+  const directions = new Map();
+  for (const index of new Set([...arriving.keys(), ...leaving.keys()])) {
+    const a = arriving.get(index);
+    const b = leaving.get(index);
+    // Turning back on itself, the two directions cancel out: the arriving one
+    const direction = (a && b && normalize(add(a, b))) || a || b;
+    directions.set(index, degrees(direction));
+  }
+  return directions;
+}
+
+function degrees(v) {
+  return (Math.atan2(v.y, v.x) * 180) / Math.PI;
+}
+
+// The difference of two angles, within half a turn
+function turn(a, b) {
+  return a - b - 360 * Math.round((a - b) / 360);
+}
+
+/**
+ * The frame the angle values along each segment are measured from, in
+ * degrees from horizontal (see the top of this file).
+ * @returns {(index: number, t: number) => number}
+ */
+function segmentFrames(contour, segments) {
+  const directions = pointDirections(segments);
+  const frames = segments.map((segment) => {
+    const startFrom = fromCenterline(contour.points[segment.startIndex]?.values);
+    const endFrom = fromCenterline(contour.points[segment.endIndex]?.values);
+    if ((!startFrom && !endFrom) || isDegenerateSegment(segment)) {
+      return null;
+    }
+    // The segment's direction, without jumps of a whole turn along it
+    const steps = 32;
+    const samples = [degrees(tangentAt(segment, 0))];
+    for (let i = 1; i <= steps; i++) {
+      const previous = samples[i - 1];
+      samples.push(previous + turn(degrees(tangentAt(segment, i / steps)), previous));
+    }
+    const direction = (t) => {
+      const near = samples[Math.round(Math.min(1, Math.max(0, t)) * steps)];
+      return near + turn(degrees(tangentAt(segment, t)), near);
+    };
+    // At an end measured from the centerline, the point's direction (halfway
+    // at a corner) instead of the segment's own
+    const correction = (index, t) => {
+      const point = directions.get(index);
+      return point === undefined ? 0 : turn(point, direction(t));
+    };
+    const along = segmentLength(segment);
+    return {
+      startFrom,
+      endFrom,
+      direction,
+      startCorrection: correction(segment.startIndex, 0),
+      endCorrection: correction(segment.endIndex, 1),
+      along,
+    };
+  });
+  return (index, t) => {
+    const frame = frames[index];
+    if (!frame) {
+      return 0;
+    }
+    const s = frame.along.length > 0 ? frame.along.at(t) / frame.along.length : t;
+    const own = frame.direction(t);
+    const start = frame.startFrom ? own + frame.startCorrection : 0;
+    const end = frame.endFrom ? own + frame.endCorrection : 0;
+    return start + (end - start) * s;
+  };
 }
 
 // --- The nib as a linear map --------------------------------------------------

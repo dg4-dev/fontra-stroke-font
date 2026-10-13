@@ -190,6 +190,7 @@ export function describeSelectedPoints(positionedGlyph, location, selection) {
           major: common((point) => round(point.major)),
           minor: common((point) => round(point.minor)),
           angle: common((point) => round(point.angle)),
+          angleBase: common((point) => point.values?.angleBase ?? ""),
         }
       : {
           width: common((point) => round(point.left + point.right)),
@@ -242,6 +243,7 @@ export const CLEARED_POINT_VALUES = Object.freeze({
   major: undefined,
   minor: undefined,
   angle: undefined,
+  angleBase: undefined,
 });
 
 /**

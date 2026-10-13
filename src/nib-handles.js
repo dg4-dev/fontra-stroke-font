@@ -14,10 +14,13 @@
 // With several points selected, all of them get the same change: their
 // lengths are multiplied by the same ratio and turned by the same angle.
 
+import { centerlineSegments } from "./geometry/centerline.js";
 import {
   MIN_ELLIPSE_AXIS,
   ellipseContour,
+  fromCenterline,
   makeNib,
+  pointDirections,
   rectContour,
 } from "./geometry/nib.js";
 import { pathPoints } from "./path-points.js";
@@ -37,8 +40,9 @@ export const KNOB_DISTANCE = 24;
  *   "major"|"minor"|"rotate", anchor: object, handle: object, normal: object,
  *   length: number}[]}}
  *   a nib's contour is its outline at the point; a handle's normal is the
- *   unit vector from the point towards it, and length the full axis length
- *   (the major axis for the knob)
+ *   unit vector from the point towards it, length the full axis length (the
+ *   major axis for the knob), and frame the direction the point's angle is
+ *   measured from (0 for horizontal)
  * @param {{knobDistance?: number}} [options] the distance of the turning
  *   knob beyond the end of the major axis, in glyph units
  */
@@ -58,6 +62,22 @@ export function nibHandles(positionedGlyph, location, options = {}) {
   const { shape } = measured.style;
   const nibs = [];
   const handles = [];
+  // The direction of the centerline at the points, per contour
+  const directions = new Map();
+  const directionAt = (point) => {
+    if (!directions.has(point.contourIndex)) {
+      let map = new Map();
+      try {
+        map = pointDirections(
+          centerlineSegments(path.getUnpackedContour(point.contourIndex))
+        );
+      } catch (e) {
+        // A contour being drawn can be malformed for a moment
+      }
+      directions.set(point.contourIndex, map);
+    }
+    return directions.get(point.contourIndex).get(point.contourPointIndex) ?? 0;
+  };
   for (const point of measured.points) {
     const info = path.contourInfo[point.contourIndex];
     if (
@@ -70,7 +90,14 @@ export function nibHandles(positionedGlyph, location, options = {}) {
       y: path.coordinates[point.pointIndex * 2 + 1],
     };
     const { major, minor, angle } = point;
-    const nib = makeNib(major, minor, angle, shape === "rect" ? 0 : MIN_ELLIPSE_AXIS);
+    // What the point's angle is measured from: horizontal, or the centerline
+    const frame = fromCenterline(point.values) ? directionAt(point) : 0;
+    const nib = makeNib(
+      major,
+      minor,
+      angle + frame,
+      shape === "rect" ? 0 : MIN_ELLIPSE_AXIS
+    );
     nibs.push({
       pointIndex: point.pointIndex,
       anchor,
@@ -94,6 +121,7 @@ export function nibHandles(positionedGlyph, location, options = {}) {
           pointIndex: point.pointIndex,
           side: `${axis}${end > 0 ? "+" : "-"}`,
           axis,
+          frame,
           anchor,
           normal,
           length,
@@ -108,6 +136,7 @@ export function nibHandles(positionedGlyph, location, options = {}) {
       pointIndex: point.pointIndex,
       side: "rotate",
       axis: "rotate",
+      frame,
       anchor,
       normal: along,
       length: major,
@@ -143,7 +172,8 @@ export function nibDrag(handle, start, pointer, keys = {}) {
     // The direction of the axis is towards the "+" end
     const towards = handle.side.endsWith("-") ? { x: -v.x, y: -v.y } : v;
     if (Math.hypot(v.x, v.y) > 0) {
-      angle = (Math.atan2(towards.y, towards.x) * 180) / Math.PI;
+      // The point's angle is measured from its frame (see nibHandles())
+      angle = (Math.atan2(towards.y, towards.x) * 180) / Math.PI - (handle.frame ?? 0);
       if (keys.shiftKey) {
         angle = Math.round(angle / ANGLE_STEP) * ANGLE_STEP;
       }

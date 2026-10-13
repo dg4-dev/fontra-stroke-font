@@ -236,13 +236,60 @@ test("a double click on a nib handle clears the point's values", async () => {
   assert.equal(glyph.varGlyph.sources[0].customData[STROKE_KEY].points, undefined);
 });
 
-test("the context menu of a nib glyph has no joins", () => {
+test("the context menu of a nib glyph sets what angles are measured from", async () => {
   const glyph = fakePositionedGlyph({
-    contours: [{ points: [on(0, 0), on(100, 0), on(100, 100)], isClosed: false }],
+    contours: [
+      { points: [on(0, 0), withId(on(100, 0), "c"), on(100, 100)], isClosed: false },
+    ],
     glyphCustomData: nibGlyph(),
   });
   const { editor } = fakeEditor(glyph, { selection: new Set(["point/1"]) });
-  assert.deepEqual(new StrokeWidthTool(editor, "icon.svg").getContextMenuItems(), []);
+  const items = new StrokeWidthTool(editor, "icon.svg").getContextMenuItems();
+  // No joins: only the angle base
+  assert.deepEqual(
+    items.map((item) => item.title),
+    ["Angle from"]
+  );
+  const choices = items[0].getItems();
+  assert.deepEqual(
+    choices.map((item) => item.title),
+    ["Horizontal", "Centerline"]
+  );
+  await choices[1].callback();
+  assert.deepEqual(glyph.varGlyph.sources[0].customData[STROKE_KEY].points, {
+    c: { angleBase: "centerline" },
+  });
+});
+
+test("a nib measured from the centerline is drawn and turned from it", async () => {
+  // A vertical line: the centerline points up, at 90°
+  const glyph = fakePositionedGlyph({
+    contours: [
+      {
+        points: [on(0, 0), withId(on(0, 200), "t")],
+        isClosed: false,
+      },
+    ],
+    glyphCustomData: nibGlyph(),
+    sources: [
+      nibSource(
+        { major: 100, minor: 40, angle: 0 },
+        { t: { angleBase: "centerline", angle: 0 } }
+      ),
+    ],
+  });
+  const { handles } = nibHandles(glyph, {}, { knobDistance: 30 });
+  const at = (side) => handles.find((h) => h.pointIndex === 1 && h.side === side);
+  // Along the centerline: the major axis points up
+  assertPoint(at("major+").handle, { x: 0, y: 250 });
+  assertClose(at("rotate").frame, 90, "frame");
+  // Turning the knob to the right of the point is -90° from the centerline
+  const drag = nibDrag(
+    at("rotate"),
+    { major: 100, minor: 40, angle: 0 },
+    { x: 80, y: 200 }
+  );
+  assertClose(drag.angle, 90, "angle (−90°, the same nib as 90°)");
 });
 
 test("the panel shows the nib of the selected points", () => {
@@ -256,10 +303,15 @@ test("the panel shows the nib of the selected points", () => {
   const one = describeSelectedPoints(glyph, {}, new Set(["point/1"]));
   assert.equal(one.method, "nib");
   assert.ok(one.editable && one.stored);
-  assert.deepEqual(one.fields, { major: 100, minor: 40, angle: 170 });
+  assert.deepEqual(one.fields, { major: 100, minor: 40, angle: 170, angleBase: "" });
   // Points with different angles have none in common
   const two = describeSelectedPoints(glyph, {}, new Set(["point/0", "point/1"]));
-  assert.deepEqual(two.fields, { major: 100, minor: 40, angle: undefined });
+  assert.deepEqual(two.fields, {
+    major: 100,
+    minor: 40,
+    angle: undefined,
+    angleBase: "",
+  });
   assert.equal(two.stored, true);
 });
 
