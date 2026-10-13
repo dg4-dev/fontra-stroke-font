@@ -166,30 +166,23 @@ function buildSegment(segment, widths, forcedLayout, fitOptions) {
       forced = undefined;
     }
     if (segment.type === "line") {
-      // A line keeps straight edges while its width does not change. When it
-      // changes in any source, all sources fit curves (see compatible.js).
-      let straight = forced ? forced.line === true : widths.constant[side];
-      if (straight && !widths.constant[side]) {
+      // The width of a line changes evenly along it, so its edges are straight
+      if (forced && (forced.line !== true || forced.breaks.length)) {
         result.mismatch = true;
-        straight = false;
       }
-      if (forced && forced.breaks.length) {
-        result.mismatch = true;
-        forced = { ...forced, breaks: [] };
-      }
-      if (straight) {
-        const sign = side === "left" ? 1 : -1;
-        const normal = leftNormal(startTangent(segment));
-        const d = distance(0);
-        result[side] = [
-          {
-            type: "line",
-            points: segment.points.map((p) => add(p, scale(normal, sign * d))),
-          },
-        ];
-        result.layout[side] = { breaks: [], pieces: [1], line: true };
-        continue;
-      }
+      const sign = side === "left" ? 1 : -1;
+      const normal = leftNormal(startTangent(segment));
+      result[side] = [
+        {
+          type: "line",
+          points: [
+            add(segment.points[0], scale(normal, sign * distance(0))),
+            add(segment.points[1], scale(normal, sign * distance(1))),
+          ],
+        },
+      ];
+      result.layout[side] = { breaks: [], pieces: [1], line: true };
+      continue;
     }
     const breaks =
       forced?.breaks ??

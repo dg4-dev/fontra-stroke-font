@@ -126,15 +126,23 @@ test("loops stay compatible between sources", () => {
   assert.ok(compatible);
 });
 
-test("one point's width makes the whole loop that wide", () => {
+test("round a loop, the width changes evenly between a point and the source's", () => {
+  // A circle of radius 200, width 160 at its top point (0, 200) only
   const contour = circle(200);
   contour.points[3] = { ...contour.points[3], values: { width: 160 } };
   const { contours } = strokeOffsetContour(contour, style());
+  // At the top, 80 out; at the other points, the source's 40
+  assert.notEqual(winding({ x: 0, y: 275 }, contours), 0);
   for (const [x, y] of [
-    [275, 0],
-    [-275, 0],
-    [0, -275],
+    [245, 0],
+    [-245, 0],
+    [0, -245],
   ]) {
-    assert.notEqual(winding({ x, y }, contours), 0, `${x}, ${y}`);
+    assert.equal(winding({ x, y }, contours), 0, `${x}, ${y}`);
   }
+  // Halfway between the top and the right point (45°), the half width is
+  // halfway between theirs: 60, so the outer edge is 260 from the center
+  const at = (radius) => ({ x: radius * Math.SQRT1_2, y: radius * Math.SQRT1_2 });
+  assert.notEqual(winding(at(257), contours), 0);
+  assert.equal(winding(at(263), contours), 0);
 });

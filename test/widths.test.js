@@ -6,7 +6,7 @@ import { centerlineSegments } from "../src/geometry/centerline.js";
 import { strokeCompatibly } from "../src/geometry/compatible.js";
 import { strokeOffsetContour } from "../src/geometry/offset.js";
 import { findTwistZones } from "../src/geometry/twist.js";
-import { monotoneCubic, widthProfile } from "../src/geometry/widths.js";
+import { piecewiseLinear, widthProfile } from "../src/geometry/widths.js";
 import { off, on, winding } from "./helpers.js";
 
 const KAPPA = 0.5522847498307936;
@@ -25,40 +25,25 @@ function assertClose(actual, expected, tolerance, message) {
   );
 }
 
-test("the width curve goes through its knots without overshooting", () => {
-  const curve = monotoneCubic([
+test("the width goes in straight lines between its knots", () => {
+  const line = piecewiseLinear([
     { x: 0, y: 10 },
     { x: 100, y: 50 },
     { x: 150, y: 50 },
     { x: 300, y: 20 },
   ]);
-  assert.equal(curve(0), 10);
-  assert.equal(curve(100), 50);
-  assert.equal(curve(300), 20);
-  for (let x = 0; x <= 300; x += 1) {
-    const y = curve(x);
-    assert.ok(y >= 10 - 1e-9 && y <= 50 + 1e-9, `${y} at ${x}`);
-  }
+  assert.equal(line(0), 10);
+  assert.equal(line(50), 30);
+  assert.equal(line(100), 50);
+  assert.equal(line(225), 35);
   // Flat between two equal knots
-  assert.equal(curve(125), 50);
-  assert.ok(curve.isConstantBetween(100, 150));
-  assert.ok(!curve.isConstantBetween(0, 100));
+  assert.equal(line(125), 50);
+  assert.ok(line.isConstantBetween(100, 150));
+  assert.ok(!line.isConstantBetween(0, 100));
   // Before and after the knots
-  assert.equal(curve(-10), 10);
-  assert.equal(curve(400), 20);
-  assert.equal(curve.max, 50);
-});
-
-test("the width curve is smooth through a knot", () => {
-  const curve = monotoneCubic([
-    { x: 0, y: 10 },
-    { x: 100, y: 30 },
-    { x: 200, y: 60 },
-  ]);
-  const h = 1e-4;
-  const before = (curve(100) - curve(100 - h)) / h;
-  const after = (curve(100 + h) - curve(100)) / h;
-  assertClose(before, after, 1e-3, "slope");
+  assert.equal(line(-10), 10);
+  assert.equal(line(400), 20);
+  assert.equal(line.max, 50);
 });
 
 test("without point widths, the width is the source's all along", () => {
@@ -72,7 +57,7 @@ test("without point widths, the width is the source's all along", () => {
   assert.equal(profile.max, 40);
 });
 
-test("end points without a width use the source's; middle ones are interpolated", () => {
+test("points without a width have the source's, and it changes evenly in between", () => {
   const contour = openContour(
     on(0, 0),
     valued(on(100, 0), { width: 160 }),
@@ -82,9 +67,10 @@ test("end points without a width use the source's; middle ones are interpolated"
   const profile = widthProfile(contour, centerlineSegments(contour), style());
   assert.deepEqual(profile.atPoint(0), { left: 40, right: 40 });
   assert.deepEqual(profile.atPoint(1), { left: 80, right: 80 });
+  assert.deepEqual(profile.atPoint(2), { left: 40, right: 40 });
   assert.deepEqual(profile.atPoint(3), { left: 40, right: 40 });
-  const middle = profile.atPoint(2).left;
-  assert.ok(middle > 40 && middle < 80, `${middle}`);
+  assert.equal(profile.segments[1].left(0.25), 70);
+  assert.ok(profile.segments[2].constant.left);
 });
 
 test("left and right widths are separate", () => {
@@ -112,63 +98,18 @@ test("a line's width changes evenly between two end widths", () => {
   }
 });
 
-test("a point added without a width does not change the stroke", () => {
-  // A line, and a curve split in two at its middle (de Casteljau)
-  const p = [
-    { x: 0, y: 0 },
-    { x: 0, y: 200 },
-    { x: 300, y: 200 },
-    { x: 300, y: 0 },
-  ];
-  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-  const p01 = mid(p[0], p[1]);
-  const p12 = mid(p[1], p[2]);
-  const p23 = mid(p[2], p[3]);
-  const p012 = mid(p01, p12);
-  const p123 = mid(p12, p23);
-  const split = mid(p012, p123);
-  const ends = [{ width: 30 }, { width: 110 }];
-  const cases = [
-    [
-      openContour(valued(on(0, 0), ends[0]), valued(on(300, 0), ends[1])),
-      openContour(valued(on(0, 0), ends[0]), on(90, 0), valued(on(300, 0), ends[1])),
-    ],
-    [
-      openContour(
-        valued(on(p[0].x, p[0].y), ends[0]),
-        off(p[1].x, p[1].y),
-        off(p[2].x, p[2].y),
-        valued(on(p[3].x, p[3].y), ends[1])
-      ),
-      openContour(
-        valued(on(p[0].x, p[0].y), ends[0]),
-        off(p01.x, p01.y),
-        off(p012.x, p012.y),
-        on(split.x, split.y, true),
-        off(p123.x, p123.y),
-        off(p23.x, p23.y),
-        valued(on(p[3].x, p[3].y), ends[1])
-      ),
-    ],
-  ];
-  for (const [whole, withPoint] of cases) {
-    const a = strokeOffsetContour(whole, style({ cap: "round" })).contours;
-    const b = strokeOffsetContour(withPoint, style({ cap: "round" })).contours;
-    let differences = 0;
-    let filled = 0;
-    for (let x = -80; x <= 380; x += 5) {
-      for (let y = -80; y <= 300; y += 5) {
-        const inA = winding({ x, y }, a) !== 0;
-        const inB = winding({ x, y }, b) !== 0;
-        if (inA !== inB) {
-          differences++;
-        }
-        filled += inA ? 1 : 0;
-      }
-    }
-    assert.ok(filled > 300);
-    // Only grid points within a unit or so of the edge may differ
-    assert.ok(differences <= 3, `${differences} differences`);
+test("a straight segment keeps straight edges when its width changes", () => {
+  const contour = openContour(
+    valued(on(0, 0), { width: 40 }),
+    on(200, 0),
+    valued(on(200, 200), { left: 10, right: 70 })
+  );
+  const { contours } = strokeOffsetContour(contour, style());
+  // A band, the miter join, a band
+  assert.equal(contours.length, 3);
+  for (const band of [contours[0], contours[2]]) {
+    assert.equal(band.points.length, 4);
+    assert.ok(band.points.every((p) => !p.type));
   }
 });
 
@@ -250,6 +191,8 @@ test("a line whose width changes in one source only stays compatible", () => {
     { contour: tapered, style: style() },
   ]);
   assert.ok(compatible);
-  // The plain source fits its straight edges with curves too
-  assert.ok(results[0].contours[0].points.some((p) => p.type));
+  // Both keep straight edges
+  for (const result of results) {
+    assert.ok(result.contours[0].points.every((p) => !p.type));
+  }
 });
