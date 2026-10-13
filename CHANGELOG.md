@@ -21,6 +21,7 @@ Each section can be pasted as the notes of the matching GitHub release.
 
 ### Fixed
 
+- In the glyph being edited, Fontra filled a closed contour stroked as a centerline (the loop of an o) as if it were an outline: the inside of the loop and the inner half of its stroke were shaded. Now only the closed contours that are outlines are filled
 - In the glyph being edited, a component whose glyph has centerlines could only be clicked on the area Fontra makes by closing its centerlines (nothing at all for a straight one), not on its strokes. Now it can be clicked anywhere on its strokes, and its hover and selection outlines follow them
 
 ## 0.2.0

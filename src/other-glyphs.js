@@ -11,6 +11,10 @@
 // hovered) instead. A glyph of straight two-point centerlines is not empty, so
 // for glyphs with open contours those layers draw it and the placeholder
 // layers do not.
+//
+// The glyph being edited is filled lightly by Fontra's "fontra.edit.path.fill"
+// layer: all its closed contours. That layer is wrapped too, so that it
+// leaves out the closed contours stroked as centerlines (the loops of o, D).
 
 import { glyphHasCenterlines, strokeGlyph } from "./glyph-strokes.js";
 import { appendContour } from "./stroke-layer.js";
@@ -33,6 +37,9 @@ export const PLACEHOLDER_LAYER_IDENTIFIERS = Object.freeze([
   "fontra.empty.selected.glyph",
   "fontra.empty.hovered.glyph",
 ]);
+
+// Fontra's layer that fills the closed contours of the glyph being edited
+export const EDIT_FILL_LAYER_IDENTIFIER = "fontra.edit.path.fill";
 
 const ORIGINAL_DRAW = Symbol("stroke-font original draw");
 const ORIGINAL_FILTER = Symbol("stroke-font original selection filter");
@@ -70,28 +77,50 @@ export function wrapGlyphLayers(definitions, expandGlyph, isStroked = () => fals
           original(positionedGlyph) || isStroked(positionedGlyph)
       );
     }
-    definition = definitions[index];
-    const original = definition[ORIGINAL_DRAW] ?? definition.draw;
-    definitions[index] = {
-      ...definition,
-      [ORIGINAL_DRAW]: original,
-      draw: (args) => {
-        let glyph = null;
-        try {
-          glyph = expandGlyph(args.positionedGlyph, args.model);
-        } catch (e) {
-          console.error("[stroke-font] could not stroke a glyph", e);
-        }
-        original(
-          glyph
-            ? { ...args, positionedGlyph: { ...args.positionedGlyph, glyph } }
-            : args
-        );
-      },
-    };
+    definitions[index] = withDraw(definitions[index], expandGlyph);
     count++;
   }
   return count;
+}
+
+/**
+ * Wrap the draw function of Fontra's layer that fills the glyph being edited,
+ * in place (see wrapGlyphLayers()).
+ * @param {(positionedGlyph: object, model: object) => object|null} fillGlyph
+ *   returns the glyph to fill instead, or null to fill the glyph as it is
+ * @returns {boolean} whether the layer was found
+ */
+export function wrapEditFillLayer(definitions, fillGlyph) {
+  const index = definitions.findIndex(
+    (definition) => definition.identifier === EDIT_FILL_LAYER_IDENTIFIER
+  );
+  if (index < 0) {
+    return false;
+  }
+  definitions[index] = withDraw(definitions[index], fillGlyph);
+  return true;
+}
+
+// A copy of a layer definition whose draw function gets the glyph that
+// expandGlyph() returns (the original draw function, when the layer was
+// wrapped before)
+function withDraw(definition, expandGlyph) {
+  const original = definition[ORIGINAL_DRAW] ?? definition.draw;
+  return {
+    ...definition,
+    [ORIGINAL_DRAW]: original,
+    draw: (args) => {
+      let glyph = null;
+      try {
+        glyph = expandGlyph(args.positionedGlyph, args.model);
+      } catch (e) {
+        console.error("[stroke-font] could not stroke a glyph", e);
+      }
+      original(
+        glyph ? { ...args, positionedGlyph: { ...args.positionedGlyph, glyph } } : args
+      );
+    },
+  };
 }
 
 // A copy of a layer definition with its selection filter wrapped (the
@@ -148,6 +177,33 @@ export function makeGlyphExpander(settings, componentGlyphs) {
     }
     // Everything else (errors, bounds, ...) still comes from the glyph
     return Object.create(glyph, { flattenedPath2d: { value: path2d } });
+  };
+}
+
+/**
+ * A function for wrapEditFillLayer(): the glyph with only the closed contours
+ * that are outlines, without those stroked as centerlines; null for a glyph
+ * without closed centerlines (in it or in its components).
+ * @param {object} componentGlyphs see glyph-strokes.js
+ */
+export function makeOutlineFiller(componentGlyphs) {
+  return (positionedGlyph, model) => {
+    const glyph = positionedGlyph?.glyph;
+    if (!glyph || !glyphHasCenterlines(positionedGlyph, componentGlyphs)) {
+      return null;
+    }
+    const location = model?.getLocationForGlyph?.(positionedGlyph.glyphName);
+    // The stroke preview strokes the same glyph; the strokes are cached
+    const { strokedClosed } = strokeGlyph(positionedGlyph, location, componentGlyphs);
+    if (!strokedClosed.own.size && !strokedClosed.components.size) {
+      return null;
+    }
+    const path2d = new Path2D();
+    drawClosedContours(path2d, glyph.path, strokedClosed.own);
+    for (const [index, component] of (glyph.components ?? []).entries()) {
+      drawClosedContours(path2d, component.path, strokedClosed.components.get(index));
+    }
+    return Object.create(glyph, { closedContoursPath2d: { value: path2d } });
   };
 }
 
