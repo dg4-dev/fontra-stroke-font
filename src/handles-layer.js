@@ -33,25 +33,18 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
       // Scaled to glyph units like the others, it tells how big a pixel is
       knobDistance: KNOB_DISTANCE,
     },
-    // Each kind of mark has its own color, and none is the preview's gray
+    // One color for the nibs and all the handles, apart from the preview's
+    // gray; the handle under the pointer is darker (lighter in dark mode)
     colors: {
-      // The handles that size the nib or the width, and their stalks
       handleColor: "hsl(25, 90%, 48%)",
-      stalkColor: "hsla(25, 90%, 48%, 0.55)",
-      // The knob that turns the nib
-      knobColor: "hsl(280, 65%, 50%)",
-      // The nib at each point
-      nibColor: "hsla(170, 75%, 30%, 0.8)",
-      // The handle under the pointer or being dragged
-      hoverColor: "hsl(340, 85%, 50%)",
+      lineColor: "hsla(25, 90%, 48%, 0.6)",
+      hoverColor: "hsl(25, 90%, 32%)",
       labelColor: "hsl(0, 0%, 15%)",
     },
     colorsDarkMode: {
       handleColor: "hsl(30, 95%, 60%)",
-      stalkColor: "hsla(30, 95%, 60%, 0.55)",
-      knobColor: "hsl(280, 75%, 72%)",
-      nibColor: "hsla(170, 65%, 55%, 0.8)",
-      hoverColor: "hsl(340, 90%, 66%)",
+      lineColor: "hsla(30, 95%, 60%, 0.6)",
+      hoverColor: "hsl(35, 100%, 78%)",
       labelColor: "hsl(0, 0%, 90%)",
     },
     draw: ({ context, positionedGlyph, parameters, model }) => {
@@ -79,7 +72,7 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
 /** The outline of the nib of each point. */
 export function drawNibs(context, nibs, parameters) {
   context.lineWidth = parameters.lineWidth;
-  context.strokeStyle = parameters.nibColor;
+  context.strokeStyle = parameters.lineColor;
   context.beginPath();
   for (const { contour } of nibs) {
     const points = contour.points;
@@ -104,7 +97,7 @@ export function drawHandles(context, handles, parameters, tool) {
   const active =
     tool?.draggedHandle ?? (tool?.isActive ? tool.hoveredHandle : undefined);
   context.lineWidth = parameters.lineWidth;
-  context.strokeStyle = parameters.stalkColor;
+  context.strokeStyle = parameters.lineColor;
   context.beginPath();
   for (const { anchor, handle } of handles) {
     context.moveTo(anchor.x, anchor.y);
@@ -114,16 +107,11 @@ export function drawHandles(context, handles, parameters, tool) {
   for (const item of handles) {
     const isActive =
       item.pointIndex === active?.pointIndex && item.side === active?.side;
-    const isKnob = item.axis === "rotate";
-    const color = isActive
-      ? parameters.hoverColor
-      : isKnob
-        ? parameters.knobColor
-        : parameters.handleColor;
+    const color = isActive ? parameters.hoverColor : parameters.handleColor;
     const radius = isActive ? parameters.hoverRadius : parameters.handleRadius;
     context.beginPath();
     context.arc(item.handle.x, item.handle.y, radius, 0, 2 * Math.PI);
-    if (isKnob) {
+    if (item.axis === "rotate") {
       // The turning knob is a ring, unlike the handles that size the nib
       context.strokeStyle = color;
       context.lineWidth = parameters.lineWidth * 1.5;

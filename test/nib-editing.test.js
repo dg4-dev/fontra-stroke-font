@@ -349,42 +349,27 @@ test("the handles layer draws the nibs with the setting", () => {
   assert.equal(context.calls.filter(([name]) => name === "lineTo").length, 4);
 });
 
-test("the preview, the nibs, the handles and the knob each have their own color", () => {
+test("the nibs and handles have one color, apart from the gray preview", () => {
   const handlesLayer = makeHandlesLayerDefinition({
     tool: { isActive: true },
     settings: new Map(),
   });
   const previewLayer = makeStrokeLayerDefinition();
+  const hue = (color) => /^hsla?\((\d+), (\d+)%/.exec(color).slice(1).map(Number);
   for (const mode of ["colors", "colorsDarkMode"]) {
     const parameters = { ...handlesLayer.screenParameters, ...handlesLayer[mode] };
     const context = new FakeContext();
     handlesLayer.draw({ context, positionedGlyph: bar(), parameters, model: {} });
-    const nibColors = context.calls
-      .filter(([name]) => name === "stroke")
-      .map(([, color]) => color);
-    const handleColors = context.calls
-      .filter(([name]) => name === "fill")
-      .map(([, , color]) => color);
-    // The nibs, then the stalks, then a ring for each knob
-    assert.equal(nibColors[0], parameters.nibColor);
-    assert.equal(nibColors[1], parameters.stalkColor);
-    assert.deepEqual(new Set(nibColors.slice(2)), new Set([parameters.knobColor]));
-    assert.deepEqual(new Set(handleColors), new Set([parameters.handleColor]));
+    const colors = context.calls
+      .filter(([name]) => name === "stroke" || name === "fill")
+      .map(([name, a, b]) => (name === "stroke" ? a : b));
+    // The nibs, the stalks, the size handles and the knobs, in one hue
+    assert.equal(new Set(colors.map((color) => hue(color)[0])).size, 1, mode);
+    assert.ok(hue(parameters.handleColor)[1] > 50, mode);
+    // The preview is gray
     const { fillColor, outlineColor } = previewLayer[mode];
-    const hue = (color) => Number(/^hsla?\((\d+)/.exec(color)[1]);
-    const marks = [
-      parameters.nibColor,
-      parameters.handleColor,
-      parameters.knobColor,
-      parameters.hoverColor,
-    ];
-    assert.equal(new Set(marks.map(hue)).size, marks.length, mode);
-    // The preview is gray; the marks are not
     for (const color of [fillColor, outlineColor]) {
-      assert.match(color, /^hsl\(0, 0%, /);
-    }
-    for (const color of marks) {
-      assert.doesNotMatch(color, /, 0%, /);
+      assert.deepEqual(hue(color).slice(1), [0], mode);
     }
   }
 });
