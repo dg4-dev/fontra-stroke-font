@@ -7,12 +7,12 @@ import { outlineSignature, strokeCompatibly } from "../src/geometry/compatible.j
 import {
   ellipseContour,
   makeNib,
+  nibAlong,
   rectContour,
   strokeNibContour,
 } from "../src/geometry/nib.js";
 import { strokeOffsetContour } from "../src/geometry/offset.js";
 import { signedArea } from "../src/geometry/shapes.js";
-import { valueProfile } from "../src/geometry/widths.js";
 import { convexHull } from "../src/hit-areas.js";
 import { bounds, flattenContour, off, on, winding } from "./helpers.js";
 
@@ -63,22 +63,12 @@ const corner = openContour(on(0, 0), on(200, 0), on(200, 200));
  */
 function sampleNibs(contour, style, steps = 400) {
   const segments = centerlineSegments(contour);
-  const profile = valueProfile(contour, segments, {
-    keys: ["major", "minor", "angle"],
-    defaults: style,
-    periods: { angle: 180 },
-  });
+  const { at } = nibAlong(contour, style, segments);
   const samples = [];
   for (const [index, segment] of segments.entries()) {
-    const numbers = profile.segments[index];
     for (let i = 0; i <= steps; i++) {
       const t = i / steps;
-      samples.push({
-        center: pointAt(segment, t),
-        major: numbers.major(t),
-        minor: numbers.minor(t),
-        angle: numbers.angle(t),
-      });
+      samples.push({ center: pointAt(segment, t), ...at(index, t) });
     }
   }
   return samples;
@@ -363,4 +353,74 @@ test("a thin elliptical nib twists where the centerline turns along it", () => {
   const { twists, contours } = strokeNibContour(hairpin, style);
   assert.ok(twists.length > 0);
   assertCoversNibs(hairpin, style, contours);
+});
+
+const fromCenterline = (point, values) => ({
+  ...point,
+  values: { ...values, angleBase: "centerline" },
+});
+
+test("a flat nib measured from the centerline draws major·|sin(angle)| in any direction", () => {
+  for (const [dx, dy] of [
+    [400, 0],
+    [0, 400],
+    [300, 300],
+    [-200, 350],
+  ]) {
+    for (const angle of [30, 90]) {
+      const contour = openContour(
+        fromCenterline(on(0, 0), { angle }),
+        fromCenterline(on(dx, dy), { angle })
+      );
+      const { contours } = strokeNibContour(
+        contour,
+        nib({ shape: "rect", major: 100, minor: 0 })
+      );
+      // Across the middle of the stroke, along its normal
+      const length = Math.hypot(dx, dy);
+      const normal = { x: -dy / length, y: dx / length };
+      const middle = { x: dx / 2, y: dy / 2 };
+      const across = filledRun(
+        contours,
+        (s) => ({ x: middle.x + normal.x * s, y: middle.y + normal.y * s }),
+        -120,
+        120
+      );
+      const expected = 100 * Math.abs(Math.sin((angle * Math.PI) / 180));
+      assert.ok(Math.abs(across - expected) < 0.6, `${dx},${dy} ${angle}°: ${across}`);
+    }
+  }
+});
+
+test("a nib measured from the centerline turns with it round a curve", () => {
+  // An arch, its nib across the centerline: as thick as the nib is long
+  const arch = openContour(
+    fromCenterline(on(0, 0), { angle: 90 }),
+    off(0, 300),
+    off(400, 300),
+    fromCenterline(on(400, 0), { angle: 90 })
+  );
+  const style = nib({ shape: "ellipse", major: 80, minor: 10 });
+  const { contours } = strokeNibContour(arch, style);
+  assertCoversNibs(arch, style, contours, { step: 6 });
+  // At the top the stroke is upright: 80 high, where a nib from horizontal
+  // (lying flat at 90°) would be only 10
+  const top = filledRun(contours, (s) => ({ x: 200, y: s }), 150, 300);
+  assert.ok(Math.abs(top - 80) < 2, `top ${top}`);
+});
+
+test("at a corner, a nib measured from the centerline is halfway between in and out", () => {
+  const corner = openContour(
+    on(0, 0),
+    fromCenterline(on(200, 0), { angle: 0 }),
+    on(200, 200)
+  );
+  const segments = centerlineSegments(corner);
+  const { at } = nibAlong(corner, nib(), segments);
+  // Both segments meet with the same nib at the corner, at 45°
+  assert.ok(Math.abs(at(0, 1).angle - 45) < 1e-9);
+  assert.ok(Math.abs(at(1, 0).angle - 45) < 1e-9);
+  // Points measured from horizontal keep their angle
+  assert.ok(Math.abs(at(0, 0).angle - 45) < 1e-9);
+  assert.ok(Math.abs(at(1, 1).angle - 45) < 1e-9);
 });

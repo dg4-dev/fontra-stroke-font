@@ -13,6 +13,7 @@ import {
   selectedPointIndices,
 } from "./point-edit.js";
 import {
+  ANGLE_BASES,
   CAPS,
   JOINS,
   NIB_KEYS,
@@ -245,7 +246,16 @@ export function definePanelElement() {
       this._nibPointFields = el(
         "div",
         { class: "fields" },
-        ...NIB_KEYS.flatMap((key) => this._numberField(key, t(`field.${key}`), "point"))
+        ...NIB_KEYS.flatMap((key) =>
+          this._numberField(key, t(`field.${key}`), "point")
+        ),
+        ...this._selectField(
+          "angleBase",
+          t("field.angleBase"),
+          ["", ...ANGLE_BASES],
+          "angleBase",
+          "point"
+        )
       );
       this._pointFields = el(
         "div",
@@ -388,7 +398,13 @@ export function definePanelElement() {
       });
       for (const choice of choices) {
         const text =
-          choice === "" ? t("point.sourceValue") : t(`${stringPrefix}.${choice}`);
+          choice === ""
+            ? t(
+                stringPrefix === "angleBase"
+                  ? "angleBase.horizontal"
+                  : "point.sourceValue"
+              )
+            : t(`${stringPrefix}.${choice}`);
         select.append(el("option", { value: choice }, text));
       }
       return [el("label", { for: id }, label), select];
@@ -526,12 +542,17 @@ export function definePanelElement() {
           return;
         }
       }
-      if (value === undefined && key !== "join" && key !== "miterLimit") {
+      if (
+        value === undefined &&
+        key !== "join" &&
+        key !== "miterLimit" &&
+        key !== "angleBase"
+      ) {
         // An emptied width or nib field: nothing to change
         this._syncPointValues();
         return;
       }
-      const undoKey = NIB_KEYS.includes(key)
+      const undoKey = [...NIB_KEYS, "angleBase"].includes(key)
         ? "undo.pointNib"
         : key === "join"
           ? "undo.pointJoin"

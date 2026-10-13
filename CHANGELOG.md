@@ -9,6 +9,7 @@ Each section can be pasted as the notes of the matching GitHub release.
 - **Pen nibs**: a glyph can be stroked with an elliptical, rectangular or flat nib instead of a width ("Stroke with" in the panel), in the preview and by the command-line tool. Corners and ends take the shape of the nib
 - The major axis, minor axis and angle of the nib are set per source and per point in the panel, and follow the centerline between points; between sources they are interpolated, with angles turning the short way (170° and 10° meet at 180°)
 - **Nib handles**: the stroke width tool draws the nib of each point with handles at the ends of its axes and a knob for turning it. Dragging the knob turns the nib (Shift: steps of 15°), an end of an axis sizes that axis (the major axis with Alt: sizes and turns it, following the pointer). A setting draws the nibs with the other tools too
+- **Angle from the centerline**: a point's nib angle can be measured from the direction of the centerline instead of horizontal ("Angle from" in the panel and in the context menu of the stroke width tool), so that the nib turns with the centerline; at a corner, from halfway between the directions in and out
 
 ### Changed
 
@@ -34,6 +35,8 @@ Widths per point: a stroke can now get wider and thinner along its centerline, d
 - The number fields of the panel could show the browser's own "invalid value" message (in the browser's language) for values such as interpolated widths, and a field kept its old value when the selection changed after Enter
 - A faint seam could show where a join meets the strokes of a corner
 - Clicking a stroke in the glyph editor did not select its glyph outside the area of its centerlines, and for a glyph of straight two-point centerlines only within its advance width, which could select the glyph next to it instead (#29)
+
+- **Angle from the centerline**: a point's nib angle can be measured from the direction of the centerline instead of horizontal ("Angle from" in the panel and in the context menu of the stroke width tool), so that the nib turns with the centerline; at a corner, from halfway between the directions in and out
 
 ### Changed
 

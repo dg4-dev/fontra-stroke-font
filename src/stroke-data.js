@@ -11,7 +11,8 @@
 //       "points": { "<point identifier>": { ...values for one on-curve point } } } }
 //
 // Values of the offset method: width (or left / right), cap, join, miterLimit.
-// Values of the nib method: major, minor, angle. Both methods: cornerRadius.
+// Values of the nib method: major, minor, angle; on points, also angleBase.
+// Both methods: cornerRadius.
 // Points also have centerline: true on the on-curve points of a closed
 // contour that is a centerline (stroked as a loop) rather than an outline.
 // Missing values fall back to the source defaults, then to the built-in ones.
@@ -21,7 +22,9 @@
 // Nib values: major and minor are the full lengths of the nib's axes (of the
 // ellipse, or the sides of the rectangle; a rectangle with minor 0 is a flat
 // nib), angle the direction of the major axis in degrees, counter-clockwise
-// from horizontal, kept in [0, 180).
+// from horizontal, kept in [0, 180). A point with angleBase: "centerline"
+// measures its angle from the direction of the centerline instead (0 lays
+// the major axis along it), so that its nib turns with the centerline.
 //
 // cornerRadius is not used yet; the format is fixed here so that later
 // phases do not need to migrate data.
@@ -69,7 +72,10 @@ export const POINT_OFFSET_KEYS = Object.freeze([
 
 // Point values that must be the same in all sources: those of the default
 // source are used (as cap and join of the source defaults)
-export const SHARED_POINT_KEYS = Object.freeze(["join", "centerline"]);
+export const SHARED_POINT_KEYS = Object.freeze(["join", "centerline", "angleBase"]);
+
+// What a point's nib angle is measured from, besides horizontal
+export const ANGLE_BASES = Object.freeze(["centerline"]);
 
 /**
  * The stroke method of a glyph. Glyphs without settings use the offset method.
@@ -301,6 +307,9 @@ export function sanitizePointValues(stored) {
       values[key] = value;
     }
   }
+  if (ANGLE_BASES.includes(stored.angleBase)) {
+    values.angleBase = stored.angleBase;
+  }
   if (stored.centerline === true) {
     values.centerline = true;
   }
@@ -461,6 +470,9 @@ export function nearestNibAngle(angle, reference) {
  * sanitizeOffsetValue() and sanitizeNibValue()).
  */
 export function sanitizeStrokeValue(key, value) {
+  if (key === "angleBase") {
+    return ANGLE_BASES.includes(value) ? value : undefined;
+  }
   return NIB_KEYS.includes(key)
     ? sanitizeNibValue(key, value)
     : sanitizeOffsetValue(key, value);

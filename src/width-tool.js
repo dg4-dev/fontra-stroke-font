@@ -32,6 +32,7 @@ import {
 } from "./point-edit.js";
 import { KNOB_DISTANCE, draggedNibValues, nibDrag, nibHandles } from "./nib-handles.js";
 import {
+  ANGLE_BASES,
   JOINS,
   STROKE_KEY,
   getGlyphStroke,
@@ -605,7 +606,25 @@ export class StrokeWidthTool {
       });
     }
     if (getGlyphStroke(varGlyph?.glyph?.customData).type === "nib") {
-      return items;
+      const setBase = (angleBase) =>
+        this._edit(sourceIndices, defaultIndex, (glyph) => {
+          editPointValues(glyph, sourceIndices, pointIndices, () => ({ angleBase }), {
+            defaultIndex,
+          });
+          return t("undo.pointNib");
+        });
+      return [
+        ...items,
+        {
+          title: t("field.angleBase"),
+          getItems: () =>
+            [undefined, ...ANGLE_BASES].map((angleBase) => ({
+              title: t(`angleBase.${angleBase ?? "horizontal"}`),
+              enabled: () => true,
+              callback: () => setBase(angleBase),
+            })),
+        },
+      ];
     }
     return [
       ...items,
