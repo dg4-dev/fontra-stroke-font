@@ -28,6 +28,10 @@
 // bands that meet there. On the inner side of a bend the edge jumps back,
 // which in a single band would fold it and leave a hole.
 //
+// Straight segments: the edges are the common tangents of the nibs at the
+// two ends (see lineEdge()), so that they stay straight whatever the nib does
+// along the segment.
+//
 // Corners and ends: the whole nib, placed at the point, which covers what
 // sweeps around it there. The same points whatever the angle, so the sources
 // of a glyph stay compatible.
@@ -50,6 +54,7 @@ import {
   pointAt,
   scale,
   secondDerivativeAt,
+  startTangent,
   sub,
   tangentAt,
 } from "./bezier.js";
@@ -100,10 +105,6 @@ export function strokeNibContour(contour, style, options = {}) {
     const numbers = profile.segments[index];
     return makeNib(numbers.major(t), numbers.minor(t), numbers.angle(t), minAxis);
   };
-  const isConstant = (index) => {
-    const { constant } = profile.segments[index];
-    return constant.major && constant.minor && constant.angle;
-  };
   const shapeAt = (point, nib) =>
     isRect ? rectContour(point, nib) : ellipseContour(point, nib);
 
@@ -113,8 +114,8 @@ export function strokeNibContour(contour, style, options = {}) {
     buildSegment(segment, index, forced) {
       const nib = (t) => nibAt(index, t);
       return isRect
-        ? rectSegment(segment, index, nib, isConstant(index), forced, fitOptions)
-        : ellipseSegment(segment, index, nib, isConstant(index), forced, fitOptions);
+        ? rectSegment(segment, index, nib, forced, fitOptions)
+        : ellipseSegment(segment, index, nib, forced, fitOptions);
     },
     cornerShape(previous, current) {
       return shapeAt(
@@ -222,7 +223,7 @@ export function ellipseEdgePoint(segment, side, nib, t) {
   return add(pointAt(segment, t), fromNib(nib, normal));
 }
 
-function ellipseSegment(segment, index, nibAt, constant, forcedLayout, fitOptions) {
+function ellipseSegment(segment, index, nibAt, forcedLayout, fitOptions) {
   const bend = (side, t) =>
     (side === "left" ? 1 : -1) * nibCurvature(segment, nibAt(t), t);
   const zones = segment.type === "line" ? [] : findZones(bend);
@@ -247,24 +248,12 @@ function ellipseSegment(segment, index, nibAt, constant, forcedLayout, fitOption
     }
     const edge = (t) => ellipseEdgePoint(segment, side, nibAt(t), t);
     if (segment.type === "line") {
-      // A line keeps straight edges while its nib does not change
-      let straight = forced ? forced.line === true : constant;
-      if (straight && !constant) {
+      if (forced && (forced.line !== true || forced.breaks.length)) {
         result.mismatch = true;
-        straight = false;
       }
-      if (forced && forced.breaks.length) {
-        result.mismatch = true;
-        forced = { ...forced, breaks: [] };
-      }
-      if (straight) {
-        const offset = sub(edge(0), segment.points[0]);
-        result.parts[0][side] = [
-          { type: "line", points: segment.points.map((p) => add(p, offset)) },
-        ];
-        result.layout[side] = { breaks: [], pieces: [1], line: true };
-        continue;
-      }
+      result.parts[0][side] = [lineEdge(segment, side, nibAt, ellipseSupport)];
+      result.layout[side] = { breaks: [], pieces: [1], line: true };
+      continue;
     }
     const breaks =
       forced?.breaks ??
@@ -310,6 +299,71 @@ function ellipseSegment(segment, index, nibAt, constant, forcedLayout, fitOption
   return result;
 }
 
+// --- Lines --------------------------------------------------------------------
+
+/**
+ * The edge of a straight segment on one side: the line that touches the nibs
+ * at both ends from outside (their common tangent), so that the edges of a
+ * straight segment stay straight whatever the nib does along it. With the
+ * nibs placed at the ends, the stroke of the segment is the convex hull of
+ * the two nibs. Where one nib holds the other (there is no such line), the
+ * points of the nibs farthest out along the normal of the segment.
+ * @param {(nib: object, direction: object) => object} support the point of a
+ *   nib (relative to its center) farthest out in a direction
+ */
+export function lineEdge(segment, side, nibAt, support) {
+  const [p0, p1] = segment.points;
+  const tangent = startTangent(segment);
+  const sign = side === "left" ? 1 : -1;
+  const normal = scale(leftNormal(tangent), sign);
+  const nib0 = nibAt(0);
+  const nib1 = nibAt(1);
+  const along = sub(p1, p0);
+  // The directions out of the segment's side: cos(s)·normal + sin(s)·tangent
+  const direction = (s) => add(scale(normal, Math.cos(s)), scale(tangent, Math.sin(s)));
+  // How far the far nib's support line is beyond the near one's
+  const gap = (s) => {
+    const n = direction(s);
+    return dot(along, n) + dot(support(nib1, n), n) - dot(support(nib0, n), n);
+  };
+  let n = normal;
+  let low = -Math.PI / 2 + 1e-9;
+  let high = Math.PI / 2 - 1e-9;
+  if (gap(low) < 0 && gap(high) > 0) {
+    for (let i = 0; i < 60; i++) {
+      const middle = (low + high) / 2;
+      if (gap(middle) > 0) {
+        high = middle;
+      } else {
+        low = middle;
+      }
+    }
+    n = direction((low + high) / 2);
+  }
+  const from = add(p0, support(nib0, n));
+  const to = add(p1, support(nib1, n));
+  return { type: "line", points: [from, to] };
+}
+
+/** The point of an ellipse (relative to its center) farthest out in a direction. */
+function ellipseSupport(nib, direction) {
+  // M·u, with u the unit vector along Mᵀ·direction
+  const x = nib.a * (direction.x * nib.cos + direction.y * nib.sin);
+  const y = nib.b * (-direction.x * nib.sin + direction.y * nib.cos);
+  const length = Math.hypot(x, y);
+  return length > 0 ? fromNib(nib, { x: x / length, y: y / length }) : { x: 0, y: 0 };
+}
+
+/** The corner of a rectangle (relative to its center) farthest out in a direction. */
+function rectSupport(nib, direction) {
+  const along = direction.x * nib.cos + direction.y * nib.sin;
+  const across = -direction.x * nib.sin + direction.y * nib.cos;
+  return fromNib(nib, {
+    x: along < -SAME_SIGN ? -1 : 1,
+    y: across < -SAME_SIGN ? -1 : 1,
+  });
+}
+
 // --- Rectangular nib ----------------------------------------------------------
 
 /**
@@ -344,7 +398,7 @@ function rectBreaks(segment, nibAt) {
   ]);
 }
 
-function rectSegment(segment, index, nibAt, constant, forcedLayout, fitOptions) {
+function rectSegment(segment, index, nibAt, forcedLayout, fitOptions) {
   const result = { parts: [], layout: {}, mismatch: false, twists: [] };
   let forced = forcedLayout;
   if (
@@ -359,14 +413,13 @@ function rectSegment(segment, index, nibAt, constant, forcedLayout, fitOptions) 
     result.mismatch = true;
     forced = undefined;
   }
-  // A line with an unchanging nib has straight edges and no changes of corner
-  let straight = segment.type === "line" && constant;
+  // A line has straight edges (see lineEdge()) and no changes of corner
+  const straight = segment.type === "line";
   if (forced) {
     const line = forced.left.line === true && forced.right.line === true;
-    if (line && !straight) {
+    if (line !== straight) {
       result.mismatch = true;
     }
-    straight = line && straight;
   }
   const breaks = straight
     ? []
@@ -388,10 +441,7 @@ function rectSegment(segment, index, nibAt, constant, forcedLayout, fitOptions) 
       const v = side === "left" ? corner : scale(corner, -1);
       const edge = (t) => add(pointAt(segment, t), fromNib(nibAt(t), v));
       if (straight) {
-        const offset = fromNib(nibAt(0), v);
-        part[side] = [
-          { type: "line", points: segment.points.map((p) => add(p, offset)) },
-        ];
+        part[side] = [lineEdge(segment, side, nibAt, rectSupport)];
         counts[side].push(1);
         continue;
       }

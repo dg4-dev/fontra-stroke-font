@@ -221,6 +221,7 @@ A nib is an ellipse or a rectangle of the size and angle at each place, moved al
 
 - **Ellipse**: seen through the linear map that turns the nib into a circle of radius 1, the centerline is another curve, and its stroke is the width stroke of width 2 of that curve. The map turns it back into the stroke of the nib, keeping lines, curves and directions, so twists are handled as below. An ellipse is at least 1 unit across in each direction
 - **Rectangle**: each edge is drawn by the corner of the nib farthest out to that side, and that corner changes where the centerline runs parallel to a side of the nib. Between those places, the band is the nib's diagonal swept along the centerline; the band is cut where the corner changes and at every smooth point, and the whole nib is placed there. A flat nib is a rectangle without width
+- **Straight segments**: the edges are the straight lines that touch the nibs at both ends from outside, so a straight segment keeps straight edges even when its nib grows or turns from one end to the other. The stroke of the segment is then the convex hull of the two nibs
 - Corners and ends get the whole nib, placed at the point
 
 ### Twists
