@@ -24,7 +24,7 @@ export const strings = {
       "Cap and join are the same in all sources; they are saved in the default source, “{0}”.",
     "source.noGlyph": "No glyph selected",
     "source.nibGlyph":
-      "This glyph is stroked with a pen nib, which is not supported yet.",
+      "This glyph is stroked with a pen nib. Its values cannot be changed here yet.",
     "field.width": "Width",
     "field.cap": "Cap",
     "field.join": "Join",
@@ -76,7 +76,7 @@ export const strings = {
       "端の形と角の形は全ソース共通で、デフォルトソース「{0}」に保存されます。",
     "source.noGlyph": "グリフが選択されていません",
     "source.nibGlyph":
-      "このグリフはペン先でなぞる設定です。ペン先にはまだ対応していません。",
+      "このグリフはペン先でなぞる設定です。ペン先の値は、まだここでは変えられません。",
     "field.width": "太さ",
     "field.cap": "端の形",
     "field.join": "角の形",
@@ -126,7 +126,7 @@ export const strings = {
       "当前不在源的位置: 预览使用各源数值的插值。要修改数值,请切换到某个源。",
     "source.sharedStyle": "端点和转角在所有源中相同,保存在默认源“{0}”中。",
     "source.noGlyph": "未选择字形",
-    "source.nibGlyph": "此字形使用笔尖描绘,目前尚不支持。",
+    "source.nibGlyph": "此字形使用笔尖描绘。笔尖的数值目前还不能在这里修改。",
     "field.width": "宽度",
     "field.cap": "端点",
     "field.join": "转角",
@@ -175,7 +175,7 @@ export const strings = {
       "目前不在源的位置: 預覽使用各源數值的內插值。要修改數值,請切換到某個源。",
     "source.sharedStyle": "端點和轉角在所有源中相同,儲存在預設源「{0}」中。",
     "source.noGlyph": "未選取字符",
-    "source.nibGlyph": "此字符使用筆尖描繪,目前尚未支援。",
+    "source.nibGlyph": "此字符使用筆尖描繪。筆尖的數值目前還不能在這裡修改。",
     "field.width": "寬度",
     "field.cap": "端點",
     "field.join": "轉角",
@@ -226,7 +226,7 @@ export const strings = {
       "Linienende und Ecke gelten für alle Sources und werden in der Standard-Source „{0}“ gespeichert.",
     "source.noGlyph": "Keine Glyphe ausgewählt",
     "source.nibGlyph":
-      "Diese Glyphe wird mit einer Federspitze gezeichnet, was noch nicht unterstützt wird.",
+      "Diese Glyphe wird mit einer Federspitze gezeichnet. Ihre Werte lassen sich hier noch nicht ändern.",
     "field.width": "Breite",
     "field.cap": "Linienende",
     "field.join": "Ecke",
@@ -278,7 +278,7 @@ export const strings = {
       "Lijnuiteinde en hoek zijn in alle sources gelijk en worden opgeslagen in de standaardsource ‘{0}’.",
     "source.noGlyph": "Geen glyph geselecteerd",
     "source.nibGlyph":
-      "Deze glyph wordt met een penpunt getrokken; dat wordt nog niet ondersteund.",
+      "Deze glyph wordt met een penpunt getrokken. De waarden ervan kunnen hier nog niet worden gewijzigd.",
     "field.width": "Breedte",
     "field.cap": "Lijnuiteinde",
     "field.join": "Hoek",
@@ -330,7 +330,7 @@ export const strings = {
       "L’extrémité et la jointure sont les mêmes pour toutes les sources ; elles sont enregistrées dans la source par défaut, « {0} ».",
     "source.noGlyph": "Aucun glyphe sélectionné",
     "source.nibGlyph":
-      "Ce glyphe est tracé avec une plume, ce qui n’est pas encore pris en charge.",
+      "Ce glyphe est tracé avec une plume. Ses valeurs ne peuvent pas encore être modifiées ici.",
     "field.width": "Épaisseur",
     "field.cap": "Extrémité",
     "field.join": "Jointure",
@@ -383,7 +383,7 @@ export const strings = {
       "Estremità e angolo sono uguali in tutte le sorgenti e vengono salvati nella sorgente predefinita, «{0}».",
     "source.noGlyph": "Nessun glifo selezionato",
     "source.nibGlyph":
-      "Questo glifo è tracciato con un pennino, non ancora supportato.",
+      "Questo glifo è tracciato con un pennino. I suoi valori non si possono ancora modificare qui.",
     "field.width": "Spessore",
     "field.cap": "Estremità",
     "field.join": "Angolo",
@@ -436,7 +436,7 @@ export const strings = {
       "El extremo y la esquina son iguales en todas las matrices y se guardan en la matriz predeterminada, «{0}».",
     "source.noGlyph": "Ningún glifo seleccionado",
     "source.nibGlyph":
-      "Este glifo se traza con una plumilla, que todavía no es compatible.",
+      "Este glifo se traza con una plumilla. Sus valores todavía no se pueden cambiar aquí.",
     "field.width": "Grosor",
     "field.cap": "Extremo",
     "field.join": "Esquina",
@@ -489,7 +489,7 @@ export const strings = {
       "El extremo y la esquina son iguales en todas las matrices y se guardan en la matriz predeterminada, “{0}”.",
     "source.noGlyph": "Ningún glifo seleccionado",
     "source.nibGlyph":
-      "Este glifo se traza con una plumilla, que todavía no es compatible.",
+      "Este glifo se traza con una plumilla. Sus valores todavía no se pueden cambiar aquí.",
     "field.width": "Grosor",
     "field.cap": "Extremo",
     "field.join": "Esquina",
@@ -542,7 +542,7 @@ export const strings = {
       "Terminal e canto são iguais em todas as matrizes e ficam salvos na matriz padrão, “{0}”.",
     "source.noGlyph": "Nenhum glifo selecionado",
     "source.nibGlyph":
-      "Este glifo é traçado com uma pena, o que ainda não é suportado.",
+      "Este glifo é traçado com uma pena. Seus valores ainda não podem ser alterados aqui.",
     "field.width": "Espessura",
     "field.cap": "Terminal",
     "field.join": "Canto",
@@ -594,7 +594,7 @@ export const strings = {
       "Terminal e canto são iguais em todas as matrizes e ficam guardados na matriz predefinida, «{0}».",
     "source.noGlyph": "Nenhum glifo selecionado",
     "source.nibGlyph":
-      "Este glifo é traçado com um aparo, o que ainda não é suportado.",
+      "Este glifo é traçado com um aparo. Os seus valores ainda não podem ser alterados aqui.",
     "field.width": "Espessura",
     "field.cap": "Terminal",
     "field.join": "Canto",
@@ -645,7 +645,8 @@ export const strings = {
     "source.sharedStyle":
       "Концы и углы одинаковы во всех мастерах и сохраняются в мастере по умолчанию «{0}».",
     "source.noGlyph": "Глиф не выбран",
-    "source.nibGlyph": "Этот глиф обводится пером, что пока не поддерживается.",
+    "source.nibGlyph":
+      "Этот глиф обводится пером. Его значения пока нельзя изменить здесь.",
     "field.width": "Толщина",
     "field.cap": "Концы",
     "field.join": "Углы",

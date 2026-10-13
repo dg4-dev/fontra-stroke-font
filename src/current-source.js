@@ -17,6 +17,7 @@ import {
   INTERPOLATED_OFFSET_KEYS,
   getGlyphStroke,
   getSourceStroke,
+  nibStyleInGlyph,
   offsetStyleInGlyph,
   SHARED_POINT_KEYS,
   pointHalfWidths,
@@ -71,21 +72,37 @@ export function defaultSourceIndex(varGlyph) {
 }
 
 /**
- * The offset style for a glyph, or null when the glyph is stroked another way
- * (the nib method comes in phase 4). Its `points` hold the values of the
- * points of the glyph's path (per contour and point index, undefined for
- * points without values), when any point has values.
+ * The style a glyph is stroked with: an offset style, or a nib style (with
+ * type "nib", see nibStyleInGlyph() in stroke-data.js). Its `points` hold the
+ * values of the points of the glyph's path (per contour and point index,
+ * undefined for points without values), when any point has values.
+ *
+ * Between sources, a nib style has the numbers of the nearest source.
  */
 export function strokeStyleForGlyph(positionedGlyph, location) {
   const { varGlyph, sourceIndex, atSource } = findStrokeSource(
     positionedGlyph,
     location
   );
-  if (getGlyphStroke(varGlyph?.glyph?.customData).type !== "offset") {
-    return null;
-  }
   const sources = varGlyph?.sources ?? [];
   const defaultIndex = defaultSourceIndex(varGlyph);
+  if (getGlyphStroke(varGlyph?.glyph?.customData).type === "nib") {
+    const style = nibStyleInGlyph(
+      sources[sourceIndex]?.customData,
+      varGlyph?.glyph?.customData
+    );
+    // Between sources, the nearest source's points correspond by index
+    const points = sourcePointValues(
+      varGlyph,
+      sourceIndex,
+      defaultIndex,
+      atSource ? positionedGlyph?.glyph?.path : undefined
+    );
+    if (points) {
+      style.points = points;
+    }
+    return style;
+  }
   const defaultCustomData = sources[defaultIndex]?.customData;
   const style = offsetStyleInGlyph(sources[sourceIndex]?.customData, defaultCustomData);
   const path = positionedGlyph?.glyph?.path;
@@ -367,6 +384,7 @@ export function describeStrokeSource(positionedGlyph, location) {
     isDefaultSource: atSource && sourceIndex === defaultIndex,
     method,
     stored: getSourceStroke(source?.customData).defaults,
+    // The panel edits offset values only for now
     style:
       method === "offset"
         ? strokeStyleForGlyph(positionedGlyph, location)

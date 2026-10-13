@@ -344,3 +344,67 @@ test("closed contours marked as centerlines are stroked, in every source", () =>
     outlineSignature(outlines[1].map((item) => item.contour))
   );
 });
+
+test("glyphs of the nib method are stroked with each source's nib", () => {
+  for (const shape of ["ellipse", "rect"]) {
+    const folder = tempFolder();
+    const out = tempFolder();
+    // n draws with a nib: smaller and turned in the Medium layer, larger in Bold
+    const nibs = { Light: [60, 20, 30], medium: [100, 30, 80], Bold: [160, 50, 150] };
+    for (const [path, text] of Object.entries(snapshot(fixtures))) {
+      const target = join(folder, path);
+      mkdirSync(dirname(target), { recursive: true });
+      const source = path.endsWith(join("Test-Light.ufo", "glyphs", "n.glif"))
+        ? "Light"
+        : path.endsWith(join("glyphs.medium", "n.glif"))
+          ? "medium"
+          : path.endsWith(join("Test-Bold.ufo", "glyphs", "n.glif"))
+            ? "Bold"
+            : null;
+      let written = text;
+      if (source) {
+        const [major, minor, angle] = nibs[source];
+        written = written.replace(
+          /<key>defaults<\/key>\s*<dict>/,
+          `<key>defaults</key><dict><key>major</key><integer>${major}</integer>` +
+            `<key>minor</key><integer>${minor}</integer>` +
+            `<key>angle</key><integer>${angle}</integer>`
+        );
+      }
+      if (source === "Light") {
+        written = written.replace(
+          "<key>fontra.glyph.locked</key>",
+          `<key>xyz.dg4.stroke</key><dict><key>type</key><string>nib</string>` +
+            `<key>shape</key><string>${shape}</string></dict>` +
+            "<key>fontra.glyph.locked</key>"
+        );
+      }
+      writeFileSync(target, written);
+    }
+    const report = expandDesignspace(
+      join(folder, "designspace", "Test.designspace"),
+      out
+    );
+    // (The larger nibs twist in the arch, which the other test covers)
+    assert.ok(report.warnings.every((w) => /twists in some sources only/.test(w)));
+    const outlines = [
+      join("Test-Light.ufo", "glyphs", "n.glif"),
+      join("Test-Light.ufo", "glyphs.medium", "n.glif"),
+      join("Test-Bold.ufo", "glyphs", "n.glif"),
+    ].map((path) =>
+      readGlif(readFileSync(join(out, path), "utf-8"))
+        .outline.filter((item) => item.contour)
+        .map((item) => item.contour)
+    );
+    const signatures = outlines.map((contours) => outlineSignature(contours));
+    assert.ok(
+      signatures.every((signature) => signature === signatures[0]),
+      shape
+    );
+    // The stroke goes up to the top of the arch (y 225) plus half the nib's
+    // height there; the Light nib is at most 30 high, Bold's at most 80
+    const top = (contours) =>
+      Math.max(...contours.flatMap((c) => c.points.map((p) => p.y)));
+    assert.ok(top(outlines[0]) < 225 + 31 + 1 && top(outlines[2]) > 225 + 31);
+  }
+});
