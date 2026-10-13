@@ -33,17 +33,19 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
       // Scaled to glyph units like the others, it tells how big a pixel is
       knobDistance: KNOB_DISTANCE,
     },
+    // One color for the nibs and all the handles, apart from the preview's
+    // gray; the handle under the pointer is darker (lighter in dark mode)
     colors: {
-      handleColor: "hsl(215, 90%, 45%)",
-      lineColor: "hsla(215, 90%, 45%, 0.5)",
-      hoverColor: "hsl(25, 95%, 50%)",
-      labelColor: "hsl(215, 30%, 20%)",
+      handleColor: "hsl(25, 90%, 48%)",
+      lineColor: "hsla(25, 90%, 48%, 0.6)",
+      hoverColor: "hsl(25, 90%, 32%)",
+      labelColor: "hsl(0, 0%, 15%)",
     },
     colorsDarkMode: {
-      handleColor: "hsl(215, 90%, 68%)",
-      lineColor: "hsla(215, 90%, 68%, 0.5)",
-      hoverColor: "hsl(25, 95%, 60%)",
-      labelColor: "hsl(215, 30%, 90%)",
+      handleColor: "hsl(30, 95%, 60%)",
+      lineColor: "hsla(30, 95%, 60%, 0.6)",
+      hoverColor: "hsl(35, 100%, 78%)",
+      labelColor: "hsl(0, 0%, 90%)",
     },
     draw: ({ context, positionedGlyph, parameters, model }) => {
       const showHandles = tool?.isActive || settings?.get("handles");

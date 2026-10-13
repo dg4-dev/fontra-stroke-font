@@ -355,6 +355,68 @@ test("a thin elliptical nib twists where the centerline turns along it", () => {
   assertCoversNibs(hairpin, style, contours);
 });
 
+// Whether a closed polygon crosses itself (pieces of no length are skipped)
+function crossesItself(polygon) {
+  const pieces = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    if (Math.hypot(b.x - a.x, b.y - a.y) > 1e-6) {
+      pieces.push([a, b]);
+    }
+  }
+  const side = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  for (let i = 0; i < pieces.length; i++) {
+    for (let j = i + 2; j < pieces.length; j++) {
+      if (i === 0 && j === pieces.length - 1) {
+        continue;
+      }
+      const [p, q] = pieces[i];
+      const [r, s] = pieces[j];
+      if (
+        side(p, q, r) * side(p, q, s) < -1e-9 &&
+        side(r, s, p) * side(r, s, q) < -1e-9
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// A curve along which the nib turns from 135° to 45°: on its inner side, the
+// edge runs backwards for a while, though the curve bends gently
+const withValues = (point, values) => ({ ...point, values });
+const turning = (angle) =>
+  openContour(withValues(on(250, 0), { angle }), off(380, 0), on(400, 250));
+
+test("where a turning nib's edge makes a loop, the loop is cut out", () => {
+  const style = nib();
+  const contour = turning(135);
+  const { twists, contours } = strokeNibContour(contour, style);
+  assert.deepEqual(twists, []);
+  assert.equal(crossesItself(flattenContour(contours[0])), false);
+  assertCoversNibs(contour, style, contours, { step: 4 });
+});
+
+test("a source whose edge makes a loop stays compatible with one whose does not", () => {
+  const style = nib();
+  const contours = [turning(135), turning(45)];
+  const { results, compatible, problems } = strokeCompatibly(
+    contours.map((contour) => ({ contour, style }))
+  );
+  assert.deepEqual(problems, []);
+  assert.ok(compatible);
+  assert.equal(
+    outlineSignature(results[0].contours),
+    outlineSignature(results[1].contours)
+  );
+  for (const [i, contour] of contours.entries()) {
+    assert.equal(crossesItself(flattenContour(results[i].contours[0])), false);
+    assertCoversNibs(contour, style, results[i].contours, { step: 6 });
+  }
+});
+
 const fromCenterline = (point, values) => ({
   ...point,
   values: { ...values, angleBase: "centerline" },

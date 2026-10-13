@@ -10,6 +10,7 @@ import {
   sanitizeStrokeValue,
   setGlyphStroke,
 } from "../src/stroke-data.js";
+import { makeStrokeLayerDefinition } from "../src/stroke-layer.js";
 import { StrokeWidthTool, glyphHandles } from "../src/width-tool.js";
 import { FakeContext, fakePositionedGlyph } from "./fakes.js";
 import { on } from "./helpers.js";
@@ -346,6 +347,31 @@ test("the handles layer draws the nibs with the setting", () => {
   const context = new FakeContext();
   drawNibs(context, nibHandles(bar("rect"), {}).nibs.slice(0, 1), parameters);
   assert.equal(context.calls.filter(([name]) => name === "lineTo").length, 4);
+});
+
+test("the nibs and handles have one color, apart from the gray preview", () => {
+  const handlesLayer = makeHandlesLayerDefinition({
+    tool: { isActive: true },
+    settings: new Map(),
+  });
+  const previewLayer = makeStrokeLayerDefinition();
+  const hue = (color) => /^hsla?\((\d+), (\d+)%/.exec(color).slice(1).map(Number);
+  for (const mode of ["colors", "colorsDarkMode"]) {
+    const parameters = { ...handlesLayer.screenParameters, ...handlesLayer[mode] };
+    const context = new FakeContext();
+    handlesLayer.draw({ context, positionedGlyph: bar(), parameters, model: {} });
+    const colors = context.calls
+      .filter(([name]) => name === "stroke" || name === "fill")
+      .map(([name, a, b]) => (name === "stroke" ? a : b));
+    // The nibs, the stalks, the size handles and the knobs, in one hue
+    assert.equal(new Set(colors.map((color) => hue(color)[0])).size, 1, mode);
+    assert.ok(hue(parameters.handleColor)[1] > 50, mode);
+    // The preview is gray
+    const { fillColor, outlineColor } = previewLayer[mode];
+    for (const color of [fillColor, outlineColor]) {
+      assert.deepEqual(hue(color).slice(1), [0], mode);
+    }
+  }
 });
 
 test("stroke data: the method of a glyph, values of either method, angles", () => {
