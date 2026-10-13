@@ -10,8 +10,10 @@ import {
   editPointValues,
   editingSourceIndices,
   pointValuesForField,
+  sameStructureSourceIndices,
   selectedPointIndices,
 } from "./point-edit.js";
+import { rebaseAngles } from "./nib-handles.js";
 import {
   ANGLE_BASES,
   CAPS,
@@ -559,6 +561,23 @@ export function definePanelElement() {
           : key === "miterLimit"
             ? "undo.pointMiterLimit"
             : "undo.pointWidth";
+      if (key === "angleBase") {
+        // Keep the nibs where they are, in every source
+        const sceneModel = this.sceneController.sceneModel;
+        const positionedGlyph = sceneModel?.getSelectedPositionedGlyph?.();
+        await this._editPoints(
+          rebaseAngles(
+            positionedGlyph,
+            sceneModel?.getLocationForGlyph?.(positionedGlyph?.glyphName),
+            selectedPointIndices(this.sceneController.selection),
+            value
+          ),
+          t(undoKey),
+          undefined,
+          { allSources: true }
+        );
+        return;
+      }
       await this._editPoints(
         (stored) => pointValuesForField(stored, key, value),
         t(undoKey)
@@ -583,17 +602,19 @@ export function definePanelElement() {
       );
     }
 
-    async _editPoints(makeValues, undoLabel, points) {
+    async _editPoints(makeValues, undoLabel, points, { allSources = false } = {}) {
       const sourceState = this._state;
       const pointIndices =
         points ?? selectedPointIndices(this.sceneController.selection);
       const varGlyph =
         this.sceneController.sceneModel?.getSelectedPositionedGlyph?.()?.varGlyph;
-      const sourceIndices = editingSourceIndices(
-        varGlyph,
-        sourceState.sourceIndex,
-        this.sceneController.editingLayerNames ?? []
-      );
+      const sourceIndices = allSources
+        ? sameStructureSourceIndices(varGlyph, sourceState.sourceIndex)
+        : editingSourceIndices(
+            varGlyph,
+            sourceState.sourceIndex,
+            this.sceneController.editingLayerNames ?? []
+          );
       try {
         await this.sceneController.editNamedGlyphAndRecordChanges(
           sourceState.glyphName,

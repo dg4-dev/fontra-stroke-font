@@ -24,7 +24,8 @@
 // nib), angle the direction of the major axis in degrees, counter-clockwise
 // from horizontal, kept in [0, 180). A point with angleBase: "centerline"
 // measures its angle from the direction of the centerline instead (0 lays
-// the major axis along it), so that its nib turns with the centerline.
+// the major axis across it, where the nib draws its widest), so that its nib
+// turns with the centerline.
 //
 // cornerRadius is not used yet; the format is fixed here so that later
 // phases do not need to migrate data.

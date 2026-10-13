@@ -256,8 +256,16 @@ test("the context menu of a nib glyph sets what angles are measured from", async
     ["Horizontal", "Centerline"]
   );
   await choices[1].callback();
+  // The corner's direction is 45°, so 0° from it lies at 135°: the source's
+  // 45° from horizontal is 90° from there, and the nib stays where it was
   assert.deepEqual(glyph.varGlyph.sources[0].customData[STROKE_KEY].points, {
-    c: { angleBase: "centerline" },
+    c: { angleBase: "centerline", angle: 90 },
+  });
+  // And back
+  const back = new StrokeWidthTool(editor, "icon.svg").getContextMenuItems();
+  await back[0].getItems()[0].callback();
+  assert.deepEqual(glyph.varGlyph.sources[0].customData[STROKE_KEY].points, {
+    c: { angle: 45 },
   });
 });
 
@@ -280,16 +288,16 @@ test("a nib measured from the centerline is drawn and turned from it", async () 
   });
   const { handles } = nibHandles(glyph, {}, { knobDistance: 30 });
   const at = (side) => handles.find((h) => h.pointIndex === 1 && h.side === side);
-  // Along the centerline: the major axis points up
-  assertPoint(at("major+").handle, { x: 0, y: 250 });
-  assertClose(at("rotate").frame, 90, "frame");
-  // Turning the knob to the right of the point is -90° from the centerline
+  // 0° lies across the centerline: the major axis points left
+  assertPoint(at("major+").handle, { x: -50, y: 200 });
+  assertClose(at("rotate").frame, 180, "frame");
+  // Turning the knob up, along the centerline, is 90° from there
   const drag = nibDrag(
     at("rotate"),
     { major: 100, minor: 40, angle: 0 },
-    { x: 80, y: 200 }
+    { x: 0, y: 280 }
   );
-  assertClose(drag.angle, 90, "angle (−90°, the same nib as 90°)");
+  assertClose(drag.angle, 90, "angle");
 });
 
 test("the panel shows the nib of the selected points", () => {
@@ -357,4 +365,28 @@ test("stroke data: the method of a glyph, values of either method, angles", () =
   assert.equal(nearestNibAngle(10, 170), 190);
   assert.equal(nearestNibAngle(170, 10), -10);
   assert.equal(nearestNibAngle(60, 10), 60);
+});
+
+test("changing what angles are measured from keeps the nibs in every source", async () => {
+  // A horizontal line; the point's angle is 30° in one source, 60° in the other
+  const contour = {
+    points: [on(0, 0), withId(on(200, 0), "e")],
+    isClosed: false,
+  };
+  const glyph = fakePositionedGlyph({
+    contours: [contour],
+    glyphCustomData: nibGlyph(),
+    sources: [
+      nibSource({ major: 100, minor: 40, angle: 0 }, { e: { angle: 30 } }),
+      nibSource({ major: 100, minor: 40, angle: 0 }, { e: { angle: 60 } }),
+    ],
+  });
+  const { editor } = fakeEditor(glyph, { selection: new Set(["point/1"]) });
+  const [menu] = new StrokeWidthTool(editor, "icon.svg").getContextMenuItems();
+  await menu.getItems()[1].callback();
+  // 0° from the centerline lies at 90°: 30° is −60° (120°) from there
+  const points = glyph.varGlyph.sources.map(
+    (source) => source.customData[STROKE_KEY].points.e
+  );
+  assert.deepEqual(points, [{ angle: 120, angleBase: "centerline" }, { angle: 150 }]);
 });

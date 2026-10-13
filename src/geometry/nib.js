@@ -11,7 +11,8 @@
 // widths). The edges, corners and ends are put together by sweep.js.
 //
 // A point's angle is from horizontal, or, when the point's angleBase is
-// "centerline", from the direction of the centerline at the point (halfway
+// "centerline", from across the direction of the centerline at the point
+// (CENTERLINE_ZERO) (halfway
 // between the directions in and out at a corner; see pointDirections()), so
 // that the nib turns with the centerline. Along a segment, the nib's angle is
 // a frame plus the angle values in between (see nibAlong()): the frame of an
@@ -187,6 +188,25 @@ export function fromCenterline(values) {
 }
 
 /**
+ * Where 0° of an angle measured from the centerline lies, from the
+ * centerline's direction: across it, so that the nib draws its widest there.
+ */
+export const CENTERLINE_ZERO = 90;
+
+/**
+ * The direction a point's angle is measured from, in degrees from
+ * horizontal: 0, or for a point measured from the centerline, across the
+ * centerline's direction there.
+ * @param {object|undefined} values the point's values
+ * @param {number|undefined} direction the centerline's direction at the point
+ */
+export function angleFrame(values, direction) {
+  return fromCenterline(values) && direction !== undefined
+    ? direction + CENTERLINE_ZERO
+    : 0;
+}
+
+/**
  * The direction of the centerline at each on-curve point at the end of a
  * segment, in degrees from horizontal: the direction of the segments there,
  * halfway between the one arriving and the one leaving at a corner.
@@ -273,8 +293,8 @@ function segmentFrames(contour, segments) {
     }
     const s = frame.along.length > 0 ? frame.along.at(t) / frame.along.length : t;
     const own = frame.direction(t);
-    const start = frame.startFrom ? own + frame.startCorrection : 0;
-    const end = frame.endFrom ? own + frame.endCorrection : 0;
+    const start = frame.startFrom ? own + frame.startCorrection + CENTERLINE_ZERO : 0;
+    const end = frame.endFrom ? own + frame.endCorrection + CENTERLINE_ZERO : 0;
     return start + (end - start) * s;
   };
 }

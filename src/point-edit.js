@@ -276,13 +276,37 @@ export function editingSourceIndices(varGlyph, sourceIndex, editingLayerNames = 
 }
 
 /**
+ * All the sources whose points correspond to a source's, that one first: the
+ * sources to write to when a change must not differ between sources.
+ */
+export function sameStructureSourceIndices(varGlyph, sourceIndex) {
+  const sources = varGlyph?.sources ?? [];
+  const primaryPath = layerPath(varGlyph, sources[sourceIndex]);
+  if (!primaryPath) {
+    return [];
+  }
+  return [
+    sourceIndex,
+    ...sources
+      .map((source, index) => index)
+      .filter(
+        (index) =>
+          index !== sourceIndex &&
+          !sources[index].inactive &&
+          samePointStructure(layerPath(varGlyph, sources[index]), primaryPath)
+      ),
+  ];
+}
+
+/**
  * Change the values of points, in place, in the given sources of a glyph:
  * Fontra's VariableGlyph, inside editGlyph / recordChanges.
  * @param {object} glyph the variable glyph (sources and layers)
  * @param {number[]} sourceIndices see editingSourceIndices()
  * @param {number[]} pointIndices points of the glyph's path
- * @param {(stored: object|undefined, pointIndex: number, sourceIndex: number) => object} makeValues
- *   the keys to set for a point (undefined to remove)
+ * @param {(stored: object|undefined, pointIndex: number, sourceIndex: number,
+ *   glyph: object) => object} makeValues the keys to set for a point
+ *   (undefined to remove)
  * @param {{defaultIndex?: number}} [options] the default source, which gets
  *   the joins
  */
@@ -309,7 +333,7 @@ export function editPointValues(
   for (const sourceIndex of sourceIndices) {
     const stored = storedValues(glyph, sourceIndex);
     for (const pointIndex of pointIndices) {
-      const values = makeValues(stored.get(pointIndex), pointIndex, sourceIndex);
+      const values = makeValues(stored.get(pointIndex), pointIndex, sourceIndex, glyph);
       const own = {};
       const shared = {};
       for (const [key, value] of Object.entries(values)) {

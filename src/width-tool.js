@@ -28,9 +28,16 @@ import {
   editingSourceIndices,
   measurePoints,
   pointValuesForField,
+  sameStructureSourceIndices,
   selectedPointIndices,
 } from "./point-edit.js";
-import { KNOB_DISTANCE, draggedNibValues, nibDrag, nibHandles } from "./nib-handles.js";
+import {
+  KNOB_DISTANCE,
+  draggedNibValues,
+  nibDrag,
+  nibHandles,
+  rebaseAngles,
+} from "./nib-handles.js";
 import {
   ANGLE_BASES,
   JOINS,
@@ -606,13 +613,22 @@ export class StrokeWidthTool {
       });
     }
     if (getGlyphStroke(varGlyph?.glyph?.customData).type === "nib") {
-      const setBase = (angleBase) =>
-        this._edit(sourceIndices, defaultIndex, (glyph) => {
-          editPointValues(glyph, sourceIndices, pointIndices, () => ({ angleBase }), {
+      // Keep the nibs where they are, in every source
+      const allSources = sameStructureSourceIndices(varGlyph, sourceIndex);
+      const setBase = (angleBase) => {
+        const makeValues = rebaseAngles(
+          positionedGlyph,
+          this._editTarget().location,
+          pointIndices,
+          angleBase
+        );
+        return this._edit(allSources, defaultIndex, (glyph) => {
+          editPointValues(glyph, allSources, pointIndices, makeValues, {
             defaultIndex,
           });
           return t("undo.pointNib");
         });
+      };
       return [
         ...items,
         {
