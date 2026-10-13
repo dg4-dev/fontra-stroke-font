@@ -172,32 +172,35 @@ test("glyphs of the nib method are stroked with the source's nib", () => {
   );
 });
 
-test("between sources, a nib glyph has the nearest source's nib and points", () => {
+test("between sources, nibs are interpolated, turning the short way", () => {
   const contour = {
     points: [{ ...on(0, 0), attrs: { identifier: "a" } }, on(200, 0)],
     isClosed: false,
   };
-  const points = { a: { major: 40 } };
   const glyph = fakePositionedGlyph({
     contours: [contour],
     glyphCustomData: nibGlyph,
     sources: [
-      {
-        customData: { [STROKE_KEY]: { defaults: { major: 100, minor: 0, angle: 90 } } },
-      },
+      nibSource({ major: 100, minor: 0, angle: 170 }),
       {
         customData: {
-          [STROKE_KEY]: { defaults: { major: 200, minor: 0, angle: 90 }, points },
+          [STROKE_KEY]: {
+            defaults: { major: 200, minor: 0, angle: 10 },
+            points: { a: { major: 40, angle: 30 } },
+          },
         },
       },
     ],
     sourceIndex: undefined,
-    nearestSourceIndex: 1,
   });
-  const style = strokeStyleForGlyph(glyph, { wght: 650 });
+  // Halfway between the sources (wght 300 and 700)
+  const style = strokeStyleForGlyph(glyph, { wght: 500 });
   assert.equal(style.type, "nib");
-  assert.equal(style.major, 200);
-  assert.deepEqual(style.points, [[{ major: 40 }, undefined]]);
+  assert.equal(style.major, 150);
+  // 170° and 10° (190°) meet at 180°, which is stored as 0°
+  assert.equal(style.angle, 0);
+  // The first source's nib at the point is its own (100, 170°)
+  assert.deepEqual(style.points, [[{ major: 70, angle: 10 }, undefined]]);
 });
 
 test("a mirrored component turns its nib the other way", () => {
