@@ -1,0 +1,297 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import { pointAt } from "../src/geometry/bezier.js";
+import { centerlineSegments } from "../src/geometry/centerline.js";
+import { outlineSignature, strokeCompatibly } from "../src/geometry/compatible.js";
+import { makeNib, strokeNibContour } from "../src/geometry/nib.js";
+import { strokeOffsetContour } from "../src/geometry/offset.js";
+import { signedArea } from "../src/geometry/shapes.js";
+import { valueProfile } from "../src/geometry/widths.js";
+import { bounds, off, on, winding } from "./helpers.js";
+
+const KAPPA = 0.5522847498307936;
+
+const openContour = (...points) => ({ points, isClosed: false });
+const loop = (...points) => ({ points, isClosed: true });
+
+function nib(overrides = {}) {
+  return {
+    type: "nib",
+    shape: "ellipse",
+    major: 120,
+    minor: 30,
+    angle: 45,
+    ...overrides,
+  };
+}
+
+function circle(r, cx = 0, cy = 0) {
+  const k = r * KAPPA;
+  return loop(
+    on(cx + r, cy, true),
+    off(cx + r, cy + k),
+    off(cx + k, cy + r),
+    on(cx, cy + r, true),
+    off(cx - k, cy + r),
+    off(cx - r, cy + k),
+    on(cx - r, cy, true),
+    off(cx - r, cy - k),
+    off(cx - k, cy - r),
+    on(cx, cy - r, true),
+    off(cx + k, cy - r),
+    off(cx + r, cy - k)
+  );
+}
+
+const line = openContour(on(0, 0), on(300, 100));
+const sCurve = openContour(on(0, 0), off(40, 300), off(360, -200), on(400, 100));
+const hairpin = openContour(on(0, 0), off(0, 150), off(150, 150), on(150, 0));
+// A corner that turns back almost on itself
+const sharpCorner = openContour(on(0, 0), on(300, 0), on(20, 60));
+const corner = openContour(on(0, 0), on(200, 0), on(200, 200));
+
+/**
+ * The nibs along a centerline, densely sampled: the reference the stroked
+ * outlines are checked against. Each sample is a place and the nib there.
+ */
+function sampleNibs(contour, style, steps = 400) {
+  const segments = centerlineSegments(contour);
+  const profile = valueProfile(contour, segments, {
+    keys: ["major", "minor", "angle"],
+    defaults: style,
+    periods: { angle: 180 },
+  });
+  const samples = [];
+  for (const [index, segment] of segments.entries()) {
+    const numbers = profile.segments[index];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      samples.push({
+        center: pointAt(segment, t),
+        major: numbers.major(t),
+        minor: numbers.minor(t),
+        angle: numbers.angle(t),
+      });
+    }
+  }
+  return samples;
+}
+
+// Whether a point is inside a nib grown (margin > 0) or shrunk (< 0) by margin
+function inNib(point, sample, shape, margin) {
+  const n = makeNib(sample.major + 2 * margin, sample.minor + 2 * margin, sample.angle);
+  if (!(n.a > 0) || !(n.b > 0)) {
+    return false;
+  }
+  const dx = point.x - sample.center.x;
+  const dy = point.y - sample.center.y;
+  const u = (dx * n.cos + dy * n.sin) / n.a;
+  const v = (-dx * n.sin + dy * n.cos) / n.b;
+  return shape === "rect"
+    ? Math.max(Math.abs(u), Math.abs(v)) <= 1
+    : u * u + v * v <= 1;
+}
+
+function describe(contour, style) {
+  const points = contour.points.map((p) => `${p.type ? "~" : ""}${p.x},${p.y}`);
+  return `${points.join(" ")} ${style.shape} ${style.major}×${style.minor} ${style.angle}°`;
+}
+
+// Every grid point well inside one of the nibs is filled, and every one well
+// outside all of them is not
+function assertCoversNibs(contour, style, contours, { margin = 1.5, step = 5 } = {}) {
+  const samples = sampleNibs(contour, style);
+  const box = bounds(contours);
+  let inside = 0;
+  let outside = 0;
+  for (let x = box.xMin - 10; x <= box.xMax + 10; x += step) {
+    for (let y = box.yMin - 10; y <= box.yMax + 10; y += step) {
+      const point = { x, y };
+      const filled = winding(point, contours) !== 0;
+      if (samples.some((s) => inNib(point, s, style.shape, -margin))) {
+        assert.ok(filled, `hole at ${x}, ${y} (${describe(contour, style)})`);
+        inside++;
+      } else if (!samples.some((s) => inNib(point, s, style.shape, margin))) {
+        assert.ok(
+          !filled,
+          `filled outside the nibs at ${x}, ${y} (${describe(contour, style)})`
+        );
+        outside++;
+      }
+    }
+  }
+  assert.ok(inside > 50 && outside > 50, `${inside} inside, ${outside} outside`);
+}
+
+test("a round nib draws what the offset method draws with round caps and joins", () => {
+  for (const contour of [line, sCurve, hairpin, corner, sharpCorner]) {
+    const byNib = strokeNibContour(contour, nib({ major: 80, minor: 80 })).contours;
+    const byWidth = strokeOffsetContour(contour, {
+      width: 80,
+      cap: "round",
+      join: "round",
+      miterLimit: 4,
+    }).contours;
+    const box = bounds(byWidth);
+    let checked = 0;
+    for (let x = box.xMin - 5; x <= box.xMax + 5; x += 4) {
+      for (let y = box.yMin - 5; y <= box.yMax + 5; y += 4) {
+        const a = winding({ x, y }, byNib) !== 0;
+        const b = winding({ x, y }, byWidth) !== 0;
+        if (a !== b) {
+          // Only where the edges are (within the fitting tolerance)
+          const near = [-1, 1].some((dx) =>
+            [-1, 1].some(
+              (dy) =>
+                (winding({ x: x + dx, y: y + dy }, byNib) !== 0) !== a ||
+                (winding({ x: x + dx, y: y + dy }, byWidth) !== 0) !== b
+            )
+          );
+          assert.ok(near, `the methods differ at ${x}, ${y}`);
+        }
+        checked++;
+      }
+    }
+    assert.ok(checked > 500);
+  }
+});
+
+test("a flat nib draws stems major·|cos(angle)| and bars major·|sin(angle)| thick", () => {
+  for (const angle of [30, 45, 70, 120]) {
+    const style = nib({ shape: "rect", major: 100, minor: 0, angle });
+    const radians = (angle * Math.PI) / 180;
+    // A stem: its thickness across, halfway up
+    const stem = strokeNibContour(openContour(on(0, 0), on(0, 400)), style).contours;
+    const across = filledRun(stem, (s) => ({ x: s, y: 200 }), -200, 200);
+    assert.ok(
+      Math.abs(across - 100 * Math.abs(Math.cos(radians))) < 0.6,
+      `stem ${across}`
+    );
+    // A bar: its thickness up, halfway along
+    const bar = strokeNibContour(openContour(on(0, 0), on(400, 0)), style).contours;
+    const up = filledRun(bar, (s) => ({ x: 200, y: s }), -200, 200);
+    assert.ok(Math.abs(up - 100 * Math.abs(Math.sin(radians))) < 0.6, `bar ${up}`);
+  }
+});
+
+// The length of the filled part of a line through the outlines
+function filledRun(contours, at, from, to, step = 0.25) {
+  let filled = 0;
+  for (let s = from; s <= to; s += step) {
+    if (winding(at(s), contours) !== 0) {
+      filled += step;
+    }
+  }
+  return filled;
+}
+
+test("an elliptical nib covers its sweep, without holes, on curves, corners and ends", () => {
+  for (const contour of [line, sCurve, hairpin, corner, sharpCorner]) {
+    for (const style of [nib(), nib({ angle: 135 }), nib({ major: 160, minor: 10 })]) {
+      const { contours } = strokeNibContour(contour, style);
+      assertCoversNibs(contour, style, contours);
+    }
+  }
+});
+
+test("a rectangular nib covers its sweep, without holes, where its corner changes", () => {
+  for (const contour of [line, sCurve, hairpin, corner, sharpCorner]) {
+    for (const style of [
+      nib({ shape: "rect" }),
+      nib({ shape: "rect", angle: 0, major: 90, minor: 40 }),
+      // Nearly flat: a flat nib covers no grid point on its own
+      nib({ shape: "rect", minor: 6 }),
+    ]) {
+      const { contours } = strokeNibContour(contour, style);
+      assertCoversNibs(contour, style, contours);
+    }
+  }
+});
+
+test("loops are covered by both nibs", () => {
+  const square = loop(on(0, 0), on(300, 0), on(300, 300), on(0, 300));
+  for (const contour of [circle(200), square]) {
+    for (const style of [
+      nib(),
+      nib({ shape: "rect" }),
+      nib({ shape: "rect", minor: 6 }),
+    ]) {
+      const { contours } = strokeNibContour(contour, style);
+      assertCoversNibs(contour, style, contours, { step: 8 });
+    }
+  }
+});
+
+test("nib values of points change the nib along the centerline", () => {
+  const contour = openContour(
+    { ...on(0, 0), values: { major: 40, angle: 170 } },
+    { ...on(400, 0), values: { major: 160, angle: 10 } }
+  );
+  const style = nib({ minor: 20 });
+  const { contours } = strokeNibContour(contour, style);
+  assertCoversNibs(contour, style, contours);
+  // The angle turns the short way, through 180°, not through 90°
+  const samples = sampleNibs(contour, style, 10);
+  assert.ok(samples.every((s) => s.angle >= 170 - 1e-9 && s.angle <= 190 + 1e-9));
+});
+
+test("every contour of a nib stroke is counter-clockwise, except a ring's hole", () => {
+  for (const contour of [line, sCurve, hairpin, corner, sharpCorner]) {
+    for (const style of [nib(), nib({ shape: "rect" })]) {
+      for (const outline of strokeNibContour(contour, style).contours) {
+        assert.ok(signedArea(outline) > 0);
+      }
+    }
+  }
+});
+
+test("a lone point is the nib", () => {
+  const point = openContour(on(10, 20));
+  const [ellipse] = strokeNibContour(point, nib({ angle: 0 })).contours;
+  assert.deepEqual(bounds([ellipse]), { xMin: -50, yMin: 5, xMax: 70, yMax: 35 });
+  const [rect] = strokeNibContour(point, nib({ shape: "rect", angle: 90 })).contours;
+  const b = bounds([rect]);
+  assert.ok(Math.abs(b.xMin + 5) < 1e-9 && Math.abs(b.yMax - 80) < 1e-9);
+  assert.deepEqual(strokeNibContour(point, nib({ major: 0, minor: 0 })).contours, []);
+});
+
+test("a straight line with an unchanging nib has straight edges", () => {
+  for (const shape of ["ellipse", "rect"]) {
+    const { contours } = strokeNibContour(line, nib({ shape }));
+    const band = contours[0];
+    assert.equal(band.points.length, 4);
+    assert.ok(band.points.every((p) => !p.type));
+  }
+});
+
+test("sources with different nibs stroke compatibly", () => {
+  for (const shape of ["ellipse", "rect"]) {
+    for (const contour of [sCurve, hairpin, circle(150)]) {
+      const styles = [
+        nib({ shape, major: 60, minor: 20, angle: 20 }),
+        nib({ shape, major: 220, minor: 60, angle: 100 }),
+      ];
+      const { results, compatible, problems } = strokeCompatibly(
+        styles.map((style) => ({ contour, style }))
+      );
+      assert.deepEqual(problems, []);
+      assert.ok(compatible);
+      assert.equal(
+        outlineSignature(results[0].contours),
+        outlineSignature(results[1].contours)
+      );
+      // Each source keeps its own shape
+      for (const [i, style] of styles.entries()) {
+        assertCoversNibs(contour, style, results[i].contours, { step: 8 });
+      }
+    }
+  }
+});
+
+test("a thin elliptical nib twists where the centerline turns along it", () => {
+  const style = nib({ major: 160, minor: 10, angle: 0 });
+  const { twists, contours } = strokeNibContour(hairpin, style);
+  assert.ok(twists.length > 0);
+  assertCoversNibs(hairpin, style, contours);
+});
