@@ -17,15 +17,20 @@
 import { centerlineSegments } from "./geometry/centerline.js";
 import {
   MIN_ELLIPSE_AXIS,
+  angleFrame,
   ellipseContour,
-  fromCenterline,
   makeNib,
   pointDirections,
   rectContour,
 } from "./geometry/nib.js";
-import { pathPoints } from "./path-points.js";
+import { layerPath } from "./current-source.js";
+import { locatePoint, pathPoints } from "./path-points.js";
 import { measurePoints } from "./point-edit.js";
-import { isCenterlineContour, normalizeNibAngle } from "./stroke-data.js";
+import {
+  isCenterlineContour,
+  normalizeNibAngle,
+  resolveNibStyle,
+} from "./stroke-data.js";
 
 export const ANGLE_STEP = 15;
 /** How far the turning knob is beyond the end of the major axis, in pixels. */
@@ -76,7 +81,7 @@ export function nibHandles(positionedGlyph, location, options = {}) {
       }
       directions.set(point.contourIndex, map);
     }
-    return directions.get(point.contourIndex).get(point.contourPointIndex) ?? 0;
+    return directions.get(point.contourIndex).get(point.contourPointIndex);
   };
   for (const point of measured.points) {
     const info = path.contourInfo[point.contourIndex];
@@ -91,7 +96,7 @@ export function nibHandles(positionedGlyph, location, options = {}) {
     };
     const { major, minor, angle } = point;
     // What the point's angle is measured from: horizontal, or the centerline
-    const frame = fromCenterline(point.values) ? directionAt(point) : 0;
+    const frame = angleFrame(point.values, directionAt(point));
     const nib = makeNib(
       major,
       minor,
@@ -216,4 +221,70 @@ export function draggedNibValues(nib, axis, drag) {
 
 function round(value) {
   return Math.round(value * 100) / 100;
+}
+
+/**
+ * The values that change what a point's angle is measured from without
+ * turning its nib: the new base, and the angle that keeps the nib where it
+ * is, measured from the new base.
+ * @param {object} glyph the variable glyph (sources and layers)
+ * @param {number} sourceIndex the source whose values are changed
+ * @param {number} pointIndex a point of the source's path
+ * @param {object|undefined} stored the point's values in that source
+ * @param {string|undefined} fromBase what the angle is measured from now
+ *   ("centerline", or undefined for horizontal; the default source's)
+ * @param {string|undefined} angleBase what to measure it from
+ * @returns {{angleBase: string|undefined, angle?: number}}
+ */
+export function rebasedAngle(
+  glyph,
+  sourceIndex,
+  pointIndex,
+  stored,
+  fromBase,
+  angleBase
+) {
+  const source = glyph.sources[sourceIndex];
+  const path = layerPath(glyph, source);
+  const located = path && locatePoint(path, pointIndex);
+  if (!located || fromBase === angleBase) {
+    return { angleBase };
+  }
+  let direction;
+  try {
+    direction = pointDirections(
+      centerlineSegments(path.getUnpackedContour(located.contourIndex))
+    ).get(located.contourPointIndex);
+  } catch (e) {
+    return { angleBase };
+  }
+  const angle = stored?.angle ?? resolveNibStyle(source.customData).angle;
+  const turned =
+    angle +
+    angleFrame({ angleBase: fromBase }, direction) -
+    angleFrame({ angleBase }, direction);
+  return { angleBase, angle: Math.round(normalizeNibAngle(turned) * 100) / 100 };
+}
+
+/**
+ * The makeValues of editPointValues() (see point-edit.js) for changing what
+ * the given points' angles are measured from without turning their nibs.
+ * Write it to all the sources with the same points (sameStructureSourceIndices()),
+ * since the base is the same in all sources.
+ * @param {string|undefined} angleBase "centerline", or undefined for horizontal
+ */
+export function rebaseAngles(positionedGlyph, location, pointIndices, angleBase) {
+  const measured = measurePoints(positionedGlyph, location, pointIndices);
+  const bases = new Map(
+    (measured?.points ?? []).map((point) => [point.pointIndex, point.values?.angleBase])
+  );
+  return (stored, pointIndex, sourceIndex, glyph) =>
+    rebasedAngle(
+      glyph,
+      sourceIndex,
+      pointIndex,
+      stored,
+      bases.get(pointIndex),
+      angleBase
+    );
 }

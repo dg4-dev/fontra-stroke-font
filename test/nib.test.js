@@ -360,14 +360,14 @@ const fromCenterline = (point, values) => ({
   values: { ...values, angleBase: "centerline" },
 });
 
-test("a flat nib measured from the centerline draws major·|sin(angle)| in any direction", () => {
+test("a flat nib measured from the centerline draws major·|cos(angle)| in any direction", () => {
   for (const [dx, dy] of [
     [400, 0],
     [0, 400],
     [300, 300],
     [-200, 350],
   ]) {
-    for (const angle of [30, 90]) {
+    for (const angle of [0, 60]) {
       const contour = openContour(
         fromCenterline(on(0, 0), { angle }),
         fromCenterline(on(dx, dy), { angle })
@@ -386,7 +386,8 @@ test("a flat nib measured from the centerline draws major·|sin(angle)| in any d
         -120,
         120
       );
-      const expected = 100 * Math.abs(Math.sin((angle * Math.PI) / 180));
+      // 0° lies across the centerline: the whole nib
+      const expected = 100 * Math.abs(Math.cos((angle * Math.PI) / 180));
       assert.ok(Math.abs(across - expected) < 0.6, `${dx},${dy} ${angle}°: ${across}`);
     }
   }
@@ -395,16 +396,16 @@ test("a flat nib measured from the centerline draws major·|sin(angle)| in any d
 test("a nib measured from the centerline turns with it round a curve", () => {
   // An arch, its nib across the centerline: as thick as the nib is long
   const arch = openContour(
-    fromCenterline(on(0, 0), { angle: 90 }),
+    fromCenterline(on(0, 0), { angle: 0 }),
     off(0, 300),
     off(400, 300),
-    fromCenterline(on(400, 0), { angle: 90 })
+    fromCenterline(on(400, 0), { angle: 0 })
   );
   const style = nib({ shape: "ellipse", major: 80, minor: 10 });
   const { contours } = strokeNibContour(arch, style);
   assertCoversNibs(arch, style, contours, { step: 6 });
   // At the top the stroke is upright: 80 high, where a nib from horizontal
-  // (lying flat at 90°) would be only 10
+  // (lying flat at 0°) would be only 10
   const top = filledRun(contours, (s) => ({ x: 200, y: s }), 150, 300);
   assert.ok(Math.abs(top - 80) < 2, `top ${top}`);
 });
@@ -417,9 +418,10 @@ test("at a corner, a nib measured from the centerline is halfway between in and 
   );
   const segments = centerlineSegments(corner);
   const { at } = nibAlong(corner, nib(), segments);
-  // Both segments meet with the same nib at the corner, at 45°
-  assert.ok(Math.abs(at(0, 1).angle - 45) < 1e-9);
-  assert.ok(Math.abs(at(1, 0).angle - 45) < 1e-9);
+  // Both segments meet with the same nib at the corner: across the 45°
+  // direction halfway between in and out
+  assert.ok(Math.abs(at(0, 1).angle - 135) < 1e-9);
+  assert.ok(Math.abs(at(1, 0).angle - 135) < 1e-9);
   // Points measured from horizontal keep their angle
   assert.ok(Math.abs(at(0, 0).angle - 45) < 1e-9);
   assert.ok(Math.abs(at(1, 1).angle - 45) < 1e-9);

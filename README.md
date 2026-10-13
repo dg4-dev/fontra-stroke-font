@@ -108,7 +108,7 @@ Choose "Elliptical nib" or "Rectangular nib" under "Stroke with" in the panel. T
 | Major axis | Length of the nib along its angle: the long axis of the ellipse, or the long side of the rectangle |
 | Minor axis | Length of the nib across its angle. A rectangle with a minor axis of 0 is a flat nib; an ellipse is drawn at least 1 unit across |
 | Angle | Direction of the major axis, in degrees counter-clockwise from horizontal, from 0 to 180 (a nib turned by 180° is the same nib) |
-| Angle from | Points only: "Horizontal", or "Centerline": the angle is then measured from the direction of the centerline at the point (0 lays the major axis along it), so the nib turns with the centerline. At a corner, the direction is halfway between the one in and the one out. The same in all sources |
+| Angle from | Points only: "Horizontal", or "Centerline": the angle is then measured from the direction of the centerline at the point (0 lays the major axis across it, where the nib draws its widest; 90 along it), so the nib turns with the centerline. Changing it rewrites the point's angle in every source so that the nib stays where it is. At a corner, the direction is halfway between the one in and the one out. The same in all sources |
 
 Between a point measured from the centerline and the next one, the nib turns with the centerline; between a point measured from horizontal and one measured from the centerline, it goes from one to the other along the segment. The context menu of the stroke width tool sets "Angle from" for the selected points too.
 
