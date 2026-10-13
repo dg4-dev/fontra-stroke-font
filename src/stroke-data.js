@@ -19,8 +19,13 @@
 // width of its own takes the width between the points around it that have one
 // (see geometry/widths.js), so that adding a point does not change the stroke.
 //
-// The nib method and cornerRadius are not used yet; the format is fixed here
-// so that later phases do not need to migrate data.
+// Nib values: major and minor are the full lengths of the nib's axes (of the
+// ellipse, or the sides of the rectangle; a rectangle with minor 0 is a flat
+// nib), angle the direction of the major axis in degrees, counter-clockwise
+// from horizontal, kept in [0, 180).
+//
+// cornerRadius is not used yet; the format is fixed here so that later
+// phases do not need to migrate data.
 
 export const STROKE_KEY = "xyz.dg4.stroke";
 
@@ -37,6 +42,16 @@ export const DEFAULT_OFFSET_STYLE = Object.freeze({
 });
 
 export const MIN_MITER_LIMIT = 1;
+
+export const DEFAULT_NIB_STYLE = Object.freeze({
+  major: 120,
+  minor: 30,
+  angle: 45,
+});
+
+// The numbers of a nib, of the source defaults and of points. All are
+// interpolated between sources.
+export const NIB_KEYS = Object.freeze(["major", "minor", "angle"]);
 
 // Numbers vary between sources and are interpolated. Strings cannot be
 // interpolated, and the outlines would not match if they differed, so all
@@ -116,6 +131,55 @@ export function offsetStyleInGlyph(sourceCustomData, defaultSourceCustomData) {
 }
 
 /**
+ * The nib of a source: its defaults, with missing or invalid values replaced
+ * by the built-in defaults.
+ * @param {object} sourceCustomData customData of a glyph source
+ * @returns {{major: number, minor: number, angle: number}}
+ */
+export function resolveNibStyle(sourceCustomData) {
+  const { defaults } = getSourceStroke(sourceCustomData);
+  const style = { ...DEFAULT_NIB_STYLE };
+  for (const key of NIB_KEYS) {
+    const value = sanitizeNibValue(key, defaults[key]);
+    if (value !== undefined) {
+      style[key] = value;
+    }
+  }
+  return style;
+}
+
+/**
+ * The nib style of a source within its glyph: the glyph's nib shape and the
+ * source's numbers.
+ * @param {object} sourceCustomData customData of the source
+ * @param {object} glyphCustomData customData of the variable glyph
+ * @returns {{type: "nib", shape: string, major: number, minor: number,
+ *   angle: number}}
+ */
+export function nibStyleInGlyph(sourceCustomData, glyphCustomData) {
+  const stored = asObject(glyphCustomData?.[STROKE_KEY]);
+  const shape = NIB_SHAPES.includes(stored.shape) ? stored.shape : NIB_SHAPES[0];
+  return { type: "nib", shape, ...resolveNibStyle(sourceCustomData) };
+}
+
+/**
+ * A valid value for a nib key, or undefined when the value is missing or
+ * cannot be used.
+ */
+export function sanitizeNibValue(key, value) {
+  const number = toNumber(value);
+  switch (key) {
+    case "major":
+    case "minor":
+      return number === undefined ? undefined : Math.max(0, number);
+    case "angle":
+      return number === undefined ? undefined : normalizeNibAngle(number);
+    default:
+      throw new Error(`unknown nib key: ${key}`);
+  }
+}
+
+/**
  * A valid value for an offset style key, or undefined when the value is
  * missing or cannot be used.
  */
@@ -188,7 +252,7 @@ export function setSourceDefaults(sourceCustomData, values) {
 }
 
 /**
- * The valid offset values of one point, from what is stored for it.
+ * The valid values of one point (of both methods), from what is stored for it.
  * @returns {object|undefined} undefined when the point has no valid values
  */
 export function sanitizePointValues(stored) {
@@ -198,6 +262,12 @@ export function sanitizePointValues(stored) {
   const values = {};
   for (const key of POINT_OFFSET_KEYS) {
     const value = sanitizeOffsetValue(key, stored[key]);
+    if (value !== undefined) {
+      values[key] = value;
+    }
+  }
+  for (const key of NIB_KEYS) {
+    const value = sanitizeNibValue(key, stored[key]);
     if (value !== undefined) {
       values[key] = value;
     }

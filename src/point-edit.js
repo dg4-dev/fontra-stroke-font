@@ -91,7 +91,7 @@ export function closedContourPoints(path, pointIndices) {
 export function measurePoints(positionedGlyph, location, pointIndices) {
   const path = positionedGlyph?.glyph?.path;
   const style = strokeStyleForGlyph(positionedGlyph, location);
-  if (!path || !style) {
+  if (!path || !style || style.type === "nib") {
     return null;
   }
   const profiles = new Map();

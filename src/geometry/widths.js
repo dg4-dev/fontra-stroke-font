@@ -37,6 +37,42 @@ const SAME_WIDTH = 1e-9;
  */
 export function widthProfile(contour, segments, style) {
   const defaultHalf = Math.max(0, style.width) / 2;
+  const profile = valueProfile(contour, segments, {
+    keys: ["left", "right"],
+    valueAt: pointHalfWidth,
+    defaults: { left: defaultHalf, right: defaultHalf },
+  });
+  return { ...profile, max: Math.max(profile.max.left, profile.max.right) };
+}
+
+/**
+ * Numbers along a centerline, from the values of its points, each following
+ * a monotone cubic along the length of the centerline as the widths do (see
+ * the top of this file).
+ * @param {{points: object[], isClosed?: boolean}} contour unpacked contour
+ * @param {object[]} segments centerlineSegments(contour)
+ * @param {object} options
+ * @param {string[]} options.keys the numbers
+ * @param {(values: object|undefined, key: string) => number|undefined}
+ *   [options.valueAt] the number a point sets; by default values[key]
+ * @param {object} options.defaults the number of each key at an end of an
+ *   open centerline that does not set it, and all along one without values
+ * @param {object} [options.periods] keys whose numbers repeat with a period
+ *   (such as an angle of 180°): each value is moved by whole periods to be
+ *   within half a period of the one before it, so that the number takes the
+ *   short way round
+ * @returns {{
+ *   segments: (object & {constant: object})[],
+ *   atPoint: (pointIndex: number) => object|undefined,
+ *   max: object,
+ * }} per segment, a function of t per key, and whether it is constant; the
+ *   numbers at an on-curve point at the end of a segment; the largest number
+ *   of each key
+ */
+export function valueProfile(contour, segments, options) {
+  const { keys, defaults } = options;
+  const valueAt = options.valueAt ?? ((values, key) => values?.[key]);
+  const periods = options.periods ?? {};
   const lengths = segments.map(segmentLength);
   const starts = [];
   let total = 0;
@@ -58,44 +94,51 @@ export function widthProfile(contour, segments, style) {
   const lastIndex = segments.at(-1)?.endIndex;
 
   const curves = {};
-  for (const side of ["left", "right"]) {
+  for (const key of keys) {
     const knots = [];
     for (const [pointIndex, position] of positions) {
-      let value = pointHalfWidth(contour.points[pointIndex]?.values, side);
+      let value = valueAt(contour.points[pointIndex]?.values, key);
       if (
         value === undefined &&
         !contour.isClosed &&
         (pointIndex === firstIndex || pointIndex === lastIndex)
       ) {
-        value = defaultHalf;
+        value = defaults[key];
       }
       if (value !== undefined) {
         knots.push({ x: position, y: value });
       }
     }
+    knots.sort((a, b) => a.x - b.x);
+    const period = periods[key];
+    let drift = 0;
+    if (period && knots.length) {
+      for (let k = 1; k < knots.length; k++) {
+        knots[k].y = closestTurn(knots[k].y, knots[k - 1].y, period);
+      }
+      // Round a loop, the first value may come back a whole period away
+      drift = closestTurn(knots[0].y, knots.at(-1).y, period) - knots[0].y;
+    }
     if (contour.isClosed && knots.length) {
       // Round the loop: the knots repeated a loop's length before and after
       knots.push(
-        ...knots.map(({ x, y }) => ({ x: x - total, y })),
-        ...knots.map(({ x, y }) => ({ x: x + total, y }))
+        ...knots.map(({ x, y }) => ({ x: x - total, y: y - drift })),
+        ...knots.map(({ x, y }) => ({ x: x + total, y: y + drift }))
       );
     }
-    curves[side] = monotoneCubic(knots, defaultHalf);
+    curves[key] = monotoneCubic(knots, defaults[key]);
   }
 
   const profileSegments = segments.map((segment, index) => {
     const start = starts[index];
+    const end = start + lengths[index].length;
     const along = lengths[index].at;
-    const left = (t) => curves.left(start + along(t));
-    const right = (t) => curves.right(start + along(t));
-    return {
-      left,
-      right,
-      constant: {
-        left: curves.left.isConstantBetween(start, start + lengths[index].length),
-        right: curves.right.isConstantBetween(start, start + lengths[index].length),
-      },
-    };
+    const entry = { constant: {} };
+    for (const key of keys) {
+      entry[key] = (t) => curves[key](start + along(t));
+      entry.constant[key] = curves[key].isConstantBetween(start, end);
+    }
+    return entry;
   });
   return {
     segments: profileSegments,
@@ -103,10 +146,15 @@ export function widthProfile(contour, segments, style) {
       const position = positions.get(pointIndex);
       return position === undefined
         ? undefined
-        : { left: curves.left(position), right: curves.right(position) };
+        : Object.fromEntries(keys.map((key) => [key, curves[key](position)]));
     },
-    max: Math.max(curves.left.max, curves.right.max),
+    max: Object.fromEntries(keys.map((key) => [key, curves[key].max])),
   };
+}
+
+// value moved by whole periods to be within half a period of reference
+function closestTurn(value, reference, period) {
+  return value - period * Math.round((value - reference) / period);
 }
 
 function pointHalfWidth(values, side) {

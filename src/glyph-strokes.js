@@ -7,8 +7,8 @@
 // around the glyph being edited) does not stroke them all again.
 
 import { hasClosedCenterlines, strokeStyleForGlyph } from "./current-source.js";
-import { strokeOffsetContour } from "./geometry/offset.js";
-import { isCenterlineContour } from "./stroke-data.js";
+import { strokeContour } from "./geometry/stroke.js";
+import { isCenterlineContour, normalizeNibAngle } from "./stroke-data.js";
 
 /**
  * Variable glyphs of component bases. Fontra loads glyphs asynchronously, so
@@ -102,8 +102,13 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
       { ...location, ...component.compo.location }
     );
     if (style) {
-      if (style.points && isMirrored(component.compo.transformation)) {
-        style.points = mirrorPointValues(style.points);
+      if (isMirrored(component.compo.transformation)) {
+        if (style.type === "nib") {
+          style.angle = normalizeNibAngle(-style.angle);
+        }
+        if (style.points) {
+          style.points = mirrorPointValues(style.points);
+        }
       }
       const stroked = strokeOpenContours(path, style);
       outlines.push(...stroked.outlines);
@@ -147,15 +152,26 @@ export function isMirrored(transformation) {
   return scaleX * scaleY < 0;
 }
 
-/** Point values with left and right swapped. */
+/**
+ * Point values seen in a mirror: left and right swapped, nib angles turned
+ * the other way.
+ */
 export function mirrorPointValues(points) {
   return points.map((contour) =>
     contour.map((values) => {
-      if (!values || (values.left === undefined && values.right === undefined)) {
+      if (
+        !values ||
+        (values.left === undefined &&
+          values.right === undefined &&
+          values.angle === undefined)
+      ) {
         return values;
       }
       const { left, right, ...rest } = values;
       const swapped = { ...rest };
+      if (rest.angle !== undefined) {
+        swapped.angle = normalizeNibAngle(-rest.angle);
+      }
       if (right !== undefined) {
         swapped.left = right;
       }
@@ -213,7 +229,7 @@ function strokeOpenContoursUncached(path, style) {
         point.values = values[i];
       });
     }
-    const stroked = strokeOffsetContour(contour, style);
+    const stroked = strokeContour(contour, style);
     outlines.push(...stroked.contours);
     twists.push(...stroked.twists.map((twist) => ({ ...twist, contourIndex })));
     if (isClosed) {
@@ -230,10 +246,15 @@ function cacheKey(path, style) {
     .map((contour) => `${contour.endPoint}${contour.isClosed ? "c" : "o"}`)
     .join(",");
   return [
+    style.type,
+    style.shape,
     style.width,
     style.cap,
     style.join,
     style.miterLimit,
+    style.major,
+    style.minor,
+    style.angle,
     style.points ? JSON.stringify(style.points) : "",
     contours,
     Array.from(path.pointTypes ?? []).join(","),

@@ -4,6 +4,10 @@
 // edge, an edge at that distance would run backwards (between two cusps) and
 // form a loop, which cancels the band out and leaves a hole. In these "twist
 // zones" offset.js keeps the edge on the evolute instead.
+//
+// The nib method (nib.js) has the same problem with an elliptical nib, with
+// the curvature of the centerline as seen from the nib (where the nib is a
+// circle): the functions below that take a "bend" work with either.
 
 import { curvatureAt } from "./bezier.js";
 
@@ -24,11 +28,23 @@ export function findTwistZones(segment, half) {
     return [];
   }
   const distanceAt = typeof half === "function" ? half : () => half;
+  // The edge on the left (d = +half) runs backwards where 1 - d·k < 0
+  return findZones((side, t) => {
+    const sign = side === "left" ? 1 : -1;
+    return sign * distanceAt(side, t) * curvatureAt(segment, t);
+  });
+}
+
+/**
+ * The parameter intervals where bend(side, t) > 1, per side, sorted by t0.
+ * @param {(side: "left"|"right", t: number) => number} bend how far the edge
+ *   on a side is from running backwards: 1 or less where it runs forwards
+ * @returns {{side: "left"|"right", t0: number, t1: number}[]}
+ */
+export function findZones(bend) {
   const zones = [];
   for (const side of ["left", "right"]) {
-    // The edge on the left (d = +half) runs backwards where 1 - d·k < 0
-    const sign = side === "left" ? 1 : -1;
-    const twists = (t) => sign * distanceAt(side, t) * curvatureAt(segment, t) > 1;
+    const twists = (t) => bend(side, t) > 1;
     let start = null;
     let previous = twists(0);
     if (previous) {
@@ -55,6 +71,25 @@ export function findTwistZones(segment, half) {
   return zones.sort((a, b) => a.t0 - b.t0);
 }
 
+/**
+ * The parameters in [0, 1] where a function changes sign, sorted.
+ * @param {(t: number) => number} f
+ */
+export function signChanges(f) {
+  const changes = [];
+  const positive = (t) => f(t) > 0;
+  let previous = positive(0);
+  for (let i = 1; i <= SAMPLES; i++) {
+    const t = i / SAMPLES;
+    const current = positive(t);
+    if (current !== previous) {
+      changes.push(bisect(positive, (i - 1) / SAMPLES, t, previous));
+    }
+    previous = current;
+  }
+  return changes;
+}
+
 // The parameter where test() changes from its value at a to the other value
 function bisect(test, a, b, valueAtA) {
   for (let i = 0; i < BISECTION_STEPS; i++) {
@@ -70,17 +105,24 @@ function bisect(test, a, b, valueAtA) {
 
 /**
  * The parameter in [a, b] where the segment bends most towards the given side.
+ * @param {(t: number) => number} [bend] how much it bends there; by default
+ *   its curvature towards the side
  */
-export function sharpestBend(segment, side, a, b) {
+export function sharpestBend(
+  segment,
+  side,
+  a,
+  b,
+  bend = curvatureTowards(segment, side)
+) {
   if (!(b > a)) {
     return a;
   }
-  const sign = side === "left" ? 1 : -1;
   let best = a;
   let bestValue = -Infinity;
   for (let i = 0; i <= SAMPLES; i++) {
     const t = a + ((b - a) * i) / SAMPLES;
-    const value = sign * curvatureAt(segment, t);
+    const value = bend(t);
     if (value > bestValue) {
       best = t;
       bestValue = value;
@@ -93,13 +135,19 @@ export function sharpestBend(segment, side, a, b) {
  * The cusps of the evolute (the curve of the centers of curvature) between a
  * and b: where the curvature stops growing and starts shrinking or the other
  * way round.
+ * @param {(t: number) => number} [bend] the curvature to use; by default the
+ *   segment's, towards the side
  */
-export function evoluteCusps(segment, side, a, b) {
+export function evoluteCusps(
+  segment,
+  side,
+  a,
+  b,
+  bend = curvatureTowards(segment, side)
+) {
   if (!(b > a)) {
     return [];
   }
-  const sign = side === "left" ? 1 : -1;
-  const bend = (t) => sign * curvatureAt(segment, t);
   const step = (b - a) / SAMPLES;
   const cusps = [];
   let previous = bend(a + step) - bend(a);
@@ -112,6 +160,11 @@ export function evoluteCusps(segment, side, a, b) {
     previous = slope;
   }
   return cusps;
+}
+
+function curvatureTowards(segment, side) {
+  const sign = side === "left" ? 1 : -1;
+  return (t) => sign * curvatureAt(segment, t);
 }
 
 // Golden-section search for the maximum (or minimum) of f in [a, b]

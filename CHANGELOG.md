@@ -2,6 +2,12 @@
 
 Each section can be pasted as the notes of the matching GitHub release.
 
+## Unreleased
+
+### Added
+
+- **Pen nibs**: glyphs of the nib method are stroked with an elliptical, rectangular or flat nib, in the preview and by the command-line tool. The size and angle of the nib can be set per source and per point, and follow the centerline between points. Corners and ends take the shape of the nib. The panel and the handles do not change nib values yet
+
 ## 0.2.0
 
 Widths per point: a stroke can now get wider and thinner along its centerline, differently on each side, and its corners can each have their own join. Widths are changed in the sidebar panel or by dragging handles on the canvas. Closed contours can be stroked as loops, for letters such as o, 0, D and Q.

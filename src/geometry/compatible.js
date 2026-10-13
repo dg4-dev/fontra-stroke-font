@@ -11,11 +11,13 @@
 // same normals of the centerline, and the outlines interpolate well. A line
 // whose width changes in some sources gets curved edges in all of them.
 
-import { mergeBreaks, strokeOffsetContour } from "./offset.js";
+import { strokeContour } from "./stroke.js";
+import { mergeBreaks } from "./sweep.js";
 
 /**
  * @param {{contour: object, style: object}[]} inputs the same centerline in
- *   each source, with that source's style
+ *   each source, with that source's style (all of the same method, see
+ *   stroke.js)
  * @param {object} [options] tolerance / maxSubdivisions, see offset.js
  * @returns {{results: {contours: object[], twists: object[]}[],
  *   compatible: boolean, problems: string[]}}
@@ -23,7 +25,7 @@ import { mergeBreaks, strokeOffsetContour } from "./offset.js";
 export function strokeCompatibly(inputs, options = {}) {
   const stroke = (layout) =>
     inputs.map(({ contour, style }) =>
-      strokeOffsetContour(contour, style, { ...options, layout })
+      strokeContour(contour, style, { ...options, layout })
     );
   const problems = [];
 

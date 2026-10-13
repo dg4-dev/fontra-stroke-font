@@ -16,6 +16,7 @@ import {
   SHARED_POINT_KEYS,
   getGlyphStroke,
   isCenterlineContour,
+  nibStyleInGlyph,
   offsetStyleInGlyph,
   resolvePointValues,
 } from "../src/stroke-data.js";
@@ -169,16 +170,11 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
     );
   }
   const method = getGlyphStroke(glyphLib[GLYPH_CUSTOM_DATA_KEY]).type;
-  if (method !== "offset") {
-    report.warnings.push(
-      `${glyphName}: the ${method} method is not supported yet; left as is`
-    );
-    return;
-  }
-
   const sourceData = (member) => member.glif.lib[SOURCE_CUSTOM_DATA_KEY] ?? {};
   const styles = members.map((member) =>
-    offsetStyleInGlyph(sourceData(member), sourceData(defaultMember))
+    method === "nib"
+      ? nibStyleInGlyph(sourceData(member), glyphLib[GLYPH_CUSTOM_DATA_KEY])
+      : offsetStyleInGlyph(sourceData(member), sourceData(defaultMember))
   );
 
   if (!sameShape) {
@@ -221,7 +217,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
         report.warnings.push(
           `${glyphName}, contour ${contourNumber(members[0], index)}: twists in some ` +
             `sources only, so between those and the others the inside of the ` +
-            `bend comes out thinner than a stroke of that width would be`
+            `bend comes out thinner than the stroke would be`
         );
       }
       for (const [i, result] of results.entries()) {
