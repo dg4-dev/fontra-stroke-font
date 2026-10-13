@@ -46,3 +46,44 @@ export function hermitePiece(curve, a, b) {
   }
   return { points, error };
 }
+
+/**
+ * Fit a curve over [a, b] with cubic pieces of equal parameter spans. With
+ * forcedCount, that many pieces; otherwise the smallest number that keeps
+ * within the tolerance, up to maxSubdivisions.
+ * @param {(t: number) => {x: number, y: number}} curve
+ * @returns {{pieces: {type: "cubic", points: object[]}[], count: number}}
+ */
+export function fitCurve(curve, a, b, forcedCount, { tolerance, maxSubdivisions }) {
+  if (forcedCount > 0 || !(b > a)) {
+    const count = forcedCount > 0 ? Math.round(forcedCount) : 1;
+    return { pieces: curvePieces(curve, a, b, count).pieces, count };
+  }
+  let result;
+  for (let count = 1; count <= maxSubdivisions; count++) {
+    const fitted = curvePieces(curve, a, b, count);
+    result = { pieces: fitted.pieces, count };
+    if (fitted.error <= tolerance) {
+      break;
+    }
+  }
+  return result;
+}
+
+function curvePieces(curve, a, b, count) {
+  const pieces = [];
+  let error = 0;
+  for (let i = 0; i < count; i++) {
+    const ta = a + ((b - a) * i) / count;
+    const tb = a + ((b - a) * (i + 1)) / count;
+    if (!(tb > ta)) {
+      const p = curve(ta);
+      pieces.push({ type: "cubic", points: [p, p, p, p] });
+      continue;
+    }
+    const fitted = hermitePiece(curve, ta, tb);
+    pieces.push({ type: "cubic", points: fitted.points });
+    error = Math.max(error, fitted.error);
+  }
+  return { pieces, error };
+}

@@ -11,7 +11,8 @@
 // same normals of the centerline, and the outlines interpolate well. A line
 // whose width changes in some sources gets curved edges in all of them.
 
-import { mergeBreaks, strokeOffsetContour } from "./offset.js";
+import { strokeOffsetContour } from "./offset.js";
+import { mergeBreaks } from "./sweep.js";
 
 /**
  * @param {{contour: object, style: object}[]} inputs the same centerline in
