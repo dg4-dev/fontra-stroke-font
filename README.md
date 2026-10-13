@@ -111,13 +111,14 @@ Choose "Elliptical nib" or "Rectangular nib" under "Stroke with" in the panel. T
 
 The source's values and the values of points work as widths do (see [Widths per point](#widths-per-point)): a point can have its own major axis, minor axis and angle; a point without them has the source's; between two points they change evenly along the centerline. An angle takes the short way round between points, so going from 170° to 10° turns through 180°, not through 90°. Between sources, the angles of all sources are first turned by half turns to within 90° of the default source's (at each point, of its angle there), so that the nib turns the short way from the default source.
 
-**On the canvas**, the stroke width tool draws the nib at each point, with a handle at each end of its axes (a flat nib has none on its minor axis).
+**On the canvas**, the stroke width tool draws the nib at each point, with a handle at each end of its axes (a flat nib has none on its minor axis) and a knob for turning it (a ring a little beyond the end of the major axis).
 
 | Action | Changes |
 | --- | --- |
-| Drag an end of the major axis | Major axis and angle: the end follows the pointer, and the other end moves opposite it |
-| … with Alt (Option) | The major axis only |
+| Drag the knob | The angle only |
 | … with Shift | The angle in steps of 15° |
+| Drag an end of the major axis | The major axis only |
+| … with Alt (Option) | Major axis and angle: the end follows the pointer, and the other end moves opposite it |
 | Drag an end of the minor axis | The minor axis only |
 | Double-click a handle | Removes the point's own values |
 

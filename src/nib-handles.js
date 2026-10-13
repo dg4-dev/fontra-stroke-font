@@ -1,12 +1,14 @@
 // The nib of each point of a glyph of the nib method, and its handles: the
-// two ends of the nib's major axis and the two ends of its minor axis
-// (except for a flat nib). No Fontra or DOM dependencies.
+// two ends of the nib's major axis, the two ends of its minor axis (except
+// for a flat nib), and a knob for turning it, a little beyond the "+" end of
+// the major axis. No Fontra or DOM dependencies.
 //
 // | Drag                       | Changes                                       |
 // | -------------------------- | --------------------------------------------- |
-// | an end of the major axis   | major and angle: the end follows the pointer |
-// |   with Alt (Option)        | major only                                    |
+// | the knob                   | angle only                                    |
 // |   with Shift               | the angle in steps of 15°                     |
+// | an end of the major axis   | major only                                    |
+// |   with Alt (Option)        | major and angle: the end follows the pointer |
 // | an end of the minor axis   | minor only                                    |
 //
 // With several points selected, all of them get the same change: their
@@ -23,18 +25,25 @@ import { measurePoints } from "./point-edit.js";
 import { isCenterlineContour, normalizeNibAngle } from "./stroke-data.js";
 
 export const ANGLE_STEP = 15;
+/** How far the turning knob is beyond the end of the major axis, in pixels. */
+export const KNOB_DISTANCE = 24;
 
 /**
  * The nibs and handles of the centerline points of a glyph of the nib
  * method, in glyph coordinates; null for other glyphs.
  * @returns {null | {shape: string, nibs: {pointIndex: number, anchor: object,
  *   major: number, minor: number, angle: number, contour: object}[],
- *   handles: {pointIndex: number, side: string, axis: "major"|"minor",
- *   anchor: object, handle: object, normal: object, length: number}[]}}
+ *   handles: {pointIndex: number, side: string, axis:
+ *   "major"|"minor"|"rotate", anchor: object, handle: object, normal: object,
+ *   length: number}[]}}
  *   a nib's contour is its outline at the point; a handle's normal is the
  *   unit vector from the point towards it, and length the full axis length
+ *   (the major axis for the knob)
+ * @param {{knobDistance?: number}} [options] the distance of the turning
+ *   knob beyond the end of the major axis, in glyph units
  */
-export function nibHandles(positionedGlyph, location) {
+export function nibHandles(positionedGlyph, location, options = {}) {
+  const knobDistance = options.knobDistance ?? 0;
   const path = positionedGlyph?.glyph?.path;
   if (!path) {
     return null;
@@ -95,6 +104,18 @@ export function nibHandles(positionedGlyph, location) {
         });
       }
     }
+    handles.push({
+      pointIndex: point.pointIndex,
+      side: "rotate",
+      axis: "rotate",
+      anchor,
+      normal: along,
+      length: major,
+      handle: {
+        x: anchor.x + along.x * (major / 2 + knobDistance),
+        y: anchor.y + along.y * (major / 2 + knobDistance),
+      },
+    });
   }
   return { shape, nibs, handles };
 }
@@ -113,19 +134,19 @@ export function nibHandles(positionedGlyph, location) {
  */
 export function nibDrag(handle, start, pointer, keys = {}) {
   const v = { x: pointer.x - handle.anchor.x, y: pointer.y - handle.anchor.y };
-  const old = handle.axis === "major" ? start.major : start.minor;
+  const old = handle.axis === "minor" ? start.minor : start.major;
   let length;
   let angle = start.angle;
-  if (handle.axis === "major" && !keys.altKey) {
-    length = 2 * Math.hypot(v.x, v.y);
+  const turns = handle.axis === "rotate" || (handle.axis === "major" && keys.altKey);
+  if (turns) {
+    length = handle.axis === "rotate" ? old : 2 * Math.hypot(v.x, v.y);
     // The direction of the axis is towards the "+" end
     const towards = handle.side.endsWith("-") ? { x: -v.x, y: -v.y } : v;
-    angle = (Math.atan2(towards.y, towards.x) * 180) / Math.PI;
-    if (keys.shiftKey) {
-      angle = Math.round(angle / ANGLE_STEP) * ANGLE_STEP;
-    }
-    if (!(length > 0)) {
-      angle = start.angle;
+    if (Math.hypot(v.x, v.y) > 0) {
+      angle = (Math.atan2(towards.y, towards.x) * 180) / Math.PI;
+      if (keys.shiftKey) {
+        angle = Math.round(angle / ANGLE_STEP) * ANGLE_STEP;
+      }
     }
   } else {
     // Only the length: the pointer measured along the handle's direction
@@ -148,13 +169,16 @@ export function nibDrag(handle, start, pointer, keys = {}) {
  * unknown), its angle turned by the rotation.
  * @param {{major: number, minor: number, angle: number}} nib the point's nib
  *   when the drag started
- * @param {"major"|"minor"} axis
+ * @param {"major"|"minor"|"rotate"} axis the dragged handle's
  */
 export function draggedNibValues(nib, axis, drag) {
-  const values = {
-    [axis]: round(drag.ratio === undefined ? drag.length : nib[axis] * drag.ratio),
-  };
-  if (axis === "major" && drag.rotation !== 0) {
+  const values = {};
+  if (axis !== "rotate") {
+    values[axis] = round(
+      drag.ratio === undefined ? drag.length : nib[axis] * drag.ratio
+    );
+  }
+  if (axis !== "minor" && drag.rotation !== 0) {
     values.angle = round(normalizeNibAngle(nib.angle + drag.rotation));
   }
   return values;
