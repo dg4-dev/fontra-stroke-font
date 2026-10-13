@@ -1,7 +1,8 @@
 // The stroke width tool: handles on the edges of the points of centerlines,
-// dragged to change the widths of the points. Everything else (clicking and
-// dragging points, keys) goes to Fontra's pointer tool, so points can be
-// moved without switching tools.
+// dragged to change the widths of the points; in a glyph of the nib method,
+// handles on the ends of the nib's axes (see nib-handles.js). Everything else
+// (clicking and dragging points, keys) goes to Fontra's pointer tool, so
+// points can be moved without switching tools.
 //
 // Fontra's edit tools are classes of its own bundle, which plugins cannot
 // import; Fontra only needs an object with the methods below.
@@ -29,7 +30,13 @@ import {
   pointValuesForField,
   selectedPointIndices,
 } from "./point-edit.js";
-import { JOINS, STROKE_KEY, isCenterlineContour } from "./stroke-data.js";
+import { draggedNibValues, nibDrag, nibHandles } from "./nib-handles.js";
+import {
+  JOINS,
+  STROKE_KEY,
+  getGlyphStroke,
+  isCenterlineContour,
+} from "./stroke-data.js";
 import { t } from "./strings.js";
 
 export const TOOL_IDENTIFIER = "fontra-plugin.stroke-font.width-tool";
@@ -58,7 +65,7 @@ export function widthHandles(positionedGlyph, location) {
     }
   }
   const measured = measurePoints(positionedGlyph, location, all);
-  if (!measured) {
+  if (!measured || measured.style.type === "nib") {
     return [];
   }
   // Closed contours that are outlines get no handles
@@ -153,6 +160,20 @@ export function handleAt(handles, point, margin) {
 }
 
 /**
+ * The handles of a glyph: width handles, or for a glyph of the nib method,
+ * the handles and the nibs of its points (see nib-handles.js).
+ * @returns {{handles: object[], nibs?: object[]}}
+ */
+export function glyphHandles(positionedGlyph, location) {
+  const varGlyph = positionedGlyph?.varGlyph ?? positionedGlyph?.glyph?.varGlyph;
+  if (getGlyphStroke(varGlyph?.glyph?.customData).type === "nib") {
+    const nib = nibHandles(positionedGlyph, location);
+    return { handles: nib?.handles ?? [], nibs: nib?.nibs ?? [] };
+  }
+  return { handles: widthHandles(positionedGlyph, location) };
+}
+
+/**
  * The handles at the place of the one nearest to a point (within a
  * distance): more than one where handles lie on top of each other, as the
  * two handles of a point without width do.
@@ -228,7 +249,7 @@ export class StrokeWidthTool {
     // Read by the handles layer
     this.hoveredHandle = undefined;
     this.draggedHandle = undefined;
-    this.dragValue = undefined;
+    this.dragLabel = undefined;
   }
 
   get pointerTool() {
@@ -263,7 +284,7 @@ export class StrokeWidthTool {
     return {
       positionedGlyph,
       location,
-      handles: widthHandles(positionedGlyph, location),
+      ...glyphHandles(positionedGlyph, location),
     };
   }
 
@@ -306,6 +327,10 @@ export class StrokeWidthTool {
     }
     if (initialEvent.detail === 2) {
       await this._clearValues(candidates[0]);
+      return;
+    }
+    if (candidates[0].axis) {
+      await this._dragNibHandle(candidates[0], eventStream, initialEvent);
       return;
     }
     await this._dragHandle(candidates, eventStream, initialEvent);
@@ -408,9 +433,11 @@ export class StrokeWidthTool {
             { defaultIndex }
           );
           const own = starts.get(handle.pointIndex);
-          this.dragValue = own
-            ? Math.max(0, own[handle.side] + delta) +
-              (event.altKey ? 0 : Math.max(0, own[otherSide(handle.side)] + delta))
+          this.dragLabel = own
+            ? formatNumber(
+                Math.max(0, own[handle.side] + delta) +
+                  (event.altKey ? 0 : Math.max(0, own[otherSide(handle.side)] + delta))
+              )
             : undefined;
           await sendIncrementalChange(recorder.change(), true);
         }
@@ -425,7 +452,83 @@ export class StrokeWidthTool {
       });
     } finally {
       this.draggedHandle = undefined;
-      this.dragValue = undefined;
+      this.dragLabel = undefined;
+      this.canvasController.requestUpdate();
+    }
+  }
+
+  async _dragNibHandle(handle, eventStream, initialEvent) {
+    const { positionedGlyph, location, varGlyph, sourceIndex } = this._editTarget();
+    const pointIndices = this._draggedPoints(handle);
+    const measured = measurePoints(positionedGlyph, location, pointIndices);
+    const starts = new Map(
+      measured?.points.map((point) => [point.pointIndex, point]) ?? []
+    );
+    const own = starts.get(handle.pointIndex);
+    if (!own || measured.style.type !== "nib") {
+      return;
+    }
+    const sourceIndices = editingSourceIndices(
+      varGlyph,
+      sourceIndex,
+      this.sceneController.editingLayerNames ?? []
+    );
+    const defaultIndex = defaultSourceIndex(varGlyph);
+
+    this.draggedHandle = handle;
+    try {
+      await this.sceneController.editGlyph(async (sendIncrementalChange, glyph) => {
+        const recorder = new StrokeDataRecorder(glyph, sourceIndices, defaultIndex);
+        let moved = false;
+        for await (const event of eventStream) {
+          if (event.x === undefined) {
+            continue;
+          }
+          if (
+            !moved &&
+            Math.hypot(
+              event.pageX - initialEvent.pageX,
+              event.pageY - initialEvent.pageY
+            ) <= MINIMUM_DRAG_DISTANCE
+          ) {
+            continue;
+          }
+          moved = true;
+          const drag = nibDrag(
+            handle,
+            own,
+            this.sceneController.selectedGlyphPoint(event),
+            {
+              altKey: event.altKey,
+              shiftKey: event.shiftKey,
+            }
+          );
+          recorder.restore();
+          editPointValues(
+            glyph,
+            sourceIndices,
+            pointIndices,
+            (stored, pointIndex) => {
+              const start = starts.get(pointIndex);
+              return start ? draggedNibValues(start, handle.axis, drag) : {};
+            },
+            { defaultIndex }
+          );
+          this.dragLabel =
+            handle.axis === "major"
+              ? `${formatNumber(drag.length)} · ${formatNumber(drag.angle)}°`
+              : formatNumber(drag.length);
+          await sendIncrementalChange(recorder.change(), true);
+        }
+        if (!moved) {
+          return {};
+        }
+        await sendIncrementalChange(recorder.change());
+        return { changes: recorder.changes(), undoLabel: t("undo.pointNib") };
+      });
+    } finally {
+      this.draggedHandle = undefined;
+      this.dragLabel = undefined;
       this.canvasController.requestUpdate();
     }
   }
@@ -491,6 +594,9 @@ export class StrokeWidthTool {
           }),
       });
     }
+    if (getGlyphStroke(varGlyph?.glyph?.customData).type === "nib") {
+      return items;
+    }
     return [
       ...items,
       {
@@ -510,6 +616,10 @@ export class StrokeWidthTool {
       },
     ];
   }
+}
+
+function formatNumber(value) {
+  return String(Math.round(value * 10) / 10);
 }
 
 function otherSide(side) {
