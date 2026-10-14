@@ -4,10 +4,20 @@
 // Each side (left and right of the direction of the centerline) has its own
 // half width. Every on-curve point has one on each side: its own when it sets
 // it (see pointHalfWidths() in stroke-data.js), otherwise the source's (half
-// the source's width). Between two points, the half width changes evenly
-// along the length of the centerline, so the edges of a straight segment stay
-// straight. Without any point widths, it is the source's width all along. A
-// closed centerline goes round the loop.
+// the source's width). Without any point widths, it is the source's width all
+// along. A closed centerline goes round the loop.
+//
+// Between two points, the half width changes along the length of the
+// centerline:
+// - along a segment without handles (a line), evenly, so that its edges stay
+//   straight;
+// - along a segment with handles (even one that runs straight), smoothly: at a
+//   point where it meets another segment with handles, both change at the
+//   same rate (the rates of the two sides, combined so that a point where the
+//   width is largest or smallest stays so: see knotSlope()); where it meets a
+//   line, at the line's rate; at an end of the centerline, at its own average
+//   rate. The width never goes beyond the widths of the points at its ends
+//   (Fritsch and Carlson's condition for monotone cubic interpolation).
 
 import { derivativeAt, distance } from "./bezier.js";
 
@@ -79,8 +89,10 @@ export function valueProfile(contour, segments, options) {
     starts.push(total);
     total += measure.length;
   }
-  // Where each on-curve point is along the centerline
+  // Where each on-curve point is along the centerline, and whether the
+  // segment that starts there has handles
   const positions = new Map();
+  const curvedFrom = new Set();
   for (const [index, segment] of segments.entries()) {
     if (segment.startIndex !== undefined && !positions.has(segment.startIndex)) {
       positions.set(segment.startIndex, starts[index]);
@@ -88,13 +100,21 @@ export function valueProfile(contour, segments, options) {
     if (segment.endIndex !== undefined) {
       positions.set(segment.endIndex, starts[index] + lengths[index].length);
     }
+    if (segment.type !== "line" && lengths[index].length > 0) {
+      curvedFrom.add(starts[index]);
+    }
   }
   const curves = {};
   for (const key of keys) {
     const knots = [];
     for (const [pointIndex, position] of positions) {
       const value = valueAt(contour.points[pointIndex]?.values, key);
-      knots.push({ x: position, y: value ?? defaults[key], pointIndex });
+      knots.push({
+        x: position,
+        y: value ?? defaults[key],
+        pointIndex,
+        curved: curvedFrom.has(position),
+      });
     }
     knots.sort((a, b) => a.x - b.x);
     const period = periods[key];
@@ -113,11 +133,11 @@ export function valueProfile(contour, segments, options) {
     if (contour.isClosed && knots.length) {
       // Round the loop: the knots repeated a loop's length before and after
       knots.push(
-        ...knots.map(({ x, y }) => ({ x: x - total, y: y - drift })),
-        ...knots.map(({ x, y }) => ({ x: x + total, y: y + drift }))
+        ...knots.map(({ x, y, curved }) => ({ x: x - total, y: y - drift, curved })),
+        ...knots.map(({ x, y, curved }) => ({ x: x + total, y: y + drift, curved }))
       );
     }
-    curves[key] = piecewiseLinear(knots, defaults[key]);
+    curves[key] = piecewiseCurve(knots, defaults[key]);
   }
 
   const profileSegments = segments.map((segment, index) => {
@@ -202,23 +222,29 @@ export function segmentLength(segment) {
 }
 
 /**
- * The numbers along straight lines between the knots, constant before the
- * first and after the last one; the fallback when there are no knots.
- * @param {{x: number, y: number}[]} knots
+ * The numbers between the knots: along straight lines, or along a smooth
+ * curve from a knot with curved (see the top of this file); constant before
+ * the first knot and after the last one; the fallback when there are no
+ * knots.
+ * @param {{x: number, y: number, curved?: boolean}[]} knots
  * @returns {((x: number) => number) & {max: number,
  *   isConstantBetween: (a: number, b: number) => boolean}}
  */
-export function piecewiseLinear(knots, fallback = 0) {
+export function piecewiseCurve(knots, fallback = 0) {
   const sorted = [...knots].sort((a, b) => a.x - b.x);
-  // Knots at the same place (zero-length segments): the first one counts
+  // Knots at the same place (zero-length segments): the first one's number
+  // counts, and the last one's segment
   const xs = [];
   const ys = [];
-  for (const { x, y } of sorted) {
-    if (xs.length && x - xs.at(-1) <= SAME_WIDTH) {
+  const curved = [];
+  for (const knot of sorted) {
+    if (xs.length && knot.x - xs.at(-1) <= SAME_WIDTH) {
+      curved[curved.length - 1] = !!knot.curved;
       continue;
     }
-    xs.push(x);
-    ys.push(y);
+    xs.push(knot.x);
+    ys.push(knot.y);
+    curved.push(!!knot.curved);
   }
   const n = xs.length;
   if (n < 2) {
@@ -228,6 +254,33 @@ export function piecewiseLinear(knots, fallback = 0) {
     constant.isConstantBetween = () => true;
     return constant;
   }
+  // The average rate of each interval, and the rates at the ends of the
+  // curved ones
+  const rates = [];
+  for (let k = 0; k < n - 1; k++) {
+    rates.push((ys[k + 1] - ys[k]) / (xs[k + 1] - xs[k]));
+  }
+  const ends = rates.map((rate, k) => {
+    if (!curved[k]) {
+      return null;
+    }
+    const length = xs[k + 1] - xs[k];
+    // Next to another curved interval, a rate shared with it; next to a
+    // line, the line's; at an end, its own
+    let start = rate;
+    let end = rate;
+    if (k > 0) {
+      start = curved[k - 1]
+        ? knotSlope(rates[k - 1], rate, xs[k] - xs[k - 1], length)
+        : rates[k - 1];
+    }
+    if (k < n - 2) {
+      end = curved[k + 1]
+        ? knotSlope(rate, rates[k + 1], length, xs[k + 2] - xs[k + 1])
+        : rates[k + 1];
+    }
+    return monotone(rate, start, end);
+  });
   const interval = (x) => {
     let low = 0;
     let high = n - 2;
@@ -241,7 +294,7 @@ export function piecewiseLinear(knots, fallback = 0) {
     }
     return low;
   };
-  const line = (x) => {
+  const curve = (x) => {
     if (x <= xs[0]) {
       return ys[0];
     }
@@ -249,11 +302,23 @@ export function piecewiseLinear(knots, fallback = 0) {
       return ys[n - 1];
     }
     const k = interval(x);
-    const u = (x - xs[k]) / (xs[k + 1] - xs[k]);
-    return ys[k] + (ys[k + 1] - ys[k]) * u;
+    const h = xs[k + 1] - xs[k];
+    const u = (x - xs[k]) / h;
+    if (!ends[k]) {
+      return ys[k] + (ys[k + 1] - ys[k]) * u;
+    }
+    // Cubic Hermite
+    const u2 = u * u;
+    const u3 = u2 * u;
+    return (
+      ys[k] * (2 * u3 - 3 * u2 + 1) +
+      h * ends[k].start * (u3 - 2 * u2 + u) +
+      ys[k + 1] * (-2 * u3 + 3 * u2) +
+      h * ends[k].end * (u3 - u2)
+    );
   };
-  line.max = Math.max(...ys);
-  line.isConstantBetween = (a, b) => {
+  curve.max = Math.max(...ys);
+  curve.isConstantBetween = (a, b) => {
     if (b <= xs[0] || a >= xs[n - 1]) {
       return true;
     }
@@ -264,11 +329,54 @@ export function piecewiseLinear(knots, fallback = 0) {
       if (Math.min(b, xs[k + 1]) - Math.max(a, xs[k]) <= SAME_WIDTH) {
         continue;
       }
+      // (Monotone: an interval with equal ends is constant)
       if (Math.abs(ys[k + 1] - ys[k]) > SAME_WIDTH) {
         return false;
       }
     }
     return true;
   };
-  return line;
+  return curve;
+}
+
+/**
+ * The rate at a knot between two curved intervals with the given average
+ * rates and lengths: 0 where the numbers turn back (the knot is a largest or
+ * smallest number), otherwise the weighted harmonic mean of the two rates
+ * (Fritsch and Butland), which lies between them.
+ */
+function knotSlope(before, after, lengthBefore, lengthAfter) {
+  if (before * after <= 0) {
+    return 0;
+  }
+  const sum = lengthBefore + lengthAfter;
+  return (
+    (3 * sum) /
+    ((2 * lengthAfter + lengthBefore) / before +
+      (lengthAfter + 2 * lengthBefore) / after)
+  );
+}
+
+// The rates at the ends of a curved interval, limited so that the numbers in
+// between stay between those at its ends
+function monotone(rate, start, end) {
+  if (Math.abs(rate) <= SAME_WIDTH) {
+    return { start: 0, end: 0 };
+  }
+  let alpha = Math.max(0, start / rate);
+  let beta = Math.max(0, end / rate);
+  const size = Math.hypot(alpha, beta);
+  if (size > 3) {
+    alpha *= 3 / size;
+    beta *= 3 / size;
+  }
+  return { start: alpha * rate, end: beta * rate };
+}
+
+/** The numbers along straight lines between the knots (see piecewiseCurve()). */
+export function piecewiseLinear(knots, fallback = 0) {
+  return piecewiseCurve(
+    knots.map(({ x, y }) => ({ x, y })),
+    fallback
+  );
 }

@@ -98,6 +98,48 @@ test("a line's width changes evenly between two end widths", () => {
   }
 });
 
+test("along segments with handles, even straight ones, the width changes smoothly", () => {
+  const contour = openContour(
+    valued(on(0, 0), { width: 20 }),
+    off(100, 0),
+    off(200, 0),
+    valued(on(300, 0, true), { width: 100 }),
+    off(400, 0),
+    off(500, 0),
+    valued(on(600, 0), { width: 20 })
+  );
+  const { segments } = widthProfile(contour, centerlineSegments(contour), style());
+  const at = (x) =>
+    x <= 300 ? segments[0].left(x / 300) : segments[1].left((x - 300) / 300);
+  // No peak at the middle point: the width stops growing there
+  const step = 0.5;
+  assertClose(at(300) - at(300 - step), 0, 0.01, "before the middle");
+  assertClose(at(300 + step) - at(300), 0, 0.01, "after the middle");
+  // Not evenly (that would be 30 halfway), and never beyond the points' widths
+  assert.ok(at(150) > 30 + 1, `${at(150)}`);
+  for (let x = 0; x <= 600; x += 5) {
+    assert.ok(at(x) >= 10 - 1e-9 && at(x) <= 50 + 1e-9, `${x}: ${at(x)}`);
+  }
+});
+
+test("where a segment with handles meets a line, the width goes on at the line's rate", () => {
+  const contour = openContour(
+    valued(on(0, 0), { width: 20 }),
+    valued(on(300, 0, true), { width: 60 }),
+    off(400, 0),
+    off(500, 0),
+    valued(on(600, 0), { width: 140 })
+  );
+  const { segments } = widthProfile(contour, centerlineSegments(contour), style());
+  // The line: evenly, 10 to 30 over 300
+  assert.equal(segments[0].left(0.5), 20);
+  // The curve starts at the line's rate (20 / 300 per unit), not its own
+  const t = 1e-4;
+  const rate = (segments[1].left(t) - segments[1].left(0)) / (300 * t);
+  assertClose(rate, 20 / 300, 1e-3, "rate after the point");
+  assert.equal(segments[1].left(1), 70);
+});
+
 test("a straight segment keeps straight edges when its width changes", () => {
   const contour = openContour(
     valued(on(0, 0), { width: 40 }),
