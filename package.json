@@ -1,6 +1,6 @@
 {
   "name": "fontra-stroke-font",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Fontra plugin for designing stroke fonts: open contours are stroked live as centerlines",
   "private": true,
   "license": "GPL-3.0-only",
