@@ -7,7 +7,7 @@ Each section can be pasted as the notes of the matching GitHub release.
 ### Added
 
 - **Pen nibs**: a glyph can be stroked with an elliptical, rectangular or flat nib instead of a width ("Stroke with" in the panel), in the preview and by the command-line tool. Corners and ends take the shape of the nib
-- The major axis, minor axis and angle of the nib are set per source and per point in the panel, and follow the centerline between points; between sources they are interpolated, with angles turning the short way (170° and 10° meet at 180°)
+- The major axis, minor axis and angle of the nib are set per source and per point in the panel, and follow the centerline between points; between sources they are interpolated, with angles turning the short way (170° and 10° meet at 180°). Along the centerline, the nib turns the same way round in every source as in the default source, so that the outlines of the sources interpolate
 - **Nib handles**: the stroke width tool draws the nib of each point with handles at the ends of its axes and a knob for turning it. Dragging the knob turns the nib (Shift: steps of 15°), an end of an axis sizes that axis (the major axis with Alt: sizes and turns it, following the pointer). A setting draws the nibs with the other tools too
 - **Angle from the centerline**: a point's nib angle can be measured from the direction of the centerline instead of horizontal ("Angle from" in the panel and in the context menu of the stroke width tool), so that the nib turns with the centerline; at a corner, from halfway between the directions in and out. 0° from the centerline lies across it, where the nib draws its widest. Changing it rewrites the point's angle in every source so that the nib does not turn
 

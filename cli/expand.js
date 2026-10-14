@@ -205,7 +205,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
           contour: withValues(member, i, index),
           style: styles[i],
         })),
-        options
+        { ...options, referenceIndex: members.indexOf(defaultMember) }
       );
       if (!compatible) {
         report.warnings.push(

@@ -11,6 +11,7 @@
 // in the flattened path of a component.
 
 import { centerlineSegments } from "./geometry/centerline.js";
+import { nibAngleReference } from "./geometry/nib.js";
 import { valueProfile, widthProfile } from "./geometry/widths.js";
 import { pathPoints, startsWithPointStructure } from "./path-points.js";
 import {
@@ -94,6 +95,13 @@ export function strokeStyleForGlyph(positionedGlyph, location) {
       varGlyph?.glyph?.customData
     );
     const path = positionedGlyph?.glyph?.path;
+    if (!(atSource && sourceIndex === defaultIndex)) {
+      // The nib turns the same way round as in the default source
+      const references = nibAngleReferences(varGlyph, defaultIndex, path);
+      if (references) {
+        style.angleReferences = references;
+      }
+    }
     const interpolated = atSource
       ? null
       : interpolateNib(varGlyph, location, path, defaultIndex);
@@ -141,6 +149,51 @@ export function strokeStyleForGlyph(positionedGlyph, location) {
  * The numeric offset values at a location between sources, interpolated with
  * the glyph's own variation model, or null when that fails.
  */
+/**
+ * The angles of the default source's points as its nib takes them along each
+ * contour (see nibAngleReference() in geometry/nib.js), for a path with the
+ * same contours and points; undefined where the default source's contours
+ * differ.
+ * @returns {((number|undefined)[]|undefined)[]|undefined} by contour index
+ */
+export function nibAngleReferences(varGlyph, defaultIndex, path) {
+  const source = varGlyph?.sources?.[defaultIndex];
+  const defaultPath = layerPath(varGlyph, source);
+  if (!path || !defaultPath) {
+    return undefined;
+  }
+  const style = nibStyleInGlyph(source.customData, varGlyph?.glyph?.customData);
+  const values = resolvePointValues(pathPoints(defaultPath), source.customData);
+  const references = [];
+  for (let index = 0; index < path.numContours; index++) {
+    const info = path.contourInfo[index];
+    const defaultInfo = defaultPath.contourInfo?.[index];
+    const length = info.endPoint - (path.contourInfo[index - 1]?.endPoint ?? -1);
+    const defaultLength =
+      defaultInfo &&
+      defaultInfo.endPoint - (defaultPath.contourInfo[index - 1]?.endPoint ?? -1);
+    if (
+      !defaultInfo ||
+      defaultInfo.isClosed !== info.isClosed ||
+      length !== defaultLength
+    ) {
+      references.push(undefined);
+      continue;
+    }
+    try {
+      const contour = defaultPath.getUnpackedContour(index);
+      contour.points.forEach((point, i) => {
+        point.values = values[index]?.[i];
+      });
+      references.push(nibAngleReference(contour, style));
+    } catch (e) {
+      // A contour being drawn can be malformed for a moment
+      references.push(undefined);
+    }
+  }
+  return references.some(Boolean) ? references : undefined;
+}
+
 export function interpolateOffsetNumbers(varGlyph, location) {
   return interpolateStroke(varGlyph, location)?.numbers ?? null;
 }

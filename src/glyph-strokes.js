@@ -112,6 +112,11 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
         if (style.points) {
           style.points = mirrorPointValues(style.points);
         }
+        if (style.angleReferences) {
+          style.angleReferences = style.angleReferences.map((angles) =>
+            angles?.map((angle) => (angle === undefined ? undefined : -angle))
+          );
+        }
       }
       const stroked = strokeOpenContours(path, style);
       outlines.push(...stroked.outlines);
@@ -235,7 +240,9 @@ function strokeOpenContoursUncached(path, style) {
         point.values = values[i];
       });
     }
-    const stroked = strokeContour(contour, style);
+    const stroked = strokeContour(contour, style, {
+      angleReference: style.angleReferences?.[contourIndex],
+    });
     outlines.push(...stroked.contours);
     twists.push(...stroked.twists.map((twist) => ({ ...twist, contourIndex })));
     if (isClosed) {
@@ -262,6 +269,7 @@ function cacheKey(path, style) {
     style.minor,
     style.angle,
     style.points ? JSON.stringify(style.points) : "",
+    style.angleReferences ? JSON.stringify(style.angleReferences) : "",
     contours,
     Array.from(path.pointTypes ?? []).join(","),
     Array.from(path.coordinates ?? []).join(","),
