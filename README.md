@@ -250,6 +250,7 @@ The exception is a twist that only some sources have. In a source that twists, t
 - The preview does not appear in Fontra's "View → Glyph editor appearance" menu. Items in that menu need an internal Fontra action registration that plugins cannot make. Use the sidebar panel to toggle it instead
 - The handles can only be dragged with the stroke width tool, not with Fontra's pointer tool
 - Per-point values are interpolated only between sources whose glyphs have the same points; otherwise the preview between such sources uses the sources' values only
+- Copied points take their values (widths, nibs, joins) with them when pasted in the glyph editor: the plugin wraps Fontra's internal copy and paste (`_prepareCopyOrCutLayers()`, `_pasteLayerGlyphs()`) to carry them as a point attribute, and gives pasted points whose identifiers the glyph already has new ones. Pasting a whole glyph onto the layers of another ("add to the existing layers") does not take the values along
 - A component that is rotated, scaled or skewed keeps its nib as it is in the preview (a flipped one has its nib angle mirrored); in the font, the component's stroked outline is transformed
 - The plugin relies on internal APIs of Fontra's editor (`editor.visualizationLayers`, `editor.addSidebarPanel()`, `editor.addEditTool()`, `sceneController.editGlyph()`, `sceneController.editNamedGlyphAndRecordChanges()` and others). Changes in Fontra may break it
 

@@ -1,6 +1,7 @@
 // Fontra plugin entry point. Fontra imports this module and calls
 // start(editor, pluginPath) once the glyph editor has been set up.
 
+import { wrapCopyPaste } from "./clipboard.js";
 import { ComponentGlyphs, strokeGlyph } from "./glyph-strokes.js";
 import {
   HANDLES_LAYER_IDENTIFIER,
@@ -84,6 +85,9 @@ export function start(editor, pluginPath) {
     editor.canvasController.requestUpdate();
   });
   editor.canvasController.requestUpdate();
+
+  // Copied points take their widths and nibs with them
+  wrapCopyPaste(editor);
 
   addPanel(editor, settings, pluginPath);
   addTool(editor, tool);

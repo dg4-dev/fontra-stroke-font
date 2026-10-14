@@ -23,6 +23,7 @@ Pen nibs: a glyph can now be stroked with an elliptical, rectangular or flat nib
 
 - In the glyph being edited, Fontra filled a closed contour stroked as a centerline (the loop of an o) as if it were an outline: the inside of the loop and the inner half of its stroke were shaded. Now only the closed contours that are outlines are filled
 - In the glyph being edited, a component whose glyph has centerlines could only be clicked on the area Fontra makes by closing its centerlines (nothing at all for a straight one), not on its strokes. Now it can be clicked anywhere on its strokes, and its hover and selection outlines follow them
+- Copied points lost their widths and nibs when pasted in the glyph editor, and points with widths or nibs could not be pasted into the glyph they were copied from (they kept their identifiers, which a UFO glyph cannot have twice). Now pasted points take their values with them, and get new identifiers where theirs are taken
 
 ### Install or update
 
