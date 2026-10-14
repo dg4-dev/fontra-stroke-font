@@ -234,7 +234,12 @@ export function nibAngleReference(
   style,
   segments = centerlineSegments(contour)
 ) {
-  const { profile } = nibAlong(contour, style, segments);
+  const profile = valueProfile(contour, segments, {
+    pointsOnly: true,
+    keys: ["angle"],
+    defaults: { angle: style.angle },
+    periods: { angle: 180 },
+  });
   return contour.points.map((point, index) =>
     point.type ? undefined : profile.atPoint(index)?.angle
   );

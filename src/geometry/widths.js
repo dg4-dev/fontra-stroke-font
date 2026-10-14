@@ -30,7 +30,7 @@
 // - next to a line, the line's; that can take the width a little beyond the
 //   point's, but never below 0.
 
-import { curvatureAt, derivativeAt, distance } from "./bezier.js";
+import { curvatureAt, derivativeAt, distance, isDegenerateSegment } from "./bezier.js";
 
 // Samples per curve for measuring its length
 const LENGTH_SAMPLES = 32;
@@ -53,9 +53,10 @@ const EDGE_SPEED = 1e-3;
  * }} half widths along each segment (by its parameter t) and at each
  *   on-curve point at the end of a segment; max is the largest half width
  */
-export function widthProfile(contour, segments, style) {
+export function widthProfile(contour, segments, style, { pointsOnly = false } = {}) {
   const defaultHalf = Math.max(0, style.width) / 2;
   const profile = valueProfile(contour, segments, {
+    pointsOnly,
     keys: ["left", "right"],
     valueAt: pointHalfWidth,
     defaults: { left: defaultHalf, right: defaultHalf },
@@ -85,6 +86,9 @@ export function widthProfile(contour, segments, style) {
  *   (such as an angle of 180°): each value is moved by whole periods to be
  *   within half a period of the one before it, so that the number takes the
  *   short way round
+ * @param {boolean} [options.pointsOnly] only the numbers at the points are
+ *   wanted (atPoint() and max): the segments are left out, and nothing is
+ *   measured
  * @param {object} [options.references] per key with a period, a function
  *   giving for a point index the number to move that point's value closest
  *   to instead (for example the same point's number in another source, so
@@ -108,7 +112,14 @@ export function valueProfile(contour, segments, options) {
   const { keys, defaults } = options;
   const valueAt = options.valueAt ?? ((values, key) => values?.[key]);
   const periods = options.periods ?? {};
-  const lengths = segments.map(segmentLength);
+  // Only the numbers at the points: their order along the centerline is all
+  // that counts, so the lengths are not measured
+  const lengths = options.pointsOnly
+    ? segments.map((segment) => {
+        const length = isDegenerateSegment(segment) ? 0 : 1;
+        return { length, at: (t) => length * t };
+      })
+    : segments.map(segmentLength);
   const starts = [];
   let total = 0;
   for (const measure of lengths) {
@@ -154,6 +165,19 @@ export function valueProfile(contour, segments, options) {
       );
     }
     curves[key] = piecewiseLinear(knots, defaults[key]);
+  }
+
+  if (options.pointsOnly) {
+    return {
+      segments: [],
+      atPoint: (pointIndex) => {
+        const position = positions.get(pointIndex);
+        return position === undefined
+          ? undefined
+          : Object.fromEntries(keys.map((key) => [key, curves[key](position)]));
+      },
+      max: Object.fromEntries(keys.map((key) => [key, curves[key].max])),
+    };
   }
 
   // Each segment: whether it has handles, its length and how fast the curve

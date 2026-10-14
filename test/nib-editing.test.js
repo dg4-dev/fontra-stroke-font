@@ -153,6 +153,8 @@ function fakeEditor(positionedGlyph, { selection = new Set() } = {}) {
     selectedGlyphPoint: (event) => event.glyphPoint,
     async editGlyph(editFunc) {
       results.push(await editFunc(async () => {}, positionedGlyph.varGlyph.glyph));
+      // Like Fontra, an edit gives the positioned glyph a new instance
+      positionedGlyph.glyph = { ...positionedGlyph.glyph };
     },
   };
   const pointer = {

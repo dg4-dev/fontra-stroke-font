@@ -83,6 +83,32 @@ export function defaultSourceIndex(varGlyph) {
  * undefined for points without values), when any point has values.
  */
 export function strokeStyleForGlyph(positionedGlyph, location) {
+  // The style depends on the glyph's data and the location only; Fontra makes
+  // a new glyph instance (positionedGlyph.glyph) whenever the glyph's data
+  // changes, so the style is kept with the instance. A copy is returned, so
+  // that a caller changing it does not change the one kept.
+  const instance = positionedGlyph?.glyph;
+  const key = JSON.stringify(location ?? null);
+  const kept =
+    instance && typeof instance === "object" ? styleCache.get(instance) : null;
+  if (kept?.has(key)) {
+    const style = kept.get(key);
+    return style ? { ...style } : style;
+  }
+  const style = computeStrokeStyle(positionedGlyph, location);
+  if (instance && typeof instance === "object") {
+    if (!kept) {
+      styleCache.set(instance, new Map([[key, style]]));
+    } else {
+      kept.set(key, style);
+    }
+  }
+  return style ? { ...style } : style;
+}
+
+const styleCache = new WeakMap();
+
+function computeStrokeStyle(positionedGlyph, location) {
   const { varGlyph, sourceIndex, atSource } = findStrokeSource(
     positionedGlyph,
     location
@@ -373,7 +399,12 @@ function pointVectors(varGlyph, sources, styles, path) {
         contour.points.forEach((point, i) => {
           point.values = values[c][i];
         });
-        profiles.set(c, widthProfile(contour, centerlineSegments(contour), style));
+        profiles.set(
+          c,
+          widthProfile(contour, centerlineSegments(contour), style, {
+            pointsOnly: true,
+          })
+        );
       }
       return profiles.get(c);
     };
@@ -536,13 +567,16 @@ function nibPointVectors(varGlyph, sources, styles, path, defaultPosition) {
 }
 
 /**
- * The nib numbers along a centerline (see valueProfile() in widths.js).
+ * The nib numbers at the points of a centerline (see valueProfile() in
+ * widths.js; atPoint() only).
  * @param {{points: object[], isClosed: boolean}} contour unpacked, with the
  *   points' values
  * @param {{major: number, minor: number, angle: number}} style
  */
 export function nibProfile(contour, style) {
-  return valueProfile(contour, centerlineSegments(contour), {
+  const segments = centerlineSegments(contour);
+  return valueProfile(contour, segments, {
+    pointsOnly: true,
     keys: NIB_KEYS,
     defaults: { major: style.major, minor: style.minor, angle: style.angle },
     periods: { angle: 180 },
