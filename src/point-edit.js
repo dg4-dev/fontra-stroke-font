@@ -11,14 +11,16 @@ import {
   defaultSourceIndex,
   findStrokeSource,
   layerPath,
+  nibProfile,
 } from "./current-source.js";
 import { centerlineSegments } from "./geometry/centerline.js";
 import { widthProfile } from "./geometry/widths.js";
 import { pathPoints, samePointStructure } from "./path-points.js";
 import {
+  NIB_KEYS,
   SHARED_POINT_KEYS,
-  getGlyphStroke,
   makePointIdentifier,
+  normalizeNibAngle,
   pointHalfWidths,
   resolvePointValues,
   setPointValues,
@@ -79,14 +81,15 @@ export function closedContourPoints(path, pointIndices) {
 }
 
 /**
- * The half widths the stroke has at points of the glyph's path, and the
- * values those points have, as the preview uses them.
+ * The half widths (or the nib) the stroke has at points of the glyph's path,
+ * and the values those points have, as the preview uses them.
  * @param {object} positionedGlyph an entry of Fontra's positioned lines
  * @param {object} location the glyph's location
  * @param {number[]} pointIndices points of the glyph's path
  * @returns {null | {style: object, points: {pointIndex: number,
  *   contourIndex: number, contourPointIndex: number, values: object|undefined,
- *   left: number, right: number}[]}} null for glyphs not stroked by width
+ *   left: number, right: number}[]}} with a nib style (style.type "nib"),
+ *   points have major, minor and angle instead of left and right
  */
 export function measurePoints(positionedGlyph, location, pointIndices) {
   const path = positionedGlyph?.glyph?.path;
@@ -94,6 +97,7 @@ export function measurePoints(positionedGlyph, location, pointIndices) {
   if (!path || !style) {
     return null;
   }
+  const isNib = style.type === "nib";
   const profiles = new Map();
   const profile = (contourIndex) => {
     if (!profiles.has(contourIndex)) {
@@ -102,25 +106,37 @@ export function measurePoints(positionedGlyph, location, pointIndices) {
       contour.points.forEach((point, i) => {
         point.values = values?.[i];
       });
-      const segments = centerlineSegments(contour);
       profiles.set(contourIndex, {
         contour,
-        segments,
-        widths: widthProfile(contour, segments, style),
+        numbers: isNib
+          ? nibProfile(contour, style)
+          : widthProfile(contour, centerlineSegments(contour), style, {
+              pointsOnly: true,
+            }),
       });
     }
     return profiles.get(contourIndex);
   };
   const points = centerlinePoints(path, pointIndices).map((point) => {
-    const { contour, widths } = profile(point.contourIndex);
+    const { contour, numbers } = profile(point.contourIndex);
     const values = contour.points[point.contourPointIndex].values;
+    const at = numbers.atPoint(point.contourPointIndex);
+    if (isNib) {
+      // A lone point has no segments: its own nib, or the source's
+      const nib = {};
+      for (const key of NIB_KEYS) {
+        nib[key] = at?.[key] ?? values?.[key] ?? style[key];
+      }
+      nib.angle = normalizeNibAngle(nib.angle);
+      return { ...point, values, ...nib };
+    }
     // A lone point has no segments: its own widths, or the source's
     const own = pointHalfWidths(values);
-    const at = widths.atPoint(point.contourPointIndex) ?? {
+    const widths = at ?? {
       left: own.left ?? style.width / 2,
       right: own.right ?? style.width / 2,
     };
-    return { ...point, values, left: at.left, right: at.right };
+    return { ...point, values, left: widths.left, right: widths.right };
   });
   return { style, points };
 }
@@ -142,7 +158,7 @@ export function describeSelectedPoints(positionedGlyph, location, selection) {
     return null;
   }
   const { style, points } = measured;
-  const { atSource, varGlyph } = findStrokeSource(positionedGlyph, location);
+  const { atSource } = findStrokeSource(positionedGlyph, location);
   // Whether the closed contours of the selected points are centerlines:
   // undefined without closed contours, null when some are and some are not
   const closed = new Map();
@@ -161,18 +177,30 @@ export function describeSelectedPoints(positionedGlyph, location, selection) {
     return values.every((value) => value === values[0]) ? values[0] : undefined;
   };
   const round = (value) => Math.round(value * 100) / 100;
+  const isNib = style.type === "nib";
   return {
     count: points.length,
     atSource,
-    editable: atSource && getGlyphStroke(varGlyph?.glyph?.customData).type === "offset",
-    stored: points.some((point) => point.values && Object.keys(point.values).length),
-    fields: {
-      width: common((point) => round(point.left + point.right)),
-      left: common((point) => round(point.left)),
-      right: common((point) => round(point.right)),
-      join: common((point) => point.values?.join ?? ""),
-      miterLimit: common((point) => point.values?.miterLimit ?? ""),
-    },
+    editable: atSource,
+    method: isNib ? "nib" : "offset",
+    // Values of the glyph's method only: those of the other one do nothing
+    stored: points.some((point) =>
+      Object.keys(point.values ?? {}).some((key) => NIB_KEYS.includes(key) === isNib)
+    ),
+    fields: isNib
+      ? {
+          major: common((point) => round(point.major)),
+          minor: common((point) => round(point.minor)),
+          angle: common((point) => round(point.angle)),
+          angleBase: common((point) => point.values?.angleBase ?? ""),
+        }
+      : {
+          width: common((point) => round(point.left + point.right)),
+          left: common((point) => round(point.left)),
+          right: common((point) => round(point.right)),
+          join: common((point) => point.values?.join ?? ""),
+          miterLimit: common((point) => point.values?.miterLimit ?? ""),
+        },
     closedCenterline,
     sourceStyle: style,
   };
@@ -207,13 +235,17 @@ export function pointValuesForField(stored, key, value) {
   }
 }
 
-/** All the keys of a point, removed. */
+/** All the keys of a point (but its closed contour mark), removed. */
 export const CLEARED_POINT_VALUES = Object.freeze({
   width: undefined,
   left: undefined,
   right: undefined,
   join: undefined,
   miterLimit: undefined,
+  major: undefined,
+  minor: undefined,
+  angle: undefined,
+  angleBase: undefined,
 });
 
 /**
@@ -246,13 +278,37 @@ export function editingSourceIndices(varGlyph, sourceIndex, editingLayerNames = 
 }
 
 /**
+ * All the sources whose points correspond to a source's, that one first: the
+ * sources to write to when a change must not differ between sources.
+ */
+export function sameStructureSourceIndices(varGlyph, sourceIndex) {
+  const sources = varGlyph?.sources ?? [];
+  const primaryPath = layerPath(varGlyph, sources[sourceIndex]);
+  if (!primaryPath) {
+    return [];
+  }
+  return [
+    sourceIndex,
+    ...sources
+      .map((source, index) => index)
+      .filter(
+        (index) =>
+          index !== sourceIndex &&
+          !sources[index].inactive &&
+          samePointStructure(layerPath(varGlyph, sources[index]), primaryPath)
+      ),
+  ];
+}
+
+/**
  * Change the values of points, in place, in the given sources of a glyph:
  * Fontra's VariableGlyph, inside editGlyph / recordChanges.
  * @param {object} glyph the variable glyph (sources and layers)
  * @param {number[]} sourceIndices see editingSourceIndices()
  * @param {number[]} pointIndices points of the glyph's path
- * @param {(stored: object|undefined, pointIndex: number, sourceIndex: number) => object} makeValues
- *   the keys to set for a point (undefined to remove)
+ * @param {(stored: object|undefined, pointIndex: number, sourceIndex: number,
+ *   glyph: object) => object} makeValues the keys to set for a point
+ *   (undefined to remove)
  * @param {{defaultIndex?: number}} [options] the default source, which gets
  *   the joins
  */
@@ -279,7 +335,7 @@ export function editPointValues(
   for (const sourceIndex of sourceIndices) {
     const stored = storedValues(glyph, sourceIndex);
     for (const pointIndex of pointIndices) {
-      const values = makeValues(stored.get(pointIndex), pointIndex, sourceIndex);
+      const values = makeValues(stored.get(pointIndex), pointIndex, sourceIndex, glyph);
       const own = {};
       const shared = {};
       for (const [key, value] of Object.entries(values)) {

@@ -1,5 +1,6 @@
-// The sidebar panel: preview visibility, the stroke values of the source
-// being edited, and the values of the selected points.
+// The sidebar panel: preview visibility, the stroke method of the glyph, the
+// stroke values of the source being edited, and the values of the selected
+// points.
 
 import { describeStrokeSource } from "./current-source.js";
 import {
@@ -9,13 +10,19 @@ import {
   editPointValues,
   editingSourceIndices,
   pointValuesForField,
+  sameStructureSourceIndices,
   selectedPointIndices,
 } from "./point-edit.js";
+import { rebaseAngles } from "./nib-handles.js";
 import {
+  ANGLE_BASES,
   CAPS,
   JOINS,
+  NIB_KEYS,
+  NIB_SHAPES,
   SHARED_OFFSET_KEYS,
-  sanitizeOffsetValue,
+  sanitizeStrokeValue,
+  setGlyphStroke,
   setSourceDefaults,
 } from "./stroke-data.js";
 import { FILL_OPACITY_MAX, FILL_OPACITY_MIN } from "./settings.js";
@@ -206,6 +213,27 @@ export function definePanelElement() {
       this._sourceLabel = el("div", { class: "source" });
       this._note = el("div", { class: "note" });
       this._sharedNote = el("div", { class: "note" });
+      this._methodSelect = el("select", {
+        id: "stroke-font-method",
+        onchange: (event) => this._changeMethod(event.target.value),
+      });
+      for (const method of ["offset", ...NIB_SHAPES]) {
+        this._methodSelect.append(
+          el("option", { value: method }, t(`method.${method}`))
+        );
+      }
+      this._methodRow = el(
+        "div",
+        { class: "fields" },
+        el("label", { for: "stroke-font-method" }, t("field.method")),
+        this._methodSelect
+      );
+      this._nibFields = el(
+        "div",
+        { class: "fields" },
+        ...NIB_KEYS.flatMap((key) => this._numberField(key, t(`field.${key}`)))
+      );
+      this._flatNote = el("div", { class: "note" });
       this._fields = el(
         "div",
         { class: "fields" },
@@ -217,6 +245,20 @@ export function definePanelElement() {
 
       this._pointsLabel = el("div", { class: "source" });
       this._pointsNote = el("div", { class: "note" });
+      this._nibPointFields = el(
+        "div",
+        { class: "fields" },
+        ...NIB_KEYS.flatMap((key) =>
+          this._numberField(key, t(`field.${key}`), "point")
+        ),
+        ...this._selectField(
+          "angleBase",
+          t("field.angleBase"),
+          ["", ...ANGLE_BASES],
+          "angleBase",
+          "point"
+        )
+      );
       this._pointFields = el(
         "div",
         { class: "fields" },
@@ -258,18 +300,23 @@ export function definePanelElement() {
           this._checkbox("outlineOnly", t("setting.outlineOnly")),
           this._opacitySlider(),
           this._checkbox("otherGlyphs", t("setting.otherGlyphs")),
-          this._checkbox("handles", t("setting.handles"))
+          this._checkbox("handles", t("setting.handles")),
+          this._checkbox("nibs", t("setting.nibs"))
         ),
         el("hr"),
+        this._methodRow,
         this._sourceLabel,
         this._note,
         this._fields,
+        this._nibFields,
+        this._flatNote,
         this._sharedNote,
         el("hr"),
         this._pointsLabel,
         this._pointsNote,
         this._closedRow,
         this._pointFields,
+        this._nibPointFields,
         this._clearButton,
         el("hr"),
         el("div", { class: "hint" }, t("panel.hint"))
@@ -320,7 +367,7 @@ export function definePanelElement() {
       const input = el("input", {
         "type": "number",
         id,
-        // No min or step: the values are checked by sanitizeOffsetValue(), and
+        // No min or step: the values are checked by sanitizeStrokeValue(), and
         // with them the browser would flag values such as interpolated widths
         // as invalid, in the browser's language rather than Fontra's
         "step": "any",
@@ -353,7 +400,13 @@ export function definePanelElement() {
       });
       for (const choice of choices) {
         const text =
-          choice === "" ? t("point.sourceValue") : t(`${stringPrefix}.${choice}`);
+          choice === ""
+            ? t(
+                stringPrefix === "angleBase"
+                  ? "angleBase.horizontal"
+                  : "point.sourceValue"
+              )
+            : t(`${stringPrefix}.${choice}`);
         select.append(el("option", { value: choice }, text));
       }
       return [el("label", { for: id }, label), select];
@@ -389,7 +442,10 @@ export function definePanelElement() {
         return;
       }
       const state = this._state;
-      const editable = !!state?.atSource && state.method === "offset";
+      const isNib = state?.method === "nib";
+      const editable = !!state?.atSource;
+      this._methodSelect.value = isNib ? state.shape : "offset";
+      this._methodSelect.disabled = !state;
       if (!state) {
         this._sourceLabel.textContent = t("source.noGlyph");
         this._note.textContent = "";
@@ -397,28 +453,30 @@ export function definePanelElement() {
         this._sourceLabel.textContent = state.atSource
           ? t("source.current", state.sourceName)
           : t("source.between");
-        this._note.textContent =
-          state.method !== "offset"
-            ? t("source.nibGlyph")
-            : state.atSource
-              ? ""
-              : t("source.notAtSource");
+        this._note.textContent = state.atSource ? "" : t("source.notAtSource");
       }
       // Cap and join are written to the default source (see stroke-data.js)
       this._sharedNote.textContent =
-        editable && !state.isDefaultSource
+        editable && !isNib && !state.isDefaultSource
           ? t("source.sharedStyle", state.defaultSourceName)
           : "";
-      this._fields.setAttribute("aria-disabled", String(!editable));
-      for (const input of this._fields.querySelectorAll("[data-key]")) {
-        const key = input.dataset.key;
-        const value = state ? formatValue(state.style[key]) : "";
-        // Leave a field alone while it is being typed into
-        if (!input.dataset.typing && input.value !== String(value)) {
-          input.value = String(value);
+      this._flatNote.textContent =
+        isNib && state.shape === "rect" ? t("source.flatNib") : "";
+      this._fields.hidden = isNib;
+      this._nibFields.hidden = !isNib;
+      for (const fields of [this._fields, this._nibFields]) {
+        fields.setAttribute("aria-disabled", String(!editable));
+        for (const input of fields.querySelectorAll("[data-key]")) {
+          const key = input.dataset.key;
+          const value = state?.style[key];
+          const text = value === undefined ? "" : formatValue(value);
+          // Leave a field alone while it is being typed into
+          if (!input.dataset.typing && input.value !== text) {
+            input.value = text;
+          }
+          input.disabled =
+            !editable || (key === "miterLimit" && state.style.join !== "miter");
         }
-        input.disabled =
-          !editable || (key === "miterLimit" && state.style.join !== "miter");
       }
     }
 
@@ -434,12 +492,14 @@ export function definePanelElement() {
         : t("points.noneTitle");
       // Between sources, the note above the source's values already says why
       // nothing can be changed
+      const isNib = state?.method === "nib";
       this._pointsNote.textContent = !state
         ? t("points.none")
-        : sourceState && !sourceState.isDefaultSource && state.editable
+        : sourceState && !sourceState.isDefaultSource && state.editable && !isNib
           ? t("points.sharedJoin", sourceState.defaultSourceName)
           : "";
-      this._pointFields.hidden = !state;
+      this._pointFields.hidden = !state || isNib;
+      this._nibPointFields.hidden = !state || !isNib;
       this._clearButton.hidden = !state;
       // Only for points on closed contours; mixed when some of those contours
       // are centerlines and some are not
@@ -448,8 +508,9 @@ export function definePanelElement() {
       this._closedCheckbox.indeterminate = state?.closedCenterline === null;
       this._closedCheckbox.disabled = !editable;
       this._clearButton.disabled = !editable || !state.stored;
-      this._pointFields.setAttribute("aria-disabled", String(!editable));
-      for (const input of this._pointFields.querySelectorAll("[data-key]")) {
+      const pointFields = isNib ? this._nibPointFields : this._pointFields;
+      pointFields.setAttribute("aria-disabled", String(!editable));
+      for (const input of pointFields.querySelectorAll("[data-key]")) {
         const key = input.dataset.key;
         const value = state?.fields[key];
         const text = value === undefined ? "" : formatValue(value);
@@ -477,23 +538,46 @@ export function definePanelElement() {
       }
       let value;
       if (rawValue !== "") {
-        value = sanitizeOffsetValue(key, rawValue);
+        value = sanitizeStrokeValue(key, rawValue);
         if (value === undefined) {
           this._syncPointValues();
           return;
         }
       }
-      if (value === undefined && key !== "join" && key !== "miterLimit") {
-        // An emptied width field: nothing to change
+      if (
+        value === undefined &&
+        key !== "join" &&
+        key !== "miterLimit" &&
+        key !== "angleBase"
+      ) {
+        // An emptied width or nib field: nothing to change
         this._syncPointValues();
         return;
       }
-      const undoKey =
-        key === "join"
+      const undoKey = [...NIB_KEYS, "angleBase"].includes(key)
+        ? "undo.pointNib"
+        : key === "join"
           ? "undo.pointJoin"
           : key === "miterLimit"
             ? "undo.pointMiterLimit"
             : "undo.pointWidth";
+      if (key === "angleBase") {
+        // Keep the nibs where they are, in every source
+        const sceneModel = this.sceneController.sceneModel;
+        const positionedGlyph = sceneModel?.getSelectedPositionedGlyph?.();
+        await this._editPoints(
+          rebaseAngles(
+            positionedGlyph,
+            sceneModel?.getLocationForGlyph?.(positionedGlyph?.glyphName),
+            selectedPointIndices(this.sceneController.selection),
+            value
+          ),
+          t(undoKey),
+          undefined,
+          { allSources: true }
+        );
+        return;
+      }
       await this._editPoints(
         (stored) => pointValuesForField(stored, key, value),
         t(undoKey)
@@ -518,17 +602,19 @@ export function definePanelElement() {
       );
     }
 
-    async _editPoints(makeValues, undoLabel, points) {
+    async _editPoints(makeValues, undoLabel, points, { allSources = false } = {}) {
       const sourceState = this._state;
       const pointIndices =
         points ?? selectedPointIndices(this.sceneController.selection);
       const varGlyph =
         this.sceneController.sceneModel?.getSelectedPositionedGlyph?.()?.varGlyph;
-      const sourceIndices = editingSourceIndices(
-        varGlyph,
-        sourceState.sourceIndex,
-        this.sceneController.editingLayerNames ?? []
-      );
+      const sourceIndices = allSources
+        ? sameStructureSourceIndices(varGlyph, sourceState.sourceIndex)
+        : editingSourceIndices(
+            varGlyph,
+            sourceState.sourceIndex,
+            this.sceneController.editingLayerNames ?? []
+          );
       try {
         await this.sceneController.editNamedGlyphAndRecordChanges(
           sourceState.glyphName,
@@ -545,12 +631,35 @@ export function definePanelElement() {
       this.update();
     }
 
-    async _changeValue(key, rawValue) {
+    async _changeMethod(choice) {
       const state = this._state;
-      if (!state?.atSource || state.method !== "offset") {
+      if (!state) {
         return;
       }
-      const value = sanitizeOffsetValue(key, rawValue);
+      const type = choice === "offset" ? "offset" : "nib";
+      try {
+        await this.sceneController.editNamedGlyphAndRecordChanges(
+          state.glyphName,
+          (glyph) => {
+            if (!glyph.customData) {
+              glyph.customData = {};
+            }
+            setGlyphStroke(glyph.customData, type, choice);
+            return t("undo.method");
+          }
+        );
+      } catch (e) {
+        console.error("[stroke-font] could not change the stroke method", e);
+      }
+      this.update();
+    }
+
+    async _changeValue(key, rawValue) {
+      const state = this._state;
+      if (!state?.atSource) {
+        return;
+      }
+      const value = sanitizeStrokeValue(key, rawValue);
       if (value === undefined || value === state.style[key]) {
         // Invalid input or no change: show the value in use again
         this._syncValues();
@@ -569,7 +678,7 @@ export function definePanelElement() {
               source.customData = {};
             }
             setSourceDefaults(source.customData, { [key]: value });
-            return t(`undo.${key}`);
+            return t(NIB_KEYS.includes(key) ? "undo.nib" : `undo.${key}`);
           }
         );
       } catch (e) {

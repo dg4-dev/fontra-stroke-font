@@ -46,3 +46,68 @@ export function hermitePiece(curve, a, b) {
   }
   return { points, error };
 }
+
+/**
+ * Fit a curve over [a, b] like fitCurve(), but where the largest number of
+ * pieces is not enough, split [a, b] in two and fit each half, up to
+ * maxSplits times in a row. Returns the pieces, the parameters where it was
+ * split, and the number of pieces of each part between them.
+ * @returns {{pieces: object[], breaks: number[], counts: number[]}}
+ */
+export function fitCurveSplitting(curve, a, b, options, maxSplits = 6) {
+  const fitted = fitCurve(curve, a, b, undefined, options);
+  if (fitted.error <= options.tolerance || maxSplits <= 0 || !(b > a)) {
+    return { pieces: fitted.pieces, breaks: [], counts: [fitted.count] };
+  }
+  const middle = (a + b) / 2;
+  const first = fitCurveSplitting(curve, a, middle, options, maxSplits - 1);
+  const second = fitCurveSplitting(curve, middle, b, options, maxSplits - 1);
+  return {
+    pieces: [...first.pieces, ...second.pieces],
+    breaks: [...first.breaks, middle, ...second.breaks],
+    counts: [...first.counts, ...second.counts],
+  };
+}
+
+/**
+ * Fit a curve over [a, b] with cubic pieces of equal parameter spans. With
+ * forcedCount, that many pieces; otherwise the smallest number that keeps
+ * within the tolerance, up to maxSubdivisions.
+ * @param {(t: number) => {x: number, y: number}} curve
+ * @returns {{pieces: {type: "cubic", points: object[]}[], count: number,
+ *   error: number}} the pieces, how many, and the largest distance from the
+ *   curve
+ */
+export function fitCurve(curve, a, b, forcedCount, { tolerance, maxSubdivisions }) {
+  if (forcedCount > 0 || !(b > a)) {
+    const count = forcedCount > 0 ? Math.round(forcedCount) : 1;
+    return { ...curvePieces(curve, a, b, count), count };
+  }
+  let result;
+  for (let count = 1; count <= maxSubdivisions; count++) {
+    const fitted = curvePieces(curve, a, b, count);
+    result = { ...fitted, count };
+    if (fitted.error <= tolerance) {
+      break;
+    }
+  }
+  return result;
+}
+
+function curvePieces(curve, a, b, count) {
+  const pieces = [];
+  let error = 0;
+  for (let i = 0; i < count; i++) {
+    const ta = a + ((b - a) * i) / count;
+    const tb = a + ((b - a) * (i + 1)) / count;
+    if (!(tb > ta)) {
+      const p = curve(ta);
+      pieces.push({ type: "cubic", points: [p, p, p, p] });
+      continue;
+    }
+    const fitted = hermitePiece(curve, ta, tb);
+    pieces.push({ type: "cubic", points: fitted.points });
+    error = Math.max(error, fitted.error);
+  }
+  return { pieces, error };
+}

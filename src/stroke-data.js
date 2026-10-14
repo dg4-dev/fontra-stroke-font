@@ -11,16 +11,24 @@
 //       "points": { "<point identifier>": { ...values for one on-curve point } } } }
 //
 // Values of the offset method: width (or left / right), cap, join, miterLimit.
-// Values of the nib method: major, minor, angle. Both methods: cornerRadius.
+// Values of the nib method: major, minor, angle; on points, also angleBase.
+// Both methods: cornerRadius.
 // Points also have centerline: true on the on-curve points of a closed
 // contour that is a centerline (stroked as a loop) rather than an outline.
-// Missing values fall back to the source defaults, then to the built-in ones,
-// except the widths of points: a point in the middle of a centerline without a
-// width of its own takes the width between the points around it that have one
-// (see geometry/widths.js), so that adding a point does not change the stroke.
+// Missing values fall back to the source defaults, then to the built-in ones.
+// Between two points, numbers change evenly along the centerline (see
+// geometry/widths.js).
 //
-// The nib method and cornerRadius are not used yet; the format is fixed here
-// so that later phases do not need to migrate data.
+// Nib values: major and minor are the full lengths of the nib's axes (of the
+// ellipse, or the sides of the rectangle; a rectangle with minor 0 is a flat
+// nib), angle the direction of the major axis in degrees, counter-clockwise
+// from horizontal, kept in [0, 180). A point with angleBase: "centerline"
+// measures its angle from the direction of the centerline instead (0 lays
+// the major axis across it, where the nib draws its widest), so that its nib
+// turns with the centerline.
+//
+// cornerRadius is not used yet; the format is fixed here so that later
+// phases do not need to migrate data.
 
 export const STROKE_KEY = "xyz.dg4.stroke";
 
@@ -37,6 +45,16 @@ export const DEFAULT_OFFSET_STYLE = Object.freeze({
 });
 
 export const MIN_MITER_LIMIT = 1;
+
+export const DEFAULT_NIB_STYLE = Object.freeze({
+  major: 120,
+  minor: 30,
+  angle: 45,
+});
+
+// The numbers of a nib, of the source defaults and of points. All are
+// interpolated between sources.
+export const NIB_KEYS = Object.freeze(["major", "minor", "angle"]);
 
 // Numbers vary between sources and are interpolated. Strings cannot be
 // interpolated, and the outlines would not match if they differed, so all
@@ -55,7 +73,10 @@ export const POINT_OFFSET_KEYS = Object.freeze([
 
 // Point values that must be the same in all sources: those of the default
 // source are used (as cap and join of the source defaults)
-export const SHARED_POINT_KEYS = Object.freeze(["join", "centerline"]);
+export const SHARED_POINT_KEYS = Object.freeze(["join", "centerline", "angleBase"]);
+
+// What a point's nib angle is measured from, besides horizontal
+export const ANGLE_BASES = Object.freeze(["centerline"]);
 
 /**
  * The stroke method of a glyph. Glyphs without settings use the offset method.
@@ -70,6 +91,36 @@ export function getGlyphStroke(glyphCustomData) {
     return { type, shape };
   }
   return { type };
+}
+
+/**
+ * Set the stroke method of a glyph, in place. The offset method is the
+ * default, so it removes the glyph's stroke data. Returns the customData.
+ * Like setSourceDefaults(), only what changes is assigned or deleted.
+ * @param {object} glyphCustomData customData of the variable glyph
+ * @param {string} type "offset" or "nib"
+ * @param {string} [shape] the nib shape, for the nib method
+ */
+export function setGlyphStroke(glyphCustomData, type, shape) {
+  const stored = glyphCustomData[STROKE_KEY];
+  if (type !== "nib") {
+    if (stored !== undefined) {
+      delete glyphCustomData[STROKE_KEY];
+    }
+    return glyphCustomData;
+  }
+  const nibShape = NIB_SHAPES.includes(shape) ? shape : NIB_SHAPES[0];
+  if (!isObject(stored)) {
+    glyphCustomData[STROKE_KEY] = { type: "nib", shape: nibShape };
+    return glyphCustomData;
+  }
+  if (stored.type !== "nib") {
+    stored.type = "nib";
+  }
+  if (stored.shape !== nibShape) {
+    stored.shape = nibShape;
+  }
+  return glyphCustomData;
 }
 
 /**
@@ -113,6 +164,55 @@ export function offsetStyleInGlyph(sourceCustomData, defaultSourceCustomData) {
     own[key] = shared[key];
   }
   return own;
+}
+
+/**
+ * The nib of a source: its defaults, with missing or invalid values replaced
+ * by the built-in defaults.
+ * @param {object} sourceCustomData customData of a glyph source
+ * @returns {{major: number, minor: number, angle: number}}
+ */
+export function resolveNibStyle(sourceCustomData) {
+  const { defaults } = getSourceStroke(sourceCustomData);
+  const style = { ...DEFAULT_NIB_STYLE };
+  for (const key of NIB_KEYS) {
+    const value = sanitizeNibValue(key, defaults[key]);
+    if (value !== undefined) {
+      style[key] = value;
+    }
+  }
+  return style;
+}
+
+/**
+ * The nib style of a source within its glyph: the glyph's nib shape and the
+ * source's numbers.
+ * @param {object} sourceCustomData customData of the source
+ * @param {object} glyphCustomData customData of the variable glyph
+ * @returns {{type: "nib", shape: string, major: number, minor: number,
+ *   angle: number}}
+ */
+export function nibStyleInGlyph(sourceCustomData, glyphCustomData) {
+  const stored = asObject(glyphCustomData?.[STROKE_KEY]);
+  const shape = NIB_SHAPES.includes(stored.shape) ? stored.shape : NIB_SHAPES[0];
+  return { type: "nib", shape, ...resolveNibStyle(sourceCustomData) };
+}
+
+/**
+ * A valid value for a nib key, or undefined when the value is missing or
+ * cannot be used.
+ */
+export function sanitizeNibValue(key, value) {
+  const number = toNumber(value);
+  switch (key) {
+    case "major":
+    case "minor":
+      return number === undefined ? undefined : Math.max(0, number);
+    case "angle":
+      return number === undefined ? undefined : normalizeNibAngle(number);
+    default:
+      throw new Error(`unknown nib key: ${key}`);
+  }
 }
 
 /**
@@ -188,7 +288,7 @@ export function setSourceDefaults(sourceCustomData, values) {
 }
 
 /**
- * The valid offset values of one point, from what is stored for it.
+ * The valid values of one point (of both methods), from what is stored for it.
  * @returns {object|undefined} undefined when the point has no valid values
  */
 export function sanitizePointValues(stored) {
@@ -201,6 +301,15 @@ export function sanitizePointValues(stored) {
     if (value !== undefined) {
       values[key] = value;
     }
+  }
+  for (const key of NIB_KEYS) {
+    const value = sanitizeNibValue(key, stored[key]);
+    if (value !== undefined) {
+      values[key] = value;
+    }
+  }
+  if (ANGLE_BASES.includes(stored.angleBase)) {
+    values.angleBase = stored.angleBase;
   }
   if (stored.centerline === true) {
     values.centerline = true;
@@ -346,6 +455,28 @@ export function makePointIdentifier(taken = new Set(), random = Math.random) {
  */
 export function normalizeNibAngle(angle) {
   return (((Number(angle) % 180) + 180) % 180) + 0; // + 0 turns -0 into 0
+}
+
+/**
+ * The angle turned by whole half turns to be within 90° of the reference:
+ * the same nib, turned the short way from the reference. Interpolating such
+ * angles turns the nib the short way (170° and 10° go through 180°).
+ */
+export function nearestNibAngle(angle, reference) {
+  return angle - 180 * Math.round((angle - reference) / 180);
+}
+
+/**
+ * A valid value for a key of either method, or undefined (see
+ * sanitizeOffsetValue() and sanitizeNibValue()).
+ */
+export function sanitizeStrokeValue(key, value) {
+  if (key === "angleBase") {
+    return ANGLE_BASES.includes(value) ? value : undefined;
+  }
+  return NIB_KEYS.includes(key)
+    ? sanitizeNibValue(key, value)
+    : sanitizeOffsetValue(key, value);
 }
 
 /**

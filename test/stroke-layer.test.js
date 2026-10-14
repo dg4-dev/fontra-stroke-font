@@ -57,14 +57,16 @@ test("nothing is drawn without open contours", () => {
   assert.deepEqual(context.calls, []);
 });
 
-test("nib glyphs are not drawn yet", () => {
+test("nib glyphs are drawn with their nib", () => {
   const context = new FakeContext();
   const glyph = fakePositionedGlyph({
     contours: [line],
     glyphCustomData: { [STROKE_KEY]: { type: "nib" } },
   });
   drawStrokePreview(context, glyph, {}, PARAMETERS);
-  assert.deepEqual(context.calls, []);
+  assert.ok(context.calls.some(([name]) => name === "fill"));
+  // The ellipses at the ends are curves
+  assert.ok(context.calls.some(([name]) => name === "bezierCurveTo"));
 });
 
 test("a malformed contour is skipped", () => {

@@ -1,8 +1,10 @@
-// The visualization layer that draws the width handles of the glyph being
-// edited: while the stroke width tool is selected, or with every tool when
-// the setting asks for it.
+// The visualization layer that draws the handles of the glyph being edited:
+// while the stroke width tool is selected, or with every tool when the
+// setting asks for it. In a glyph of the nib method, it also draws the nib
+// of each point, with the tool or when the setting asks for it.
 
-import { widthHandles } from "./width-tool.js";
+import { KNOB_DISTANCE } from "./nib-handles.js";
+import { glyphHandles } from "./width-tool.js";
 
 export const HANDLES_LAYER_IDENTIFIER = "fontra-plugin.stroke-font.width-handles";
 
@@ -28,27 +30,67 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
       lineWidth: 1,
       fontSize: 11,
       labelOffset: 10,
+      // Scaled to glyph units like the others, it tells how big a pixel is
+      knobDistance: KNOB_DISTANCE,
     },
+    // One color for the nibs and all the handles, apart from the preview's
+    // gray; the handle under the pointer is darker (lighter in dark mode)
     colors: {
-      handleColor: "hsl(215, 90%, 45%)",
-      lineColor: "hsla(215, 90%, 45%, 0.5)",
-      hoverColor: "hsl(25, 95%, 50%)",
-      labelColor: "hsl(215, 30%, 20%)",
+      handleColor: "hsl(25, 90%, 48%)",
+      lineColor: "hsla(25, 90%, 48%, 0.6)",
+      hoverColor: "hsl(25, 90%, 32%)",
+      labelColor: "hsl(0, 0%, 15%)",
     },
     colorsDarkMode: {
-      handleColor: "hsl(215, 90%, 68%)",
-      lineColor: "hsla(215, 90%, 68%, 0.5)",
-      hoverColor: "hsl(25, 95%, 60%)",
-      labelColor: "hsl(215, 30%, 90%)",
+      handleColor: "hsl(30, 95%, 60%)",
+      lineColor: "hsla(30, 95%, 60%, 0.6)",
+      hoverColor: "hsl(35, 100%, 78%)",
+      labelColor: "hsl(0, 0%, 90%)",
     },
     draw: ({ context, positionedGlyph, parameters, model }) => {
-      if (!tool?.isActive && !settings?.get("handles")) {
+      const showHandles = tool?.isActive || settings?.get("handles");
+      const showNibs = tool?.isActive || settings?.get("nibs");
+      if (!showHandles && !showNibs) {
         return;
       }
       const location = model?.getLocationForGlyph?.(positionedGlyph?.glyphName);
-      drawHandles(context, widthHandles(positionedGlyph, location), parameters, tool);
+      const { handles, nibs } = glyphHandles(
+        positionedGlyph,
+        location,
+        (parameters.knobDistance ?? KNOB_DISTANCE) / KNOB_DISTANCE
+      );
+      if (nibs && showNibs) {
+        drawNibs(context, nibs, parameters);
+      }
+      if (showHandles) {
+        drawHandles(context, handles, parameters, tool);
+      }
     },
   };
+}
+
+/** The outline of the nib of each point. */
+export function drawNibs(context, nibs, parameters) {
+  context.lineWidth = parameters.lineWidth;
+  context.strokeStyle = parameters.lineColor;
+  context.beginPath();
+  for (const { contour } of nibs) {
+    const points = contour.points;
+    context.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i <= points.length; i++) {
+      const point = points[i % points.length];
+      if (point.type) {
+        const next = points[(i + 1) % points.length];
+        const end = points[(i + 2) % points.length];
+        context.bezierCurveTo(point.x, point.y, next.x, next.y, end.x, end.y);
+        i += 2;
+      } else {
+        context.lineTo(point.x, point.y);
+      }
+    }
+    context.closePath();
+  }
+  context.stroke();
 }
 
 export function drawHandles(context, handles, parameters, tool) {
@@ -65,19 +107,22 @@ export function drawHandles(context, handles, parameters, tool) {
   for (const item of handles) {
     const isActive =
       item.pointIndex === active?.pointIndex && item.side === active?.side;
-    context.fillStyle = isActive ? parameters.hoverColor : parameters.handleColor;
+    const color = isActive ? parameters.hoverColor : parameters.handleColor;
+    const radius = isActive ? parameters.hoverRadius : parameters.handleRadius;
     context.beginPath();
-    context.arc(
-      item.handle.x,
-      item.handle.y,
-      isActive ? parameters.hoverRadius : parameters.handleRadius,
-      0,
-      2 * Math.PI
-    );
-    context.fill();
+    context.arc(item.handle.x, item.handle.y, radius, 0, 2 * Math.PI);
+    if (item.axis === "rotate") {
+      // The turning knob is a ring, unlike the handles that size the nib
+      context.strokeStyle = color;
+      context.lineWidth = parameters.lineWidth * 1.5;
+      context.stroke();
+    } else {
+      context.fillStyle = color;
+      context.fill();
+    }
   }
   // The value being dragged, next to its handle
-  if (tool?.draggedHandle && tool.dragValue !== undefined) {
+  if (tool?.draggedHandle && tool.dragLabel !== undefined) {
     const item = handles.find(
       (h) =>
         h.pointIndex === tool.draggedHandle.pointIndex &&
@@ -95,7 +140,7 @@ export function drawHandles(context, handles, parameters, tool) {
       context.textAlign =
         item.normal.x < -0.3 ? "right" : item.normal.x > 0.3 ? "left" : "center";
       context.textBaseline = "middle";
-      context.fillText(String(Math.round(tool.dragValue * 10) / 10), 0, 0);
+      context.fillText(tool.dragLabel, 0, 0);
       context.restore();
     }
   }

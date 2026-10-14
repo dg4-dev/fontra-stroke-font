@@ -6,7 +6,7 @@ import { centerlineSegments } from "../src/geometry/centerline.js";
 import { strokeCompatibly } from "../src/geometry/compatible.js";
 import { strokeOffsetContour } from "../src/geometry/offset.js";
 import { findTwistZones } from "../src/geometry/twist.js";
-import { monotoneCubic, widthProfile } from "../src/geometry/widths.js";
+import { piecewiseLinear, widthProfile } from "../src/geometry/widths.js";
 import { off, on, winding } from "./helpers.js";
 
 const KAPPA = 0.5522847498307936;
@@ -25,40 +25,25 @@ function assertClose(actual, expected, tolerance, message) {
   );
 }
 
-test("the width curve goes through its knots without overshooting", () => {
-  const curve = monotoneCubic([
+test("the width goes in straight lines between its knots", () => {
+  const line = piecewiseLinear([
     { x: 0, y: 10 },
     { x: 100, y: 50 },
     { x: 150, y: 50 },
     { x: 300, y: 20 },
   ]);
-  assert.equal(curve(0), 10);
-  assert.equal(curve(100), 50);
-  assert.equal(curve(300), 20);
-  for (let x = 0; x <= 300; x += 1) {
-    const y = curve(x);
-    assert.ok(y >= 10 - 1e-9 && y <= 50 + 1e-9, `${y} at ${x}`);
-  }
+  assert.equal(line(0), 10);
+  assert.equal(line(50), 30);
+  assert.equal(line(100), 50);
+  assert.equal(line(225), 35);
   // Flat between two equal knots
-  assert.equal(curve(125), 50);
-  assert.ok(curve.isConstantBetween(100, 150));
-  assert.ok(!curve.isConstantBetween(0, 100));
+  assert.equal(line(125), 50);
+  assert.ok(line.isConstantBetween(100, 150));
+  assert.ok(!line.isConstantBetween(0, 100));
   // Before and after the knots
-  assert.equal(curve(-10), 10);
-  assert.equal(curve(400), 20);
-  assert.equal(curve.max, 50);
-});
-
-test("the width curve is smooth through a knot", () => {
-  const curve = monotoneCubic([
-    { x: 0, y: 10 },
-    { x: 100, y: 30 },
-    { x: 200, y: 60 },
-  ]);
-  const h = 1e-4;
-  const before = (curve(100) - curve(100 - h)) / h;
-  const after = (curve(100 + h) - curve(100)) / h;
-  assertClose(before, after, 1e-3, "slope");
+  assert.equal(line(-10), 10);
+  assert.equal(line(400), 20);
+  assert.equal(line.max, 50);
 });
 
 test("without point widths, the width is the source's all along", () => {
@@ -72,7 +57,7 @@ test("without point widths, the width is the source's all along", () => {
   assert.equal(profile.max, 40);
 });
 
-test("end points without a width use the source's; middle ones are interpolated", () => {
+test("points without a width have the source's, and it changes evenly in between", () => {
   const contour = openContour(
     on(0, 0),
     valued(on(100, 0), { width: 160 }),
@@ -82,9 +67,10 @@ test("end points without a width use the source's; middle ones are interpolated"
   const profile = widthProfile(contour, centerlineSegments(contour), style());
   assert.deepEqual(profile.atPoint(0), { left: 40, right: 40 });
   assert.deepEqual(profile.atPoint(1), { left: 80, right: 80 });
+  assert.deepEqual(profile.atPoint(2), { left: 40, right: 40 });
   assert.deepEqual(profile.atPoint(3), { left: 40, right: 40 });
-  const middle = profile.atPoint(2).left;
-  assert.ok(middle > 40 && middle < 80, `${middle}`);
+  assert.equal(profile.segments[1].left(0.25), 70);
+  assert.ok(profile.segments[2].constant.left);
 });
 
 test("left and right widths are separate", () => {
@@ -112,63 +98,180 @@ test("a line's width changes evenly between two end widths", () => {
   }
 });
 
-test("a point added without a width does not change the stroke", () => {
-  // A line, and a curve split in two at its middle (de Casteljau)
-  const p = [
-    { x: 0, y: 0 },
-    { x: 0, y: 200 },
-    { x: 300, y: 200 },
-    { x: 300, y: 0 },
-  ];
-  const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-  const p01 = mid(p[0], p[1]);
-  const p12 = mid(p[1], p[2]);
-  const p23 = mid(p[2], p[3]);
-  const p012 = mid(p01, p12);
-  const p123 = mid(p12, p23);
-  const split = mid(p012, p123);
-  const ends = [{ width: 30 }, { width: 110 }];
-  const cases = [
-    [
-      openContour(valued(on(0, 0), ends[0]), valued(on(300, 0), ends[1])),
-      openContour(valued(on(0, 0), ends[0]), on(90, 0), valued(on(300, 0), ends[1])),
-    ],
-    [
-      openContour(
-        valued(on(p[0].x, p[0].y), ends[0]),
-        off(p[1].x, p[1].y),
-        off(p[2].x, p[2].y),
-        valued(on(p[3].x, p[3].y), ends[1])
-      ),
-      openContour(
-        valued(on(p[0].x, p[0].y), ends[0]),
-        off(p01.x, p01.y),
-        off(p012.x, p012.y),
-        on(split.x, split.y, true),
-        off(p123.x, p123.y),
-        off(p23.x, p23.y),
-        valued(on(p[3].x, p[3].y), ends[1])
-      ),
-    ],
-  ];
-  for (const [whole, withPoint] of cases) {
-    const a = strokeOffsetContour(whole, style({ cap: "round" })).contours;
-    const b = strokeOffsetContour(withPoint, style({ cap: "round" })).contours;
-    let differences = 0;
-    let filled = 0;
-    for (let x = -80; x <= 380; x += 5) {
-      for (let y = -80; y <= 300; y += 5) {
-        const inA = winding({ x, y }, a) !== 0;
-        const inB = winding({ x, y }, b) !== 0;
-        if (inA !== inB) {
-          differences++;
-        }
-        filled += inA ? 1 : 0;
+test("along segments with handles, even straight ones, the width changes smoothly", () => {
+  const contour = openContour(
+    valued(on(0, 0), { width: 20 }),
+    off(100, 0),
+    off(200, 0),
+    valued(on(300, 0, true), { width: 100 }),
+    off(400, 0),
+    off(500, 0),
+    valued(on(600, 0), { width: 20 })
+  );
+  const { segments } = widthProfile(contour, centerlineSegments(contour), style());
+  const at = (x) =>
+    x <= 300 ? segments[0].left(x / 300) : segments[1].left((x - 300) / 300);
+  // No peak at the middle point: the width stops growing there
+  const step = 0.5;
+  assertClose(at(300) - at(300 - step), 0, 0.01, "before the middle");
+  assertClose(at(300 + step) - at(300), 0, 0.01, "after the middle");
+  // Not evenly (that would be 30 halfway), and never beyond the points' widths
+  assert.ok(at(150) > 30 + 1, `${at(150)}`);
+  for (let x = 0; x <= 600; x += 5) {
+    assert.ok(at(x) >= 10 - 1e-9 && at(x) <= 50 + 1e-9, `${x}: ${at(x)}`);
+  }
+});
+
+test("the handles of a segment set the pace at which its width changes", () => {
+  // A straight segment from width 20 to 100; the half width at a place
+  const halfAt = (h1, h2, x) => {
+    const contour = openContour(
+      valued(on(0, 0), { width: 20 }),
+      off(h1, 0),
+      off(h2, 0),
+      valued(on(300, 0), { width: 100 })
+    );
+    const segments = centerlineSegments(contour);
+    const { segments: profile } = widthProfile(contour, segments, style());
+    // The parameter where the curve is at x
+    let low = 0;
+    let high = 1;
+    for (let i = 0; i < 50; i++) {
+      const mid = (low + high) / 2;
+      if (pointAt(segments[0], mid).x < x) {
+        low = mid;
+      } else {
+        high = mid;
       }
     }
-    assert.ok(filled > 300);
-    // Only grid points within a unit or so of the edge may differ
-    assert.ok(differences <= 3, `${differences} differences`);
+    return profile[0].left(low);
+  };
+  // Handles a third of the way: evenly
+  assertClose(halfAt(100, 200, 75), 20, 1e-6);
+  assertClose(halfAt(100, 200, 225), 40, 1e-6);
+  // Long handles: the widths of the points hold longer
+  assert.ok(halfAt(200, 100, 75) < 20 - 3, `${halfAt(200, 100, 75)}`);
+  assert.ok(halfAt(200, 100, 225) > 40 + 3, `${halfAt(200, 100, 225)}`);
+  // Short handles: the width changes near the points
+  assert.ok(halfAt(20, 280, 75) > 20 + 2, `${halfAt(20, 280, 75)}`);
+  assert.ok(halfAt(20, 280, 225) < 40 - 2, `${halfAt(20, 280, 225)}`);
+});
+
+test("where a segment with handles meets a line, the width goes on at the line's rate", () => {
+  const contour = openContour(
+    valued(on(0, 0), { width: 20 }),
+    valued(on(300, 0, true), { width: 60 }),
+    off(400, 0),
+    off(500, 0),
+    valued(on(600, 0), { width: 140 })
+  );
+  const { segments } = widthProfile(contour, centerlineSegments(contour), style());
+  // The line: evenly, 10 to 30 over 300
+  assert.equal(segments[0].left(0.5), 20);
+  // The curve starts at the line's rate (20 / 300 per unit), not its own
+  const t = 1e-4;
+  const rate = (segments[1].left(t) - segments[1].left(0)) / (300 * t);
+  assertClose(rate, 20 / 300, 1e-3, "rate after the point");
+  assert.equal(segments[1].left(1), 70);
+});
+
+test("where a line meets a bending segment with handles, both edges go on without a kink", () => {
+  for (const contour of [
+    openContour(
+      valued(on(0, 0), { width: 30 }),
+      valued(on(250, 0, true), { width: 140 }),
+      off(380, 0),
+      on(400, 250)
+    ),
+    openContour(
+      on(400, 250),
+      off(380, 0),
+      valued(on(250, 0, true), { width: 140 }),
+      valued(on(0, 0), { width: 30 })
+    ),
+  ]) {
+    const { contours } = strokeOffsetContour(contour, style());
+    const band = contours[0].points;
+    // At every on-curve point of the band but its four corners at the ends,
+    // the edge goes on in the same direction
+    let turns = 0;
+    for (const [i, p] of band.entries()) {
+      if (p.type) {
+        continue;
+      }
+      const before = band.at(i - 1);
+      const after = band[(i + 1) % band.length];
+      const a = Math.atan2(p.y - before.y, p.x - before.x);
+      const b = Math.atan2(after.y - p.y, after.x - p.x);
+      const turn = Math.abs(((b - a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+      if (turn > 0.01) {
+        turns++;
+      }
+    }
+    assert.equal(turns, 4);
+  }
+});
+
+test("at a corner, a segment with handles does not take on the rate of a short line", () => {
+  // A short line that changes fast, then a corner, then a long curve that
+  // changes little: the edges do not go on through a corner (a join is
+  // placed there), so the width stays between the widths of the points
+  const contour = openContour(
+    valued(on(0, 60), { width: 200 }),
+    valued(on(0, 0), { width: 20 }),
+    off(300, 0),
+    off(600, 0),
+    valued(on(900, 100), { width: 40 })
+  );
+  const profile = widthProfile(contour, centerlineSegments(contour), style());
+  for (let i = 0; i <= 32; i++) {
+    const half = profile.segments[1].left(i / 32);
+    assert.ok(half >= 10 - 1e-9 && half <= 20 + 1e-9, `${i / 32}: ${half}`);
+  }
+});
+
+test("where two segments with handles meet and the bend changes, the edges have no kink", () => {
+  // The width grows through the point, where the curvature jumps
+  const contour = openContour(
+    valued(on(0, 0), { width: 30 }),
+    off(100, 0),
+    off(200, 50),
+    valued(on(300, 100, true), { width: 70 }),
+    off(350, 125),
+    off(450, 225),
+    valued(on(450, 325), { width: 120 })
+  );
+  const { contours } = strokeOffsetContour(contour, style());
+  const band = contours[0].points;
+  let turns = 0;
+  for (const [i, p] of band.entries()) {
+    if (p.type) {
+      continue;
+    }
+    const before = band.at(i - 1);
+    const after = band[(i + 1) % band.length];
+    const a = Math.atan2(p.y - before.y, p.x - before.x);
+    const b = Math.atan2(after.y - p.y, after.x - p.x);
+    if (Math.abs(((b - a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) > 0.01) {
+      turns++;
+    }
+  }
+  // Only the four corners at the ends
+  assert.equal(turns, 4);
+});
+
+test("a straight segment keeps straight edges when its width changes", () => {
+  const contour = openContour(
+    valued(on(0, 0), { width: 40 }),
+    on(200, 0),
+    valued(on(200, 200), { left: 10, right: 70 })
+  );
+  const { contours } = strokeOffsetContour(contour, style());
+  // A band, the miter join, a band
+  assert.equal(contours.length, 3);
+  for (const band of [contours[0], contours[2]]) {
+    assert.equal(band.points.length, 4);
+    assert.ok(band.points.every((p) => !p.type));
   }
 });
 
@@ -250,6 +353,8 @@ test("a line whose width changes in one source only stays compatible", () => {
     { contour: tapered, style: style() },
   ]);
   assert.ok(compatible);
-  // The plain source fits its straight edges with curves too
-  assert.ok(results[0].contours[0].points.some((p) => p.type));
+  // Both keep straight edges
+  for (const result of results) {
+    assert.ok(result.contours[0].points.every((p) => !p.type));
+  }
 });
