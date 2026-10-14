@@ -189,14 +189,14 @@ export function nibAlong(
   options = {}
 ) {
   const reference = options.angleReference;
+  const frame = segmentFrames(contour, segments);
   const profile = valueProfile(contour, segments, {
     keys: ["major", "minor", "angle"],
     defaults: { major: style.major, minor: style.minor, angle: style.angle },
     periods: { angle: 180 },
-    shifts: { angle: nibAngleShifts(contour, segments) },
+    shifts: { angle: nibAngleShifts(contour, segments, frame) },
     references: reference ? { angle: (pointIndex) => reference[pointIndex] } : {},
   });
-  const frame = segmentFrames(contour, segments);
   return {
     profile,
     at(index, t) {
@@ -256,21 +256,27 @@ export function nibAngleReference(
  * round there, not just the numbers. Between two points measured from the
  * centerline, the nib turns with the centerline, and the numbers take the
  * short way round.
+ *
+ * The turn is that of the very numbers the frame goes through along the
+ * segment (which can be a whole turn away from the point's direction), so
+ * that the nib turns no more than that.
  * @returns {(from: number, to: number) => number} degrees
  */
-export function nibAngleShifts(contour, segments = centerlineSegments(contour)) {
-  const directions = pointDirections(segments);
-  const frame = (index) =>
-    fromCenterline(contour.points[index]?.values) && directions.has(index)
-      ? directions.get(index) + CENTERLINE_ZERO
-      : undefined;
-  return (from, to) => {
-    const start = frame(from);
-    const end = frame(to);
-    return (start === undefined) === (end === undefined)
-      ? 0
-      : (end ?? 0) - (start ?? 0);
-  };
+export function nibAngleShifts(
+  contour,
+  segments = centerlineSegments(contour),
+  frame = segmentFrames(contour, segments)
+) {
+  const between = new Map();
+  for (const [index, segment] of segments.entries()) {
+    if (frame.turns(index) && frame.blends(index)) {
+      between.set(
+        `${segment.startIndex} ${segment.endIndex}`,
+        frame(index, 1) - frame(index, 0)
+      );
+    }
+  }
+  return (from, to) => between.get(`${from} ${to}`) ?? 0;
 }
 
 /** Whether a point's angle is measured from the centerline. */
@@ -367,14 +373,15 @@ function segmentFrames(contour, segments) {
       const point = directions.get(index);
       return point === undefined ? 0 : turn(point, direction(t));
     };
-    const along = segmentLength(segment);
+    let along;
     return {
       startFrom,
       endFrom,
       direction,
       startCorrection: correction(segment.startIndex, 0),
       endCorrection: correction(segment.endIndex, 1),
-      along,
+      // Measured only when needed: not at the ends
+      along: () => (along ??= segmentLength(segment)),
     };
   });
   const at = (index, t) => {
@@ -382,14 +389,22 @@ function segmentFrames(contour, segments) {
     if (!frame) {
       return 0;
     }
-    const s = frame.along.length > 0 ? frame.along.at(t) / frame.along.length : t;
     const own = frame.direction(t);
     const start = frame.startFrom ? own + frame.startCorrection + CENTERLINE_ZERO : 0;
     const end = frame.endFrom ? own + frame.endCorrection + CENTERLINE_ZERO : 0;
+    if (t <= 0 || t >= 1 || start === end) {
+      return t >= 1 ? end : start;
+    }
+    const along = frame.along();
+    const s = along.length > 0 ? along.at(t) / along.length : t;
     return start + (end - start) * s;
   };
   // Whether the frame of a segment turns along it
   at.turns = (index) => !!frames[index];
+  // Whether it goes from one kind of frame to the other along it (from
+  // horizontal to across the centerline, or back)
+  at.blends = (index) =>
+    !!frames[index] && frames[index].startFrom !== frames[index].endFrom;
   return at;
 }
 

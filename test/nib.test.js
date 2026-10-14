@@ -562,3 +562,26 @@ test("between a point measured from horizontal and one from the centerline, the 
     assert.ok(angle <= 1e-9 && angle >= -60 - 1e-6, `${i / 32}: ${angle}`);
   }
 });
+
+test("from a point measured from the centerline where it turns back, the nib takes the short way round", () => {
+  // The centerline comes up at about 60° and goes back down at about 240°:
+  // the frame the segment after it goes through is a whole turn away from
+  // the point's direction, and was counted from the point's
+  const contour = openContour(
+    on(700, 1200),
+    off(760, 1280),
+    off(817, 1316),
+    fromCenterline(on(880, 1427), { angle: 90 }),
+    off(597, 940),
+    off(509, 399),
+    on(488, 0)
+  );
+  const segments = centerlineSegments(contour);
+  const { at } = nibAlong(contour, nib({ angle: 0 }), segments);
+  const angles = [];
+  for (let i = 0; i <= 32; i++) {
+    angles.push(at(1, i / 32).angle);
+  }
+  const turned = Math.max(...angles) - Math.min(...angles);
+  assert.ok(turned <= 90, `turned ${turned}°`);
+});
