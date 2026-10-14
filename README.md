@@ -72,7 +72,7 @@ The plugin follows Fontra's display language (English, Chinese, Japanese, German
 The font keeps its centerlines. Make a copy with the centerlines turned into outlines, then build from the copy. This needs [Node.js](https://nodejs.org/) 22 or later; the input files are not changed.
 
 ```plaintext
-npx --yes github:dg4-dev/fontra-stroke-font#v0.3.0 expand MyFamily.designspace -o build/expanded
+npx --yes github:dg4-dev/fontra-stroke-font#v0.3.1 expand MyFamily.designspace -o build/expanded
 fontmake -m build/expanded/MyFamily.designspace -o variable --output-dir build/fonts
 ```
 

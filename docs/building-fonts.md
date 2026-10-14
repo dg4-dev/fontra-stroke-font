@@ -6,7 +6,7 @@ The font sources keep the centerlines. Before building, make a copy of the font 
 npx --yes github:dg4-dev/fontra-stroke-font expand MyFamily.designspace -o build/expanded
 ```
 
-To use a released version rather than the latest code on `main`, add its tag: `github:dg4-dev/fontra-stroke-font#v0.3.0`. This needs [Node.js](https://nodejs.org/) 22 or later; nothing else is installed. It copies the designspace and its UFOs into `build/expanded` and, in every glyph, replaces each centerline (each open contour, and each closed contour marked as a centerline) with its stroked outline (the other closed contours and components stay as they are). The input files are not changed. The output folder must not be the folder of the designspace. Options: `--tolerance N` (the largest distance in font units between a stroked edge and the exact one, default 0.5) and `--quiet`.
+To use a released version rather than the latest code on `main`, add its tag: `github:dg4-dev/fontra-stroke-font#v0.3.1`. This needs [Node.js](https://nodejs.org/) 22 or later; nothing else is installed. It copies the designspace and its UFOs into `build/expanded` and, in every glyph, replaces each centerline (each open contour, and each closed contour marked as a centerline) with its stroked outline (the other closed contours and components stay as they are). The input files are not changed. The output folder must not be the folder of the designspace. Options: `--tolerance N` (the largest distance in font units between a stroked edge and the exact one, default 0.5) and `--quiet`.
 
 It prints:
 

@@ -2,6 +2,23 @@
 
 Each section can be pasted as the notes of the matching GitHub release.
 
+## 0.3.1
+
+The README is now a short guide for users: install, a quick start, widths, nibs and building fonts. The details moved to `docs/` (building fonts, data format, how it works) and `CONTRIBUTING.md`. The plugin itself is the same as in 0.3.0.
+
+### Install or update
+
+In Fontra: **Application settings → Plugin Manager**, "+", then `dg4-dev/fontra-stroke-font`. If it is already there, it updates by itself.
+
+### Build fonts
+
+Needs Node.js 22 or later:
+
+```plaintext
+npx --yes github:dg4-dev/fontra-stroke-font#v0.3.1 expand MyFamily.designspace -o build/expanded
+fontmake -m build/expanded/MyFamily.designspace -o variable --output-dir build/fonts
+```
+
 ## 0.3.0
 
 Pen nibs: a glyph can now be stroked with an elliptical, rectangular or flat nib instead of a width, with the size and angle of the nib set per source and per point, and changed by dragging handles on the canvas. A point's angle can be measured from the direction of the centerline, so that the nib turns with it.
@@ -15,7 +32,7 @@ Pen nibs: a glyph can now be stroked with an elliptical, rectangular or flat nib
 
 ### Changed
 
-- A point without a width of its own now has the source's, instead of following the points around it. Between two points the width changes evenly along a segment without handles (a line), so that its edges stay straight, and smoothly along a segment with handles, even one that runs straight, at a pace set by its handles (longer handles keep the widths of the points for longer); where segments with handles meet, or one meets a line, the width goes on so that the edges have no kink. Fonts with widths per point made with 0.2.0 stroke differently where a point in the middle has no width of its own, and along lines whose width changes
+- A point without a width of its own now has the source's, instead of following the points around it. Between two points the width changes evenly along a segment without handles (a line), so that its edges stay straight, and smoothly along a segment with handles, even one that runs straight, at a pace set by its handles (longer handles keep the widths of the points for longer); where segments with handles meet at a smooth point, or one meets a line there, the width goes on so that the edges have no kink. Fonts with widths per point made with 0.2.0 stroke differently where a point in the middle has no width of its own, and along lines whose width changes
 - New colors: the stroke preview (fill and edge) is gray, like the glyph's own outlines, and the handles (and the nibs) are orange, so that they stand out from it. Before, the preview and the handles were the same blue
 - The setting "Show width handles with other tools too" is now "Show handles with other tools too", for nib handles as well
 
