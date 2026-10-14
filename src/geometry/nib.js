@@ -210,7 +210,7 @@ export function nibAlong(
       const numbers = profile.segments[index];
       return (
         frame.turns(index) ||
-        ["major", "minor", "angle"].some((key) => numbers[key](0) !== numbers[key](1))
+        ["major", "minor", "angle"].some((key) => !numbers.constant[key])
       );
     },
   };

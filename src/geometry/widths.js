@@ -4,17 +4,41 @@
 // Each side (left and right of the direction of the centerline) has its own
 // half width. Every on-curve point has one on each side: its own when it sets
 // it (see pointHalfWidths() in stroke-data.js), otherwise the source's (half
-// the source's width). Between two points, the half width changes evenly
-// along the length of the centerline, so the edges of a straight segment stay
-// straight. Without any point widths, it is the source's width all along. A
-// closed centerline goes round the loop.
+// the source's width). Without any point widths, it is the source's width all
+// along. A closed centerline goes round the loop.
+//
+// Between two points, the half width changes:
+// - along a segment without handles (a line), evenly along its length, so
+//   that its edges stay straight;
+// - along a segment with handles (even one that runs straight), smoothly,
+//   along the curve's own parameter: from one point to the other as the
+//   curve goes from one end to the other, so its handles set the pace. With
+//   both handles a third of the way, the width changes evenly; with longer
+//   handles, it stays near the widths of the points for longer and changes
+//   in the middle; with shorter ones, it changes near the points.
+// Where a segment with handles meets another segment, the width goes on so
+// that the edges have no kink. On a bend, the edge at the half width w from a
+// centerline bending with curvature k towards it moves (1 − k·w) times as
+// fast as the centerline (see widthProfile()), and turns towards w′ / (1 − k·w)
+// from the centerline's direction; so on each side, the rate of the width
+// divided by (1 − k·w) is the same on both sides of the point, even where
+// the bend changes there (as it usually does where two Bézier curves meet):
+// - next to another segment with handles, a rate shared between the two (see
+//   knotSlope(); 0 where the width is largest or smallest, and between such
+//   segments it never goes beyond the widths of their points: Fritsch and
+//   Carlson's condition for monotone cubic interpolation);
+// - next to a line, the line's; that can take the width a little beyond the
+//   point's, but never below 0.
 
-import { derivativeAt, distance } from "./bezier.js";
+import { curvatureAt, derivativeAt, distance } from "./bezier.js";
 
 // Samples per curve for measuring its length
 const LENGTH_SAMPLES = 32;
 // Widths closer than this are the same
 const SAME_WIDTH = 1e-9;
+// The slowest an edge is taken to move (where the centerline bends as tight
+// as the width, it stops)
+const EDGE_SPEED = 1e-3;
 
 /**
  * @param {{points: object[]}} contour unpacked contour; points may have
@@ -35,6 +59,12 @@ export function widthProfile(contour, segments, style) {
     keys: ["left", "right"],
     valueAt: pointHalfWidth,
     defaults: { left: defaultHalf, right: defaultHalf },
+    // The left edge is on the inside where the centerline turns left
+    edgeSpeed: (key, index, atEnd, half) => {
+      const sign = key === "left" ? 1 : -1;
+      const bend = sign * curvatureAt(segments[index], atEnd ? 1 : 0);
+      return Math.max(0, 1 - bend * half);
+    },
   });
   return { ...profile, max: Math.max(profile.max.left, profile.max.right) };
 }
@@ -60,6 +90,12 @@ export function widthProfile(contour, segments, style) {
  *   to instead (for example the same point's number in another source, so
  *   that the numbers turn the same way round in all sources); points it
  *   gives no number for follow the one before them
+ * @param {(key: string, segmentIndex: number, atEnd: boolean, value: number)
+ *   => number} [options.edgeSpeed] how many times as fast as the centerline
+ *   the edge that the number sets moves at the start (atEnd false) or end of
+ *   a segment, given the number there (1 − k·w for a half width w, see the
+ *   top of this file); 1 by default. Where segments meet, the rates of the
+ *   number divided by it are the same on both sides
  * @returns {{
  *   segments: (object & {constant: object})[],
  *   atPoint: (pointIndex: number) => object|undefined,
@@ -120,17 +156,131 @@ export function valueProfile(contour, segments, options) {
     curves[key] = piecewiseLinear(knots, defaults[key]);
   }
 
+  // Each segment: whether it has handles, its length and how fast the curve
+  // leaves and reaches its ends (the handles), and the segments next to it
+  const usable = segments.map((segment, index) => lengths[index].length > 0);
+  const info = segments.map((segment, index) => {
+    const speed = (t) => {
+      const d = derivativeAt(segment, t);
+      return Math.hypot(d.x, d.y);
+    };
+    return {
+      curved: segment.type !== "line",
+      length: lengths[index].length,
+      speeds: [speed(0), speed(1)],
+    };
+  });
+  const neighbor = (index, step) => {
+    for (let k = 1; k < segments.length; k++) {
+      let other = index + step * k;
+      if (contour.isClosed) {
+        other = (other + segments.length) % segments.length;
+      } else if (other < 0 || other >= segments.length) {
+        return undefined;
+      }
+      if (usable[other]) {
+        return other;
+      }
+    }
+    return undefined;
+  };
+
   const profileSegments = segments.map((segment, index) => {
     const start = starts[index];
     const end = start + lengths[index].length;
     const along = lengths[index].at;
     const entry = { constant: {} };
     for (const key of keys) {
-      entry[key] = (t) => curves[key](start + along(t));
-      entry.constant[key] = curves[key].isConstantBetween(start, end);
+      const curve = curves[key];
+      const { curved, length, speeds } = info[index];
+      if (!curved || !usable[index]) {
+        entry[key] = (t) => curve(start + along(t));
+        entry.constant[key] = curve.isConstantBetween(start, end);
+        continue;
+      }
+      const y0 = curve(start);
+      const y1 = curve(end);
+      const change = y1 - y0;
+      // The rate along the centerline at an end of a segment, when the
+      // number goes evenly along its parameter (a line: along its length)
+      const own = (i, atEnd) => {
+        const other = info[i];
+        const d = curves[key](starts[i] + lengths[i].length) - curves[key](starts[i]);
+        const speed = other.curved ? other.speeds[atEnd ? 1 : 0] : other.length;
+        return speed > 0 ? d / speed : d / other.length;
+      };
+      // The rate (along the parameter) at each end: from the segment next to
+      // it, or evenly along the parameter at an end of the centerline
+      const endRate = (atEnd) => {
+        const other = neighbor(index, atEnd ? 1 : -1);
+        const speed = speeds[atEnd ? 1 : 0];
+        if (other === undefined) {
+          return { rate: change };
+        }
+        // Rates divided by how fast the edge moves on each side (see the top
+        // of this file): equal ones make the edges meet without a kink
+        const value = atEnd ? y1 : y0;
+        const edge = (i, iAtEnd) =>
+          Math.max(EDGE_SPEED, options.edgeSpeed?.(key, i, iAtEnd, value) ?? 1);
+        const mineEdge = edge(index, atEnd);
+        const theirs = own(other, !atEnd) / edge(other, !atEnd);
+        if (!info[other].curved) {
+          return { rate: theirs * mineEdge * speed, line: true };
+        }
+        const mine = own(index, atEnd) / mineEdge;
+        let shared = atEnd
+          ? knotSlope(mine, theirs, length, info[other].length)
+          : knotSlope(theirs, mine, info[other].length, length);
+        // At most 3 times the change of each of the two segments along its
+        // parameter, so that neither goes beyond the numbers of its points
+        // (Fritsch and Carlson); the same limit on both sides keeps them
+        // meeting without a kink
+        const limit = (i, iAtEnd, edgeSpeed) => {
+          const d = curves[key](starts[i] + lengths[i].length) - curves[key](starts[i]);
+          const along = edgeSpeed * info[i].speeds[iAtEnd ? 1 : 0];
+          return along > 0 ? (3 * Math.abs(d)) / along : Infinity;
+        };
+        const most = Math.min(
+          limit(index, atEnd, mineEdge),
+          limit(other, !atEnd, edge(other, !atEnd))
+        );
+        shared = Math.sign(shared) * Math.min(Math.abs(shared), most);
+        return { rate: shared * mineEdge * speed };
+      };
+      const m0 = endRate(false).rate;
+      const m1 = endRate(true).rate;
+      const floor = Math.min(y0, y1) >= 0 ? 0 : -Infinity;
+      entry[key] = (t) => {
+        const u = Math.min(1, Math.max(0, t));
+        const u2 = u * u;
+        const u3 = u2 * u;
+        const value =
+          y0 * (2 * u3 - 3 * u2 + 1) +
+          m0 * (u3 - 2 * u2 + u) +
+          y1 * (-2 * u3 + 3 * u2) +
+          m1 * (u3 - u2);
+        // Beyond the points (next to a line), never below 0 when they are not
+        return Math.max(floor, value);
+      };
+      entry.constant[key] =
+        Math.abs(change) <= SAME_WIDTH &&
+        Math.abs(m0) <= SAME_WIDTH &&
+        Math.abs(m1) <= SAME_WIDTH;
     }
     return entry;
   });
+  // The largest numbers, also where a segment with handles goes beyond its
+  // points
+  const max = Object.fromEntries(keys.map((key) => [key, curves[key].max]));
+  for (const [index, entry] of profileSegments.entries()) {
+    if (info[index].curved && usable[index]) {
+      for (const key of keys) {
+        for (let i = 1; i < 32; i++) {
+          max[key] = Math.max(max[key], entry[key](i / 32));
+        }
+      }
+    }
+  }
   return {
     segments: profileSegments,
     atPoint(pointIndex) {
@@ -139,7 +289,7 @@ export function valueProfile(contour, segments, options) {
         ? undefined
         : Object.fromEntries(keys.map((key) => [key, curves[key](position)]));
     },
-    max: Object.fromEntries(keys.map((key) => [key, curves[key].max])),
+    max,
   };
 }
 
@@ -271,4 +421,22 @@ export function piecewiseLinear(knots, fallback = 0) {
     return true;
   };
   return line;
+}
+
+/**
+ * The rate at a point between two segments with handles, from the rates the
+ * two would have there on their own, and their lengths: 0 where the numbers turn back (the knot is a largest or
+ * smallest number), otherwise the weighted harmonic mean of the two rates
+ * (Fritsch and Butland), which lies between them.
+ */
+function knotSlope(before, after, lengthBefore, lengthAfter) {
+  if (before * after <= 0) {
+    return 0;
+  }
+  const sum = lengthBefore + lengthAfter;
+  return (
+    (3 * sum) /
+    ((2 * lengthAfter + lengthBefore) / before +
+      (lengthAfter + 2 * lengthBefore) / after)
+  );
 }
