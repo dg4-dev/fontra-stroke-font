@@ -212,6 +212,36 @@ test("where a line meets a bending segment with handles, both edges go on withou
   }
 });
 
+test("where two segments with handles meet and the bend changes, the edges have no kink", () => {
+  // The width grows through the point, where the curvature jumps
+  const contour = openContour(
+    valued(on(0, 0), { width: 30 }),
+    off(100, 0),
+    off(200, 50),
+    valued(on(300, 100, true), { width: 70 }),
+    off(350, 125),
+    off(450, 225),
+    valued(on(450, 325), { width: 120 })
+  );
+  const { contours } = strokeOffsetContour(contour, style());
+  const band = contours[0].points;
+  let turns = 0;
+  for (const [i, p] of band.entries()) {
+    if (p.type) {
+      continue;
+    }
+    const before = band.at(i - 1);
+    const after = band[(i + 1) % band.length];
+    const a = Math.atan2(p.y - before.y, p.x - before.x);
+    const b = Math.atan2(after.y - p.y, after.x - p.x);
+    if (Math.abs(((b - a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) > 0.01) {
+      turns++;
+    }
+  }
+  // Only the four corners at the ends
+  assert.equal(turns, 4);
+});
+
 test("a straight segment keeps straight edges when its width changes", () => {
   const contour = openContour(
     valued(on(0, 0), { width: 40 }),
