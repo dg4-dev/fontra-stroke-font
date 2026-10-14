@@ -2,27 +2,60 @@
 
 Each section can be pasted as the notes of the matching GitHub release.
 
-## Unreleased
+## 0.3.0
+
+Pen nibs: a glyph can now be stroked with an elliptical, rectangular or flat nib instead of a width, with the size and angle of the nib set per source and per point, and changed by dragging handles on the canvas. A point's angle can be measured from the direction of the centerline, so that the nib turns with it.
 
 ### Added
 
-- **Pen nibs**: a glyph can be stroked with an elliptical, rectangular or flat nib instead of a width ("Stroke with" in the panel), in the preview and by the command-line tool. Corners and ends take the shape of the nib
-- The major axis, minor axis and angle of the nib are set per source and per point in the panel, and follow the centerline between points; between sources they are interpolated, with angles turning the short way (170° and 10° meet at 180°). Along the centerline, the nib turns the same way round in every source as in the default source, so that the outlines of the sources interpolate
+- **Pen nibs**: a glyph can be stroked with an elliptical, rectangular or flat nib instead of a width ("Stroke with" in the panel), in the preview and by the command-line tool. Corners and ends take the shape of the nib. A straight segment keeps straight edges even when its nib grows or turns from one end to the other. Where the inner edge of a curve runs back on itself (where the curve bends tightly, or the nib turns quickly along it), the small loop it would make is cut out, leaving a corner
+- The major axis, minor axis and angle of the nib are set per source and per point in the panel, and change evenly along the centerline between points; between sources they are interpolated, with angles turning the short way (170° and 10° meet at 180°). Along the centerline, the nib turns the same way round in every source as in the default source, so that the outlines of the sources interpolate
 - **Nib handles**: the stroke width tool draws the nib of each point with handles at the ends of its axes and a knob for turning it. Dragging the knob turns the nib (Shift: steps of 15°), an end of an axis sizes that axis (the major axis with Alt: sizes and turns it, following the pointer). A setting draws the nibs with the other tools too
 - **Angle from the centerline**: a point's nib angle can be measured from the direction of the centerline instead of horizontal ("Angle from" in the panel and in the context menu of the stroke width tool), so that the nib turns with the centerline; at a corner, from halfway between the directions in and out. 0° from the centerline lies across it, where the nib draws its widest. Changing it rewrites the point's angle in every source so that the nib does not turn
 
 ### Changed
 
-- A point without a width (or nib) of its own now has the source's, instead of following the points around it, and between two points the width changes evenly along the centerline instead of along a smooth curve. Straight segments keep straight edges when their width changes. Fonts with widths per point made with 0.2.0 stroke differently where a point in the middle has no width of its own, or where the width changes along a straight segment
-- With a nib, a straight segment whose nib changes from one end to the other (in size or angle) has straight edges, touching the nibs at both ends, instead of edges that curve as the nib turns along it
+- A point without a width of its own now has the source's, instead of following the points around it, and between two points the width changes evenly along the centerline instead of along a smooth curve. Straight segments keep straight edges when their width changes. Fonts with widths per point made with 0.2.0 stroke differently where a point in the middle has no width of its own, or where the width changes along a straight segment
+- New colors: the stroke preview (fill and edge) is gray, like the glyph's own outlines, and the handles (and the nibs) are orange, so that they stand out from it. Before, the preview and the handles were the same blue
 - The setting "Show width handles with other tools too" is now "Show handles with other tools too", for nib handles as well
-- New colors: the stroke preview (fill and edge) is gray, like the glyph's own outlines, and the nibs and handles are orange, so that they stand out from it. Before, the preview, the nibs and the handles were all the same blue
-- With an elliptical nib, where the inner edge of a curve runs back on itself (where the curve bends tightly, or the nib turns quickly along it), the small loop the edge made there is cut out where the edge crosses itself, leaving a corner. The filled shape does not change; the loop showed in the outlines (and, before, a nib that turned quickly was not taken into account in finding such places)
 
 ### Fixed
 
 - In the glyph being edited, Fontra filled a closed contour stroked as a centerline (the loop of an o) as if it were an outline: the inside of the loop and the inner half of its stroke were shaded. Now only the closed contours that are outlines are filled
 - In the glyph being edited, a component whose glyph has centerlines could only be clicked on the area Fontra makes by closing its centerlines (nothing at all for a straight one), not on its strokes. Now it can be clicked anywhere on its strokes, and its hover and selection outlines follow them
+
+### Install or update
+
+In Fontra, open **Application settings → Plugin Manager**, press "+" and enter:
+
+```plaintext
+dg4-dev/fontra-stroke-font
+```
+
+If it is already there, it loads the new version by itself (jsDelivr may take a while to notice it). Then reopen the glyph editor.
+
+### Build fonts
+
+Expand the centerlines into a copy of the font (needs [Node.js](https://nodejs.org/) 22 or later), then build from the copy:
+
+```plaintext
+npx --yes github:dg4-dev/fontra-stroke-font#v0.3.0 expand MyFamily.designspace -o build/expanded
+fontmake -m build/expanded/MyFamily.designspace -o variable --output-dir build/fonts
+```
+
+The input files are not changed. See the README for static fonts, overlaps and fontra-workflow.
+
+### Not yet
+
+- Live corners come in a later version
+- Widths and nibs per point are interpolated only between sources whose glyphs have the same points
+- The handles can only be dragged with the stroke width tool, not with Fontra's pointer tool
+- Between a source where a stroke twists and one where it does not, in-between weights come out a little thinner on the inside of the bend; the command-line tool warns about such glyphs
+- A component keeps its width or nib as it is in the preview when the component is scaled or rotated (a flipped one has its nib angle mirrored); in the font, the component's stroked outline is transformed
+- The frame for moving and transforming a selected component with centerlines covers its centerlines only, not its strokes
+- Fontra's font overview shows the centerlines
+- Only the sources of the designspace are expanded; glyphs with axes of their own in Fontra are reported
+- The plugin uses internal APIs of Fontra's editor, which may change
 
 ## 0.2.0
 
