@@ -7,25 +7,26 @@
 // the source's width). Without any point widths, it is the source's width all
 // along. A closed centerline goes round the loop.
 //
-// Between two points, the half width changes along the length of the
-// centerline:
-// - along a segment without handles (a line), evenly, so that its edges stay
-//   straight;
-// - along a segment with handles (even one that runs straight), smoothly: at a
-//   point where it meets another segment with handles, both change at the
-//   same rate (the rates of the two sides, combined so that a point where the
-//   width is largest or smallest stays so: see knotSlope()); at an end of the
-//   centerline, at its own average rate. Between segments with handles, the
-//   width never goes beyond the widths of the points at their ends (Fritsch
-//   and Carlson's condition for monotone cubic interpolation).
-// - where a segment with handles meets a line, it goes on at the line's rate,
-//   so that the edges have no kink there. That can take the width a little
-//   beyond the point's (where it grows along the line and shrinks along the
-//   curve, say); it never goes below 0. The edge of a curve also turns with
-//   the bend: an edge at the half width w from a centerline bending with
-//   curvature k towards it moves (1 − k·w) times as fast as the centerline,
-//   so for the edges of a line and a curve to meet without a kink, the curve
-//   takes the line's rate times (1 − k·w) on each side (see widthProfile()).
+// Between two points, the half width changes:
+// - along a segment without handles (a line), evenly along its length, so
+//   that its edges stay straight;
+// - along a segment with handles (even one that runs straight), smoothly,
+//   along the curve's own parameter: from one point to the other as the
+//   curve goes from one end to the other, so its handles set the pace. With
+//   both handles a third of the way, the width changes evenly; with longer
+//   handles, it stays near the widths of the points for longer and changes
+//   in the middle; with shorter ones, it changes near the points.
+// Where a segment with handles meets another segment, the width goes on at
+// the same rate along the centerline, so that the edges have no kink: where
+// it meets another segment with handles, at a rate shared between the two
+// (see knotSlope(); 0 where the width is largest or smallest, and between such
+// segments it never goes beyond the widths of their points: Fritsch and
+// Carlson's condition for monotone cubic interpolation); where it meets a
+// line, at the line's rate. On a bend, the edge at the half width w from a
+// centerline bending with curvature k towards it moves (1 − k·w) times as
+// fast as the centerline, so next to a line the curve takes the line's rate
+// times (1 − k·w) on each side (see widthProfile()); that can take the width a
+// little beyond the point's, but never below 0.
 
 import { curvatureAt, derivativeAt, distance } from "./bezier.js";
 
@@ -107,11 +108,8 @@ export function valueProfile(contour, segments, options) {
     starts.push(total);
     total += measure.length;
   }
-  // Where each on-curve point is along the centerline, and whether the
-  // segment that starts there has handles
+  // Where each on-curve point is along the centerline
   const positions = new Map();
-  const curvedFrom = new Map(); // position → index of the segment
-  const curvedTo = new Map();
   for (const [index, segment] of segments.entries()) {
     if (segment.startIndex !== undefined && !positions.has(segment.startIndex)) {
       positions.set(segment.startIndex, starts[index]);
@@ -119,27 +117,13 @@ export function valueProfile(contour, segments, options) {
     if (segment.endIndex !== undefined) {
       positions.set(segment.endIndex, starts[index] + lengths[index].length);
     }
-    if (segment.type !== "line" && lengths[index].length > 0) {
-      curvedFrom.set(starts[index], index);
-      curvedTo.set(starts[index] + lengths[index].length, index);
-    }
   }
   const curves = {};
   for (const key of keys) {
     const knots = [];
     for (const [pointIndex, position] of positions) {
       const value = valueAt(contour.points[pointIndex]?.values, key);
-      const y = value ?? defaults[key];
-      const scale = (index, atEnd) =>
-        index === undefined ? 1 : (options.lineRateScale?.(key, index, atEnd, y) ?? 1);
-      knots.push({
-        x: position,
-        y,
-        pointIndex,
-        curved: curvedFrom.has(position),
-        scaleOut: scale(curvedFrom.get(position), false),
-        scaleIn: scale(curvedTo.get(position), true),
-      });
+      knots.push({ x: position, y: value ?? defaults[key], pointIndex });
     }
     knots.sort((a, b) => a.x - b.x);
     const period = periods[key];
@@ -158,12 +142,41 @@ export function valueProfile(contour, segments, options) {
     if (contour.isClosed && knots.length) {
       // Round the loop: the knots repeated a loop's length before and after
       knots.push(
-        ...knots.map((knot) => ({ ...knot, x: knot.x - total, y: knot.y - drift })),
-        ...knots.map((knot) => ({ ...knot, x: knot.x + total, y: knot.y + drift }))
+        ...knots.map(({ x, y }) => ({ x: x - total, y: y - drift })),
+        ...knots.map(({ x, y }) => ({ x: x + total, y: y + drift }))
       );
     }
-    curves[key] = piecewiseCurve(knots, defaults[key]);
+    curves[key] = piecewiseLinear(knots, defaults[key]);
   }
+
+  // Each segment: whether it has handles, its length and how fast the curve
+  // leaves and reaches its ends (the handles), and the segments next to it
+  const usable = segments.map((segment, index) => lengths[index].length > 0);
+  const info = segments.map((segment, index) => {
+    const speed = (t) => {
+      const d = derivativeAt(segment, t);
+      return Math.hypot(d.x, d.y);
+    };
+    return {
+      curved: segment.type !== "line",
+      length: lengths[index].length,
+      speeds: [speed(0), speed(1)],
+    };
+  });
+  const neighbor = (index, step) => {
+    for (let k = 1; k < segments.length; k++) {
+      let other = index + step * k;
+      if (contour.isClosed) {
+        other = (other + segments.length) % segments.length;
+      } else if (other < 0 || other >= segments.length) {
+        return undefined;
+      }
+      if (usable[other]) {
+        return other;
+      }
+    }
+    return undefined;
+  };
 
   const profileSegments = segments.map((segment, index) => {
     const start = starts[index];
@@ -171,11 +184,82 @@ export function valueProfile(contour, segments, options) {
     const along = lengths[index].at;
     const entry = { constant: {} };
     for (const key of keys) {
-      entry[key] = (t) => curves[key](start + along(t));
-      entry.constant[key] = curves[key].isConstantBetween(start, end);
+      const curve = curves[key];
+      const { curved, length, speeds } = info[index];
+      if (!curved || !usable[index]) {
+        entry[key] = (t) => curve(start + along(t));
+        entry.constant[key] = curve.isConstantBetween(start, end);
+        continue;
+      }
+      const y0 = curve(start);
+      const y1 = curve(end);
+      const change = y1 - y0;
+      // The rate along the centerline at an end of a segment, when the
+      // number goes evenly along its parameter (a line: along its length)
+      const own = (i, atEnd) => {
+        const other = info[i];
+        const d = curves[key](starts[i] + lengths[i].length) - curves[key](starts[i]);
+        const speed = other.curved ? other.speeds[atEnd ? 1 : 0] : other.length;
+        return speed > 0 ? d / speed : d / other.length;
+      };
+      // The rate (along the parameter) at each end: from the segment next to
+      // it, or evenly along the parameter at an end of the centerline
+      const endRate = (atEnd) => {
+        const other = neighbor(index, atEnd ? 1 : -1);
+        const speed = speeds[atEnd ? 1 : 0];
+        if (other === undefined) {
+          return { rate: change };
+        }
+        if (!info[other].curved) {
+          const lineRate = own(other, !atEnd);
+          const scale =
+            options.lineRateScale?.(key, index, atEnd, atEnd ? y1 : y0) ?? 1;
+          return { rate: lineRate * scale * speed, line: true };
+        }
+        const mine = own(index, atEnd);
+        const theirs = own(other, !atEnd);
+        const shared = atEnd
+          ? knotSlope(mine, theirs, length, info[other].length)
+          : knotSlope(theirs, mine, info[other].length, length);
+        return { rate: shared * speed };
+      };
+      const first = endRate(false);
+      const last = endRate(true);
+      const limited = monotone(change, first.rate, last.rate);
+      const m0 = first.line ? first.rate : limited.start;
+      const m1 = last.line ? last.rate : limited.end;
+      const floor = Math.min(y0, y1) >= 0 ? 0 : -Infinity;
+      entry[key] = (t) => {
+        const u = Math.min(1, Math.max(0, t));
+        const u2 = u * u;
+        const u3 = u2 * u;
+        const value =
+          y0 * (2 * u3 - 3 * u2 + 1) +
+          m0 * (u3 - 2 * u2 + u) +
+          y1 * (-2 * u3 + 3 * u2) +
+          m1 * (u3 - u2);
+        // Beyond the points (next to a line), never below 0 when they are not
+        return Math.max(floor, value);
+      };
+      entry.constant[key] =
+        Math.abs(change) <= SAME_WIDTH &&
+        Math.abs(m0) <= SAME_WIDTH &&
+        Math.abs(m1) <= SAME_WIDTH;
     }
     return entry;
   });
+  // The largest numbers, also where a segment with handles goes beyond its
+  // points
+  const max = Object.fromEntries(keys.map((key) => [key, curves[key].max]));
+  for (const [index, entry] of profileSegments.entries()) {
+    if (info[index].curved && usable[index]) {
+      for (const key of keys) {
+        for (let i = 1; i < 32; i++) {
+          max[key] = Math.max(max[key], entry[key](i / 32));
+        }
+      }
+    }
+  }
   return {
     segments: profileSegments,
     atPoint(pointIndex) {
@@ -184,7 +268,7 @@ export function valueProfile(contour, segments, options) {
         ? undefined
         : Object.fromEntries(keys.map((key) => [key, curves[key](position)]));
     },
-    max: Object.fromEntries(keys.map((key) => [key, curves[key].max])),
+    max,
   };
 }
 
@@ -247,36 +331,23 @@ export function segmentLength(segment) {
 }
 
 /**
- * The numbers between the knots: along straight lines, or along a smooth
- * curve from a knot with curved (see the top of this file), which next to a
- * line takes the line's rate times the knot's scaleOut (at its start) or the
- * next knot's scaleIn (at its end); constant before
- * the first knot and after the last one; the fallback when there are no
- * knots.
- * @param {{x: number, y: number, curved?: boolean}[]} knots
+ * The numbers along straight lines between the knots, constant before the
+ * first and after the last one; the fallback when there are no knots.
+ * @param {{x: number, y: number}[]} knots
  * @returns {((x: number) => number) & {max: number,
  *   isConstantBetween: (a: number, b: number) => boolean}}
  */
-export function piecewiseCurve(knots, fallback = 0) {
+export function piecewiseLinear(knots, fallback = 0) {
   const sorted = [...knots].sort((a, b) => a.x - b.x);
-  // Knots at the same place (zero-length segments): the first one's number
-  // counts, and the last one's segment
+  // Knots at the same place (zero-length segments): the first one counts
   const xs = [];
   const ys = [];
-  const curved = [];
-  const scaleIn = [];
-  const scaleOut = [];
-  for (const knot of sorted) {
-    if (xs.length && knot.x - xs.at(-1) <= SAME_WIDTH) {
-      curved[curved.length - 1] = !!knot.curved;
-      scaleOut[scaleOut.length - 1] = knot.scaleOut ?? 1;
+  for (const { x, y } of sorted) {
+    if (xs.length && x - xs.at(-1) <= SAME_WIDTH) {
       continue;
     }
-    xs.push(knot.x);
-    ys.push(knot.y);
-    curved.push(!!knot.curved);
-    scaleIn.push(knot.scaleIn ?? 1);
-    scaleOut.push(knot.scaleOut ?? 1);
+    xs.push(x);
+    ys.push(y);
   }
   const n = xs.length;
   if (n < 2) {
@@ -286,37 +357,6 @@ export function piecewiseCurve(knots, fallback = 0) {
     constant.isConstantBetween = () => true;
     return constant;
   }
-  // The average rate of each interval, and the rates at the ends of the
-  // curved ones
-  const rates = [];
-  for (let k = 0; k < n - 1; k++) {
-    rates.push((ys[k + 1] - ys[k]) / (xs[k + 1] - xs[k]));
-  }
-  const ends = rates.map((rate, k) => {
-    if (!curved[k]) {
-      return null;
-    }
-    const length = xs[k + 1] - xs[k];
-    // Next to another curved interval, a rate shared with it (limited, see
-    // monotone()); next to a line, the line's as it is; at an end, its own
-    let start = { rate };
-    let end = { rate };
-    if (k > 0) {
-      start = curved[k - 1]
-        ? { rate: knotSlope(rates[k - 1], rate, xs[k] - xs[k - 1], length) }
-        : { rate: rates[k - 1] * scaleOut[k], line: true };
-    }
-    if (k < n - 2) {
-      end = curved[k + 1]
-        ? { rate: knotSlope(rate, rates[k + 1], length, xs[k + 2] - xs[k + 1]) }
-        : { rate: rates[k + 1] * scaleIn[k + 1], line: true };
-    }
-    const limited = monotone(rate, start.rate, end.rate);
-    return {
-      start: start.line ? start.rate : limited.start,
-      end: end.line ? end.rate : limited.end,
-    };
-  });
   const interval = (x) => {
     let low = 0;
     let high = n - 2;
@@ -330,7 +370,7 @@ export function piecewiseCurve(knots, fallback = 0) {
     }
     return low;
   };
-  const curve = (x) => {
+  const line = (x) => {
     if (x <= xs[0]) {
       return ys[0];
     }
@@ -338,34 +378,11 @@ export function piecewiseCurve(knots, fallback = 0) {
       return ys[n - 1];
     }
     const k = interval(x);
-    const h = xs[k + 1] - xs[k];
-    const u = (x - xs[k]) / h;
-    if (!ends[k]) {
-      return ys[k] + (ys[k + 1] - ys[k]) * u;
-    }
-    // Cubic Hermite
-    const u2 = u * u;
-    const u3 = u2 * u;
-    const value =
-      ys[k] * (2 * u3 - 3 * u2 + 1) +
-      h * ends[k].start * (u3 - 2 * u2 + u) +
-      ys[k + 1] * (-2 * u3 + 3 * u2) +
-      h * ends[k].end * (u3 - u2);
-    // Going beyond the points (next to a line), never below 0 when they
-    // are not
-    return Math.min(ys[k], ys[k + 1]) >= 0 ? Math.max(0, value) : value;
+    const u = (x - xs[k]) / (xs[k + 1] - xs[k]);
+    return ys[k] + (ys[k + 1] - ys[k]) * u;
   };
-  // The largest number, also where a curved interval goes beyond its ends
-  let max = Math.max(...ys);
-  for (const [k, end] of ends.entries()) {
-    if (end) {
-      for (let i = 1; i < 32; i++) {
-        max = Math.max(max, curve(xs[k] + ((xs[k + 1] - xs[k]) * i) / 32));
-      }
-    }
-  }
-  curve.max = max;
-  curve.isConstantBetween = (a, b) => {
+  line.max = Math.max(...ys);
+  line.isConstantBetween = (a, b) => {
     if (b <= xs[0] || a >= xs[n - 1]) {
       return true;
     }
@@ -376,22 +393,18 @@ export function piecewiseCurve(knots, fallback = 0) {
       if (Math.min(b, xs[k + 1]) - Math.max(a, xs[k]) <= SAME_WIDTH) {
         continue;
       }
-      if (
-        Math.abs(ys[k + 1] - ys[k]) > SAME_WIDTH ||
-        (ends[k] &&
-          (Math.abs(ends[k].start) > SAME_WIDTH || Math.abs(ends[k].end) > SAME_WIDTH))
-      ) {
+      if (Math.abs(ys[k + 1] - ys[k]) > SAME_WIDTH) {
         return false;
       }
     }
     return true;
   };
-  return curve;
+  return line;
 }
 
 /**
- * The rate at a knot between two curved intervals with the given average
- * rates and lengths: 0 where the numbers turn back (the knot is a largest or
+ * The rate at a point between two segments with handles, from the rates the
+ * two would have there on their own, and their lengths: 0 where the numbers turn back (the knot is a largest or
  * smallest number), otherwise the weighted harmonic mean of the two rates
  * (Fritsch and Butland), which lies between them.
  */
@@ -407,8 +420,9 @@ function knotSlope(before, after, lengthBefore, lengthAfter) {
   );
 }
 
-// The rates at the ends of a curved interval, limited so that the numbers in
-// between stay between those at its ends
+// The rates at the ends of a segment (along its parameter, its change
+// being rate), limited so that the numbers in between stay between those
+// at its ends
 function monotone(rate, start, end) {
   if (Math.abs(rate) <= SAME_WIDTH) {
     return { start: 0, end: 0 };
@@ -421,12 +435,4 @@ function monotone(rate, start, end) {
     beta *= 3 / size;
   }
   return { start: alpha * rate, end: beta * rate };
-}
-
-/** The numbers along straight lines between the knots (see piecewiseCurve()). */
-export function piecewiseLinear(knots, fallback = 0) {
-  return piecewiseCurve(
-    knots.map(({ x, y }) => ({ x, y })),
-    fallback
-  );
 }

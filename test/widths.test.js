@@ -122,6 +122,41 @@ test("along segments with handles, even straight ones, the width changes smoothl
   }
 });
 
+test("the handles of a segment set the pace at which its width changes", () => {
+  // A straight segment from width 20 to 100; the half width at a place
+  const halfAt = (h1, h2, x) => {
+    const contour = openContour(
+      valued(on(0, 0), { width: 20 }),
+      off(h1, 0),
+      off(h2, 0),
+      valued(on(300, 0), { width: 100 })
+    );
+    const segments = centerlineSegments(contour);
+    const { segments: profile } = widthProfile(contour, segments, style());
+    // The parameter where the curve is at x
+    let low = 0;
+    let high = 1;
+    for (let i = 0; i < 50; i++) {
+      const mid = (low + high) / 2;
+      if (pointAt(segments[0], mid).x < x) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+    return profile[0].left(low);
+  };
+  // Handles a third of the way: evenly
+  assertClose(halfAt(100, 200, 75), 20, 1e-6);
+  assertClose(halfAt(100, 200, 225), 40, 1e-6);
+  // Long handles: the widths of the points hold longer
+  assert.ok(halfAt(200, 100, 75) < 20 - 3, `${halfAt(200, 100, 75)}`);
+  assert.ok(halfAt(200, 100, 225) > 40 + 3, `${halfAt(200, 100, 225)}`);
+  // Short handles: the width changes near the points
+  assert.ok(halfAt(20, 280, 75) > 20 + 2, `${halfAt(20, 280, 75)}`);
+  assert.ok(halfAt(20, 280, 225) < 40 - 2, `${halfAt(20, 280, 225)}`);
+});
+
 test("where a segment with handles meets a line, the width goes on at the line's rate", () => {
   const contour = openContour(
     valued(on(0, 0), { width: 20 }),
