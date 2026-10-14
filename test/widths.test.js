@@ -212,6 +212,24 @@ test("where a line meets a bending segment with handles, both edges go on withou
   }
 });
 
+test("at a corner, a segment with handles does not take on the rate of a short line", () => {
+  // A short line that changes fast, then a corner, then a long curve that
+  // changes little: the edges do not go on through a corner (a join is
+  // placed there), so the width stays between the widths of the points
+  const contour = openContour(
+    valued(on(0, 60), { width: 200 }),
+    valued(on(0, 0), { width: 20 }),
+    off(300, 0),
+    off(600, 0),
+    valued(on(900, 100), { width: 40 })
+  );
+  const profile = widthProfile(contour, centerlineSegments(contour), style());
+  for (let i = 0; i <= 32; i++) {
+    const half = profile.segments[1].left(i / 32);
+    assert.ok(half >= 10 - 1e-9 && half <= 20 + 1e-9, `${i / 32}: ${half}`);
+  }
+});
+
 test("where two segments with handles meet and the bend changes, the edges have no kink", () => {
   // The width grows through the point, where the curvature jumps
   const contour = openContour(

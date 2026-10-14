@@ -110,7 +110,9 @@ export function measurePoints(positionedGlyph, location, pointIndices) {
         contour,
         numbers: isNib
           ? nibProfile(contour, style)
-          : widthProfile(contour, centerlineSegments(contour), style),
+          : widthProfile(contour, centerlineSegments(contour), style, {
+              pointsOnly: true,
+            }),
       });
     }
     return profiles.get(contourIndex);
