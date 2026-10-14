@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { drawNibs, makeHandlesLayerDefinition } from "../src/handles-layer.js";
 import { draggedNibValues, nibDrag, nibHandles } from "../src/nib-handles.js";
+import { strokeGlyph } from "../src/glyph-strokes.js";
 import { describeSelectedPoints } from "../src/point-edit.js";
 import {
   STROKE_KEY,
@@ -372,6 +373,36 @@ test("the nibs and handles have one color, apart from the gray preview", () => {
       assert.deepEqual(hue(color).slice(1), [0], mode);
     }
   }
+});
+
+test("in every source, the preview turns the nib the same way round as the default source", () => {
+  const curve = {
+    points: [
+      withId(on(0, 0), "a"),
+      { x: 130, y: 0, type: "cubic" },
+      withId(on(150, 250), "b"),
+    ],
+    isClosed: false,
+  };
+  const glyphAt = (sourceIndex) =>
+    fakePositionedGlyph({
+      contours: [curve],
+      glyphCustomData: nibGlyph(),
+      sources: [
+        nibSource({ major: 120, minor: 30, angle: 45 }, { a: { angle: 135 } }),
+        nibSource({ major: 120, minor: 30, angle: 45 }, { a: { angle: 150 } }),
+      ],
+      sourceIndex,
+    });
+  // The end nib (the last contour) starts at the same end in both sources:
+  // from 150° the nib turns down to 45° as in the default source, not up
+  const start = (sourceIndex) => {
+    const { outlines } = strokeGlyph(glyphAt(sourceIndex), {});
+    const first = outlines.at(-1).points[0];
+    return { x: first.x - 150, y: first.y - 250 };
+  };
+  const [a, b] = [start(0), start(1)];
+  assert.ok(a.x * b.x + a.y * b.y > 0, JSON.stringify([a, b]));
 });
 
 test("stroke data: the method of a glyph, values of either method, angles", () => {

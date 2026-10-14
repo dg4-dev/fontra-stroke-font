@@ -55,6 +55,11 @@ export function widthProfile(contour, segments, style) {
  *   (such as an angle of 180°): each value is moved by whole periods to be
  *   within half a period of the one before it, so that the number takes the
  *   short way round
+ * @param {object} [options.references] per key with a period, a function
+ *   giving for a point index the number to move that point's value closest
+ *   to instead (for example the same point's number in another source, so
+ *   that the numbers turn the same way round in all sources); points it
+ *   gives no number for follow the one before them
  * @returns {{
  *   segments: (object & {constant: object})[],
  *   atPoint: (pointIndex: number) => object|undefined,
@@ -89,14 +94,18 @@ export function valueProfile(contour, segments, options) {
     const knots = [];
     for (const [pointIndex, position] of positions) {
       const value = valueAt(contour.points[pointIndex]?.values, key);
-      knots.push({ x: position, y: value ?? defaults[key] });
+      knots.push({ x: position, y: value ?? defaults[key], pointIndex });
     }
     knots.sort((a, b) => a.x - b.x);
     const period = periods[key];
     let drift = 0;
+    const reference = options.references?.[key];
     if (period && knots.length) {
-      for (let k = 1; k < knots.length; k++) {
-        knots[k].y = closestTurn(knots[k].y, knots[k - 1].y, period);
+      for (let k = 0; k < knots.length; k++) {
+        const target = reference?.(knots[k].pointIndex) ?? knots[k - 1]?.y;
+        if (target !== undefined) {
+          knots[k].y = closestTurn(knots[k].y, target, period);
+        }
       }
       // Round a loop, the first value may come back a whole period away
       drift = closestTurn(knots[0].y, knots.at(-1).y, period) - knots[0].y;

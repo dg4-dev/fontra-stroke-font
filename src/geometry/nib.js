@@ -105,7 +105,7 @@ const SAME_SIGN = 1e-9;
  * @param {{shape: "ellipse"|"rect", major: number, minor: number,
  *   angle: number}} style the glyph's nib shape and the source's numbers
  * @param {object} [options] tolerance, maxSubdivisions and layout, as for
- *   strokeOffsetContour() in offset.js
+ *   strokeOffsetContour() in offset.js, and angleReference (see nibAlong())
  * @returns {{contours: object[], layout: object, twists: object[],
  *   layoutMismatch: boolean}} as strokeOffsetContour() does
  */
@@ -115,7 +115,9 @@ export function strokeNibContour(contour, style, options = {}) {
     maxSubdivisions: options.maxSubdivisions ?? MAX_SUBDIVISIONS,
   };
   const segments = centerlineSegments(contour);
-  const { profile, at, changes } = nibAlong(contour, style, segments);
+  const { profile, at, changes } = nibAlong(contour, style, segments, {
+    angleReference: options.angleReference,
+  });
   const isRect = style.shape === "rect";
   const minAxis = isRect ? 0 : MIN_ELLIPSE_AXIS;
   const nibAt = (index, t) => {
@@ -168,17 +170,30 @@ export function strokeNibContour(contour, style, options = {}) {
  * @param {{points: object[], isClosed: boolean}} contour unpacked, with the
  *   points' values
  * @param {{major: number, minor: number, angle: number}} style
+ * @param {object} [options]
+ * @param {(number|undefined)[]} [options.angleReference] by point index, the
+ *   angle each point's angle is moved by half turns to be closest to (see
+ *   nibAngleReference()), so that the nib turns the same way round as in
+ *   another source; without it, each angle is moved to be closest to the one
+ *   before it
  * @returns {{profile: object, at: (index: number, t: number) =>
  *   {major: number, minor: number, angle: number},
  *   changes: (index: number) => boolean}} the numbers of the points along
  *   the centerline (see valueProfile()), the nib on a segment, and whether it
  *   changes along the segment
  */
-export function nibAlong(contour, style, segments = centerlineSegments(contour)) {
+export function nibAlong(
+  contour,
+  style,
+  segments = centerlineSegments(contour),
+  options = {}
+) {
+  const reference = options.angleReference;
   const profile = valueProfile(contour, segments, {
     keys: ["major", "minor", "angle"],
     defaults: { major: style.major, minor: style.minor, angle: style.angle },
     periods: { angle: 180 },
+    references: reference ? { angle: (pointIndex) => reference[pointIndex] } : {},
   });
   const frame = segmentFrames(contour, segments);
   return {
@@ -199,6 +214,30 @@ export function nibAlong(contour, style, segments = centerlineSegments(contour))
       );
     },
   };
+}
+
+/**
+ * The angles of a centerline's points as the nib takes them along it, by
+ * point index (undefined for off-curve points): each moved by half turns to
+ * be closest to the one before it. Given to nibAlong() for the same
+ * centerline in another source of the glyph (as angleReference), it makes the
+ * nib turn the same way round there, and the shapes placed at the points
+ * start at the same end of the nib, so that the outlines of the sources
+ * interpolate.
+ * @param {{points: object[], isClosed: boolean}} contour unpacked, with the
+ *   points' values
+ * @param {{angle: number}} style the source's numbers
+ * @returns {(number|undefined)[]}
+ */
+export function nibAngleReference(
+  contour,
+  style,
+  segments = centerlineSegments(contour)
+) {
+  const { profile } = nibAlong(contour, style, segments);
+  return contour.points.map((point, index) =>
+    point.type ? undefined : profile.atPoint(index)?.angle
+  );
 }
 
 /** Whether a point's angle is measured from the centerline. */

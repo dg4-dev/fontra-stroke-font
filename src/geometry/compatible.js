@@ -10,6 +10,7 @@
 // same parameters in all sources, the points of different sources lie on the
 // same normals of the centerline, and the outlines interpolate well.
 
+import { nibAngleReference } from "./nib.js";
 import { strokeContour } from "./stroke.js";
 import { mergeBreaks } from "./sweep.js";
 
@@ -17,14 +18,22 @@ import { mergeBreaks } from "./sweep.js";
  * @param {{contour: object, style: object}[]} inputs the same centerline in
  *   each source, with that source's style (all of the same method, see
  *   stroke.js)
- * @param {object} [options] tolerance / maxSubdivisions, see offset.js
+ * @param {object} [options] tolerance / maxSubdivisions, see offset.js, and
+ *   referenceIndex: the input of the default source (0 by default), whose
+ *   nib angles the others turn like (see nibAngleReference() in nib.js)
  * @returns {{results: {contours: object[], twists: object[]}[],
  *   compatible: boolean, problems: string[]}}
  */
 export function strokeCompatibly(inputs, options = {}) {
+  const { referenceIndex = 0, ...strokeOptions } = options;
+  const reference = inputs[referenceIndex] ?? inputs[0];
+  const angleReference =
+    reference?.style?.type === "nib"
+      ? nibAngleReference(reference.contour, reference.style)
+      : undefined;
   const stroke = (layout) =>
     inputs.map(({ contour, style }) =>
-      strokeContour(contour, style, { ...options, layout })
+      strokeContour(contour, style, { ...strokeOptions, layout, angleReference })
     );
   const problems = [];
 

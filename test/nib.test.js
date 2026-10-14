@@ -8,6 +8,7 @@ import {
   ellipseContour,
   makeNib,
   nibAlong,
+  nibAngleReference,
   rectContour,
   strokeNibContour,
 } from "../src/geometry/nib.js";
@@ -61,9 +62,9 @@ const corner = openContour(on(0, 0), on(200, 0), on(200, 200));
  * The nibs along a centerline, densely sampled: the reference the stroked
  * outlines are checked against. Each sample is a place and the nib there.
  */
-function sampleNibs(contour, style, steps = 400) {
+function sampleNibs(contour, style, steps = 400, angleReference) {
   const segments = centerlineSegments(contour);
-  const { at } = nibAlong(contour, style, segments);
+  const { at } = nibAlong(contour, style, segments, { angleReference });
   const samples = [];
   for (const [index, segment] of segments.entries()) {
     for (let i = 0; i <= steps; i++) {
@@ -96,8 +97,13 @@ function describe(contour, style) {
 
 // Every grid point well inside one of the nibs is filled, and every one well
 // outside all of them is not
-function assertCoversNibs(contour, style, contours, { margin = 1.5, step = 5 } = {}) {
-  const samples = sampleNibs(contour, style);
+function assertCoversNibs(
+  contour,
+  style,
+  contours,
+  { margin = 1.5, step = 5, reference } = {}
+) {
+  const samples = sampleNibs(contour, style, 400, reference);
   const box = bounds(contours);
   let inside = 0;
   let outside = 0;
@@ -414,6 +420,48 @@ test("a source whose edge makes a loop stays compatible with one whose does not"
   for (const [i, contour] of contours.entries()) {
     assert.equal(crossesItself(flattenContour(results[i].contours[0])), false);
     assertCoversNibs(contour, style, results[i].contours, { step: 6 });
+  }
+});
+
+// The first point of the nib placed at the end of an open centerline (the
+// last contour), from the end point
+function endNibStart(contours, end) {
+  const first = contours.at(-1).points[0];
+  return { x: first.x - end.x, y: first.y - end.y };
+}
+
+test("the nibs placed at points start at the same end in all sources", () => {
+  // 170° and 10° are 20° apart, through 180°
+  const contour = sCurve;
+  for (const shape of ["ellipse", "rect"]) {
+    const { results } = strokeCompatibly(
+      [170, 10].map((angle) => ({ contour, style: nib({ shape, angle }) }))
+    );
+    const [a, b] = results.map((result) => endNibStart(result.contours, on(400, 100)));
+    // The same side of the end point, not the opposite one
+    assert.ok(a.x * b.x + a.y * b.y > 0, `${shape}: ${JSON.stringify([a, b])}`);
+  }
+});
+
+test("the nib turns the same way round in all sources as in the default one", () => {
+  // From 135° to 45°, and from 150° (the short way: up to 225°) to 45°
+  const sources = [turning(135), turning(150)];
+  const style = nib();
+  for (const referenceIndex of [0, 1]) {
+    const { results } = strokeCompatibly(
+      sources.map((contour) => ({ contour, style })),
+      { referenceIndex }
+    );
+    const [a, b] = results.map((result) => endNibStart(result.contours, on(400, 250)));
+    assert.ok(a.x * b.x + a.y * b.y > 0, `reference ${referenceIndex}`);
+    // Each source keeps its own shape
+    for (const [i, contour] of sources.entries()) {
+      const reference = nibAngleReference(sources[referenceIndex], style);
+      assertCoversNibs(contour, style, results[i].contours, {
+        step: 6,
+        reference,
+      });
+    }
   }
 });
 
