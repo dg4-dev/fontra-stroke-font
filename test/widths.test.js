@@ -140,6 +140,43 @@ test("where a segment with handles meets a line, the width goes on at the line's
   assert.equal(segments[1].left(1), 70);
 });
 
+test("where a line meets a bending segment with handles, both edges go on without a kink", () => {
+  for (const contour of [
+    openContour(
+      valued(on(0, 0), { width: 30 }),
+      valued(on(250, 0, true), { width: 140 }),
+      off(380, 0),
+      on(400, 250)
+    ),
+    openContour(
+      on(400, 250),
+      off(380, 0),
+      valued(on(250, 0, true), { width: 140 }),
+      valued(on(0, 0), { width: 30 })
+    ),
+  ]) {
+    const { contours } = strokeOffsetContour(contour, style());
+    const band = contours[0].points;
+    // At every on-curve point of the band but its four corners at the ends,
+    // the edge goes on in the same direction
+    let turns = 0;
+    for (const [i, p] of band.entries()) {
+      if (p.type) {
+        continue;
+      }
+      const before = band.at(i - 1);
+      const after = band[(i + 1) % band.length];
+      const a = Math.atan2(p.y - before.y, p.x - before.x);
+      const b = Math.atan2(after.y - p.y, after.x - p.x);
+      const turn = Math.abs(((b - a + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+      if (turn > 0.01) {
+        turns++;
+      }
+    }
+    assert.equal(turns, 4);
+  }
+});
+
 test("a straight segment keeps straight edges when its width changes", () => {
   const contour = openContour(
     valued(on(0, 0), { width: 40 }),

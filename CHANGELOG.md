@@ -15,7 +15,7 @@ Pen nibs: a glyph can now be stroked with an elliptical, rectangular or flat nib
 
 ### Changed
 
-- A point without a width of its own now has the source's, instead of following the points around it. Between two points the width changes evenly along a segment without handles (a line), so that its edges stay straight, and smoothly along a segment with handles, even one that runs straight; where segments with handles meet, or one meets a line, the width goes on at the same rate. Fonts with widths per point made with 0.2.0 stroke differently where a point in the middle has no width of its own, and along lines whose width changes
+- A point without a width of its own now has the source's, instead of following the points around it. Between two points the width changes evenly along a segment without handles (a line), so that its edges stay straight, and smoothly along a segment with handles, even one that runs straight; where segments with handles meet, or one meets a line, the width goes on so that the edges have no kink. Fonts with widths per point made with 0.2.0 stroke differently where a point in the middle has no width of its own, and along lines whose width changes
 - New colors: the stroke preview (fill and edge) is gray, like the glyph's own outlines, and the handles (and the nibs) are orange, so that they stand out from it. Before, the preview and the handles were the same blue
 - The setting "Show width handles with other tools too" is now "Show handles with other tools too", for nib handles as well
 
