@@ -16,13 +16,15 @@
 //   both handles a third of the way, the width changes evenly; with longer
 //   handles, it stays near the widths of the points for longer and changes
 //   in the middle; with shorter ones, it changes near the points.
-// Where a segment with handles meets another segment, the width goes on so
-// that the edges have no kink. On a bend, the edge at the half width w from a
-// centerline bending with curvature k towards it moves (1 − k·w) times as
-// fast as the centerline (see widthProfile()), and turns towards w′ / (1 − k·w)
-// from the centerline's direction; so on each side, the rate of the width
-// divided by (1 − k·w) is the same on both sides of the point, even where
-// the bend changes there (as it usually does where two Bézier curves meet):
+// Where a segment with handles meets another segment at a smooth point, the
+// width goes on so that the edges have no kink (at a corner there is a join,
+// and the width changes there as at an end of the centerline). On a bend,
+// the edge at the half width w from a centerline bending with curvature k
+// towards it moves (1 − k·w) times as fast as the centerline (see
+// widthProfile()), and turns towards w′ / (1 − k·w) from the centerline's
+// direction; so on each side, the rate of the width divided by (1 − k·w) is
+// the same on both sides of the point, even where the bend changes there (as
+// it usually does where two Bézier curves meet):
 // - next to another segment with handles, a rate shared between the two (see
 //   knotSlope(); 0 where the width is largest or smallest, and between such
 //   segments it never goes beyond the widths of their points: Fritsch and
@@ -94,6 +96,12 @@ export function widthProfile(contour, segments, style, { pointsOnly = false } = 
  *   to instead (for example the same point's number in another source, so
  *   that the numbers turn the same way round in all sources); points it
  *   gives no number for follow the one before them
+ * @param {object} [options.shifts] per key with a period, a function giving
+ *   for two points next to each other along the centerline (by index, in
+ *   order) how much more than the difference of their numbers what the
+ *   numbers set changes between them (for example the turn of the frame an
+ *   angle is measured from); the number is moved so that the whole change
+ *   takes the short way round
  * @param {(key: string, segmentIndex: number, atEnd: boolean, value: number)
  *   => number} [options.edgeSpeed] how many times as fast as the centerline
  *   the edge that the number sets moves at the start (atEnd false) or end of
@@ -147,15 +155,22 @@ export function valueProfile(contour, segments, options) {
     const period = periods[key];
     let drift = 0;
     const reference = options.references?.[key];
+    const shift = options.shifts?.[key] ?? (() => 0);
+    // The number after `before` that continues it the short way round
+    const following = (before, knot) =>
+      before.y - shift(before.pointIndex, knot.pointIndex);
     if (period && knots.length) {
       for (let k = 0; k < knots.length; k++) {
-        const target = reference?.(knots[k].pointIndex) ?? knots[k - 1]?.y;
+        const target =
+          reference?.(knots[k].pointIndex) ??
+          (k > 0 ? following(knots[k - 1], knots[k]) : undefined);
         if (target !== undefined) {
           knots[k].y = closestTurn(knots[k].y, target, period);
         }
       }
       // Round a loop, the first value may come back a whole period away
-      drift = closestTurn(knots[0].y, knots.at(-1).y, period) - knots[0].y;
+      drift =
+        closestTurn(knots[0].y, following(knots.at(-1), knots[0]), period) - knots[0].y;
     }
     if (contour.isClosed && knots.length) {
       // Round the loop: the knots repeated a loop's length before and after
@@ -238,7 +253,14 @@ export function valueProfile(contour, segments, options) {
       const endRate = (atEnd) => {
         const other = neighbor(index, atEnd ? 1 : -1);
         const speed = speeds[atEnd ? 1 : 0];
-        if (other === undefined) {
+        // At a corner the edges do not go on into the next segment's (there
+        // is a join), so the rates are not matched there: matched to a
+        // short segment that changes fast, the number would go far beyond
+        // the numbers of the points
+        if (
+          other === undefined ||
+          !segments[atEnd ? index : (index || segments.length) - 1].endSmooth
+        ) {
           return { rate: change };
         }
         // Rates divided by how fast the edge moves on each side (see the top

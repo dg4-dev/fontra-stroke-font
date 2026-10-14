@@ -193,6 +193,7 @@ export function nibAlong(
     keys: ["major", "minor", "angle"],
     defaults: { major: style.major, minor: style.minor, angle: style.angle },
     periods: { angle: 180 },
+    shifts: { angle: nibAngleShifts(contour, segments) },
     references: reference ? { angle: (pointIndex) => reference[pointIndex] } : {},
   });
   const frame = segmentFrames(contour, segments);
@@ -239,10 +240,37 @@ export function nibAngleReference(
     keys: ["angle"],
     defaults: { angle: style.angle },
     periods: { angle: 180 },
+    shifts: { angle: nibAngleShifts(contour, segments) },
   });
   return contour.points.map((point, index) =>
     point.type ? undefined : profile.atPoint(index)?.angle
   );
+}
+
+/**
+ * For two points next to each other along a centerline (by index, in order),
+ * how much the frame their angles are measured from turns between them, when
+ * it turns from one to the other (see segmentFrames()): from horizontal to
+ * across the centerline at a point measured from it, or back. Given to
+ * valueProfile() (as shifts), it makes the nib itself take the short way
+ * round there, not just the numbers. Between two points measured from the
+ * centerline, the nib turns with the centerline, and the numbers take the
+ * short way round.
+ * @returns {(from: number, to: number) => number} degrees
+ */
+export function nibAngleShifts(contour, segments = centerlineSegments(contour)) {
+  const directions = pointDirections(segments);
+  const frame = (index) =>
+    fromCenterline(contour.points[index]?.values) && directions.has(index)
+      ? directions.get(index) + CENTERLINE_ZERO
+      : undefined;
+  return (from, to) => {
+    const start = frame(from);
+    const end = frame(to);
+    return (start === undefined) === (end === undefined)
+      ? 0
+      : (end ?? 0) - (start ?? 0);
+  };
 }
 
 /** Whether a point's angle is measured from the centerline. */

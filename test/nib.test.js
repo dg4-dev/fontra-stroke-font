@@ -528,11 +528,37 @@ test("at a corner, a nib measured from the centerline is halfway between in and 
   );
   const segments = centerlineSegments(corner);
   const { at } = nibAlong(corner, nib(), segments);
+  // The same nib, a half turn apart
+  const sameNib = (angle, expected) =>
+    Math.abs(angle - expected - 180 * Math.round((angle - expected) / 180)) < 1e-9;
   // Both segments meet with the same nib at the corner: across the 45°
   // direction halfway between in and out
-  assert.ok(Math.abs(at(0, 1).angle - 135) < 1e-9);
-  assert.ok(Math.abs(at(1, 0).angle - 135) < 1e-9);
+  assert.equal(at(0, 1).angle, at(1, 0).angle);
+  assert.ok(sameNib(at(0, 1).angle, 135));
   // Points measured from horizontal keep their angle
-  assert.ok(Math.abs(at(0, 0).angle - 45) < 1e-9);
-  assert.ok(Math.abs(at(1, 1).angle - 45) < 1e-9);
+  assert.ok(sameNib(at(0, 0).angle, 45));
+  assert.ok(sameNib(at(1, 1).angle, 45));
+});
+
+test("between a point measured from horizontal and one from the centerline, the nib turns the short way", () => {
+  // The frame turns from horizontal to across the centerline (to 135° at the
+  // end, where the line goes at 45°): the nib itself goes from 0° to 120° the
+  // short way (back by 60°), not forward by 120° through the direction of
+  // the line
+  const line = openContour(
+    { ...on(0, 0), values: { angle: 0 } },
+    off(100, 100),
+    off(200, 200),
+    fromCenterline(on(300, 300), { angle: -15 })
+  );
+  const segments = centerlineSegments(line);
+  const { at } = nibAlong(line, nib(), segments);
+  const start = at(0, 0).angle;
+  const end = at(0, 1).angle;
+  assert.ok(Math.abs(start) < 1e-9, `start ${start}`);
+  assert.ok(Math.abs(end + 60) < 1e-6, `end ${end}`);
+  for (let i = 0; i <= 32; i++) {
+    const angle = at(0, i / 32).angle;
+    assert.ok(angle <= 1e-9 && angle >= -60 - 1e-6, `${i / 32}: ${angle}`);
+  }
 });

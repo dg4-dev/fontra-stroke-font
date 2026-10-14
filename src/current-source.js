@@ -11,7 +11,7 @@
 // in the flattened path of a component.
 
 import { centerlineSegments } from "./geometry/centerline.js";
-import { nibAngleReference } from "./geometry/nib.js";
+import { nibAngleReference, nibAngleShifts } from "./geometry/nib.js";
 import { valueProfile, widthProfile } from "./geometry/widths.js";
 import { pathPoints, startsWithPointStructure } from "./path-points.js";
 import {
@@ -580,6 +580,7 @@ export function nibProfile(contour, style) {
     keys: NIB_KEYS,
     defaults: { major: style.major, minor: style.minor, angle: style.angle },
     periods: { angle: 180 },
+    shifts: { angle: nibAngleShifts(contour, segments) },
   });
 }
 
