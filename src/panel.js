@@ -1,8 +1,9 @@
 // The sidebar panel: preview visibility, the stroke method of the glyph, the
-// stroke values of the source being edited, and the values of the selected
-// points.
+// stroke values of the source being edited, the values of the selected
+// points, and the download of the font with its centerlines as outlines.
 
 import { describeStrokeSource } from "./current-source.js";
+import { expandedFontZip, projectName, saveFile } from "./download.js";
 import {
   CLEARED_POINT_VALUES,
   closedContourPoints,
@@ -132,6 +133,18 @@ const styles = `
   }
   button:disabled {
     opacity: 0.5;
+  }
+  details {
+    font-size: 0.9em;
+  }
+  .report {
+    max-height: 12em;
+    overflow: auto;
+    margin-top: 0.4em;
+    font-family: monospace;
+    font-size: 0.9em;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
   }
   [hidden] {
     display: none !important;
@@ -289,6 +302,21 @@ export function definePanelElement() {
         )
       );
 
+      this._downloadButton = el(
+        "button",
+        { type: "button", onclick: () => this._downloadExpanded() },
+        t("download.button")
+      );
+      this._downloadStatus = el("div", { class: "note", role: "status" });
+      this._downloadSummary = el("summary");
+      this._downloadReport = el("div", { class: "report" });
+      this._downloadDetails = el(
+        "details",
+        { hidden: "" },
+        this._downloadSummary,
+        this._downloadReport
+      );
+
       const panel = el(
         "div",
         { class: "panel" },
@@ -319,7 +347,12 @@ export function definePanelElement() {
         this._nibPointFields,
         this._clearButton,
         el("hr"),
-        el("div", { class: "hint" }, t("panel.hint"))
+        el("div", { class: "hint" }, t("panel.hint")),
+        el("hr"),
+        el("div", { class: "hint" }, t("download.hint")),
+        this._downloadButton,
+        this._downloadStatus,
+        this._downloadDetails
       );
       root.appendChild(panel);
       this._syncSettings();
@@ -629,6 +662,47 @@ export function definePanelElement() {
         console.error("[stroke-font] could not change the point values", e);
       }
       this.update();
+    }
+
+    // The whole font, with the centerlines of every glyph and source turned
+    // into outlines, downloaded as a .zip; the font itself is not changed
+    async _downloadExpanded() {
+      if (this._downloading) {
+        return;
+      }
+      this._downloading = true;
+      this._downloadButton.disabled = true;
+      this._downloadDetails.hidden = true;
+      const status = this._downloadStatus;
+      try {
+        const result = await expandedFontZip(this.editor.fontController, {
+          name: projectName(this.editor.projectIdentifier),
+          onProgress: (stage, done, total) => {
+            status.textContent = t(`download.${stage}`, done, total);
+          },
+        });
+        saveFile(result.bytes, result.fileName);
+        status.textContent = t("download.done", result.fileName);
+        // The same lines as the CLI prints
+        const lines = [
+          ...result.warnings.map((warning) => `warning: ${warning}`),
+          ...result.twists.map((twist) => `twist: ${twist}`),
+        ];
+        for (const line of lines) {
+          console.warn(`[stroke-font] ${line}`);
+        }
+        this._downloadSummary.textContent = t("download.report", lines.length);
+        this._downloadReport.replaceChildren(
+          ...lines.map((line) => el("div", {}, line))
+        );
+        this._downloadDetails.hidden = !lines.length;
+      } catch (e) {
+        console.error("[stroke-font] could not make the expanded copy", e);
+        status.textContent = t("download.failed", e?.message ?? String(e));
+      } finally {
+        this._downloading = false;
+        this._downloadButton.disabled = false;
+      }
     }
 
     async _changeMethod(choice) {

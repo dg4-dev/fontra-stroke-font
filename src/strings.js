@@ -73,6 +73,15 @@ export const strings = {
     "angleBase.centerline": "Centerline",
     "panel.hint":
       "Open contours are centerlines, stroked with these values. A closed contour is an ordinary outline, unless it is marked as a centerline (select one of its points). The values belong to the source being edited and are saved with the font.",
+    "download.button": "Download with outlines",
+    "download.hint":
+      "Makes a copy of the font with the centerlines turned into outlines, as the command-line tool does: a designspace and its UFOs in a .zip file, to build with fontmake. The font itself is not changed.",
+    "download.reading": "Reading glyphs: {0} / {1}",
+    "download.expanding": "Turning centerlines into outlines: {0} / {1}",
+    "download.zipping": "Making the .zip file…",
+    "download.done": "Downloaded {0}.",
+    "download.report": "Warnings and twists: {0}",
+    "download.failed": "Could not make the copy: {0}",
   },
   "ja": {
     "sidebar.tab": "ストロークフォント",
@@ -138,6 +147,15 @@ export const strings = {
     "angleBase.centerline": "中心線",
     "panel.hint":
       "閉じていない輪郭を中心線として、これらの値でなぞります。閉じた輪郭は普通の輪郭ですが、中心線としてなぞる印を付けることもできます（輪郭の点を選んでください）。値は編集中のソースのもので、フォントに保存されます。",
+    "download.button": "輪郭に展開してダウンロード",
+    "download.hint":
+      "中心線を輪郭に展開したフォントのコピーを作ります（コマンドラインツールと同じ計算です）。designspace と UFO を .zip ファイルにまとめるので、fontmake でビルドしてください。元のフォントは変わりません。",
+    "download.reading": "グリフを読み込み中: {0} / {1}",
+    "download.expanding": "中心線を輪郭に展開中: {0} / {1}",
+    "download.zipping": ".zip ファイルを作成中…",
+    "download.done": "{0} をダウンロードしました。",
+    "download.report": "警告とねじれ: {0}",
+    "download.failed": "コピーを作れませんでした: {0}",
   },
   "zh-CN": {
     "sidebar.tab": "笔画字体",
@@ -201,6 +219,15 @@ export const strings = {
     "angleBase.centerline": "中心线",
     "panel.hint":
       "开放轮廓是中心线,用这些值描边。闭合轮廓是普通轮廓,也可以标记为中心线(请选择它的点)。这些值属于正在编辑的源,并随字体一起保存。",
+    "download.button": "展开为轮廓并下载",
+    "download.hint":
+      "制作一份把中心线展开为轮廓的字体副本(与命令行工具的计算相同):designspace 和 UFO 打包为 .zip 文件,可用 fontmake 构建。原字体不会改变。",
+    "download.reading": "正在读取字形: {0} / {1}",
+    "download.expanding": "正在将中心线展开为轮廓: {0} / {1}",
+    "download.zipping": "正在生成 .zip 文件…",
+    "download.done": "已下载 {0}。",
+    "download.report": "警告和扭曲: {0}",
+    "download.failed": "无法生成副本: {0}",
   },
   "zh-TW": {
     "sidebar.tab": "筆畫字型",
@@ -264,6 +291,15 @@ export const strings = {
     "angleBase.centerline": "中心線",
     "panel.hint":
       "開放輪廓是中心線,用這些值描邊。閉合輪廓是一般輪廓,也可以標記為中心線(請選取它的點)。這些值屬於正在編輯的源,並隨字型一起儲存。",
+    "download.button": "展開為輪廓並下載",
+    "download.hint":
+      "製作一份把中心線展開為輪廓的字型副本(與命令列工具的計算相同):designspace 和 UFO 打包為 .zip 檔案,可用 fontmake 建置。原字型不會改變。",
+    "download.reading": "正在讀取字符: {0} / {1}",
+    "download.expanding": "正在將中心線展開為輪廓: {0} / {1}",
+    "download.zipping": "正在產生 .zip 檔案…",
+    "download.done": "已下載 {0}。",
+    "download.report": "警告和扭曲: {0}",
+    "download.failed": "無法產生副本: {0}",
   },
   "de": {
     "sidebar.tab": "Strichschrift",
@@ -330,6 +366,15 @@ export const strings = {
     "angleBase.centerline": "Mittellinie",
     "panel.hint":
       "Offene Konturen sind Mittellinien und werden mit diesen Werten gezogen. Eine geschlossene Kontur ist eine gewöhnliche Kontur, außer sie ist als Mittellinie markiert (wähle einen ihrer Punkte aus). Die Werte gehören zur bearbeiteten Source und werden mit der Schrift gespeichert.",
+    "download.button": "Als Konturen herunterladen",
+    "download.hint":
+      "Erstellt eine Kopie der Schrift, in der die Mittellinien in Konturen umgewandelt sind, wie mit dem Kommandozeilenwerkzeug: ein Designspace und seine UFOs in einer .zip-Datei, zum Bauen mit fontmake. Die Schrift selbst bleibt unverändert.",
+    "download.reading": "Glyphen werden gelesen: {0} / {1}",
+    "download.expanding": "Mittellinien werden in Konturen umgewandelt: {0} / {1}",
+    "download.zipping": ".zip-Datei wird erstellt …",
+    "download.done": "{0} heruntergeladen.",
+    "download.report": "Warnungen und Verdrehungen: {0}",
+    "download.failed": "Die Kopie konnte nicht erstellt werden: {0}",
   },
   "nl": {
     "sidebar.tab": "Lijnfont",
@@ -395,6 +440,15 @@ export const strings = {
     "angleBase.centerline": "Middellijn",
     "panel.hint":
       "Open contouren zijn middellijnen en worden met deze waarden getrokken. Een gesloten contour is een gewone contour, tenzij hij als middellijn is gemarkeerd (selecteer een van zijn punten). De waarden horen bij de source die wordt bewerkt en worden met het font opgeslagen.",
+    "download.button": "Downloaden als contouren",
+    "download.hint":
+      "Maakt een kopie van het font waarin de middellijnen in contouren zijn omgezet, zoals het opdrachtregelprogramma doet: een designspace en zijn UFO’s in een .zip-bestand, om met fontmake te bouwen. Het font zelf verandert niet.",
+    "download.reading": "Glyphs lezen: {0} / {1}",
+    "download.expanding": "Middellijnen omzetten in contouren: {0} / {1}",
+    "download.zipping": ".zip-bestand maken…",
+    "download.done": "{0} gedownload.",
+    "download.report": "Waarschuwingen en verdraaiingen: {0}",
+    "download.failed": "De kopie kon niet worden gemaakt: {0}",
   },
   "fr": {
     "sidebar.tab": "Police à traits",
@@ -460,6 +514,15 @@ export const strings = {
     "angleBase.centerline": "La ligne centrale",
     "panel.hint":
       "Les contours ouverts sont des lignes centrales, tracées avec ces valeurs. Un contour fermé est un contour ordinaire, sauf s’il est marqué comme ligne centrale (sélectionnez un de ses points). Les valeurs appartiennent à la source en cours d’édition et sont enregistrées avec la fonte.",
+    "download.button": "Télécharger en contours",
+    "download.hint":
+      "Crée une copie de la fonte où les lignes centrales sont converties en contours, comme le fait l’outil en ligne de commande : un designspace et ses UFO dans un fichier .zip, à compiler avec fontmake. La fonte elle-même n’est pas modifiée.",
+    "download.reading": "Lecture des glyphes : {0} / {1}",
+    "download.expanding": "Conversion des lignes centrales en contours : {0} / {1}",
+    "download.zipping": "Création du fichier .zip…",
+    "download.done": "{0} téléchargé.",
+    "download.report": "Avertissements et torsions : {0}",
+    "download.failed": "Impossible de créer la copie : {0}",
   },
   "it": {
     "sidebar.tab": "Font a tratto",
@@ -525,6 +588,15 @@ export const strings = {
     "angleBase.centerline": "Linea centrale",
     "panel.hint":
       "I contorni aperti sono linee centrali, tracciate con questi valori. Un contorno chiuso è un contorno normale, a meno che non sia segnato come linea centrale (seleziona uno dei suoi punti). I valori appartengono alla sorgente in modifica e vengono salvati con il font.",
+    "download.button": "Scarica come contorni",
+    "download.hint":
+      "Crea una copia del font con le linee centrali convertite in contorni, come fa lo strumento da riga di comando: un designspace e i suoi UFO in un file .zip, da compilare con fontmake. Il font stesso non viene modificato.",
+    "download.reading": "Lettura dei glifi: {0} / {1}",
+    "download.expanding": "Conversione delle linee centrali in contorni: {0} / {1}",
+    "download.zipping": "Creazione del file .zip…",
+    "download.done": "{0} scaricato.",
+    "download.report": "Avvisi e torsioni: {0}",
+    "download.failed": "Impossibile creare la copia: {0}",
   },
   "es-ES": {
     "sidebar.tab": "Fuente de trazos",
@@ -590,6 +662,15 @@ export const strings = {
     "angleBase.centerline": "Línea central",
     "panel.hint":
       "Los contornos abiertos son líneas centrales, trazadas con estos valores. Un contorno cerrado es un contorno normal, salvo que esté marcado como línea central (selecciona uno de sus puntos). Los valores pertenecen a la matriz que se está editando y se guardan con la tipografía.",
+    "download.button": "Descargar como contornos",
+    "download.hint":
+      "Crea una copia de la tipografía con las líneas centrales convertidas en contornos, como hace la herramienta de línea de comandos: un designspace y sus UFO en un archivo .zip, para compilar con fontmake. La tipografía en sí no cambia.",
+    "download.reading": "Leyendo glifos: {0} / {1}",
+    "download.expanding": "Convirtiendo líneas centrales en contornos: {0} / {1}",
+    "download.zipping": "Creando el archivo .zip…",
+    "download.done": "Se ha descargado {0}.",
+    "download.report": "Advertencias y torsiones: {0}",
+    "download.failed": "No se ha podido crear la copia: {0}",
   },
   "es-419": {
     "sidebar.tab": "Fuente de trazos",
@@ -655,6 +736,15 @@ export const strings = {
     "angleBase.centerline": "Línea central",
     "panel.hint":
       "Los contornos abiertos son líneas centrales, trazadas con estos valores. Un contorno cerrado es un contorno normal, salvo que esté marcado como línea central (selecciona uno de sus puntos). Los valores pertenecen a la matriz que se está editando y se guardan con la tipografía.",
+    "download.button": "Descargar como contornos",
+    "download.hint":
+      "Crea una copia de la tipografía con las líneas centrales convertidas en contornos, como hace la herramienta de línea de comandos: un designspace y sus UFO en un archivo .zip, para compilar con fontmake. La tipografía en sí no cambia.",
+    "download.reading": "Leyendo glifos: {0} / {1}",
+    "download.expanding": "Convirtiendo líneas centrales en contornos: {0} / {1}",
+    "download.zipping": "Creando el archivo .zip…",
+    "download.done": "Se descargó {0}.",
+    "download.report": "Advertencias y torsiones: {0}",
+    "download.failed": "No se pudo crear la copia: {0}",
   },
   "pt-BR": {
     "sidebar.tab": "Fonte de traços",
@@ -720,6 +810,15 @@ export const strings = {
     "angleBase.centerline": "Linha central",
     "panel.hint":
       "Contornos abertos são linhas centrais, traçadas com estes valores. Um contorno fechado é um contorno comum, a menos que esteja marcado como linha central (selecione um de seus pontos). Os valores pertencem à matriz em edição e são salvos com a fonte.",
+    "download.button": "Baixar como contornos",
+    "download.hint":
+      "Cria uma cópia da fonte com as linhas centrais convertidas em contornos, como faz a ferramenta de linha de comando: um designspace e seus UFOs em um arquivo .zip, para compilar com o fontmake. A fonte em si não é alterada.",
+    "download.reading": "Lendo glifos: {0} / {1}",
+    "download.expanding": "Convertendo linhas centrais em contornos: {0} / {1}",
+    "download.zipping": "Criando o arquivo .zip…",
+    "download.done": "{0} baixado.",
+    "download.report": "Avisos e torções: {0}",
+    "download.failed": "Não foi possível criar a cópia: {0}",
   },
   "pt-PT": {
     "sidebar.tab": "Tipo de traços",
@@ -785,6 +884,15 @@ export const strings = {
     "angleBase.centerline": "Linha central",
     "panel.hint":
       "Contornos abertos são linhas centrais, traçadas com estes valores. Um contorno fechado é um contorno comum, a não ser que esteja marcado como linha central (selecione um dos seus pontos). Os valores pertencem à matriz em edição e são guardados com o tipo de letra.",
+    "download.button": "Transferir como contornos",
+    "download.hint":
+      "Cria uma cópia do tipo de letra com as linhas centrais convertidas em contornos, como faz a ferramenta de linha de comandos: um designspace e os seus UFO num ficheiro .zip, para compilar com o fontmake. O tipo de letra em si não é alterado.",
+    "download.reading": "A ler glifos: {0} / {1}",
+    "download.expanding": "A converter linhas centrais em contornos: {0} / {1}",
+    "download.zipping": "A criar o ficheiro .zip…",
+    "download.done": "{0} transferido.",
+    "download.report": "Avisos e torções: {0}",
+    "download.failed": "Não foi possível criar a cópia: {0}",
   },
   "ru": {
     "sidebar.tab": "Штриховой шрифт",
@@ -850,6 +958,15 @@ export const strings = {
     "angleBase.centerline": "Средней линии",
     "panel.hint":
       "Открытые контуры — это средние линии, обводимые с этими значениями. Замкнутый контур — обычный контур, если он не отмечен как средняя линия (выберите одну из его точек). Значения относятся к редактируемому мастеру и сохраняются вместе со шрифтом.",
+    "download.button": "Скачать с контурами",
+    "download.hint":
+      "Создаёт копию шрифта, в которой средние линии превращены в контуры, как это делает инструмент командной строки: designspace и его UFO в файле .zip, для сборки в fontmake. Сам шрифт не меняется.",
+    "download.reading": "Чтение глифов: {0} / {1}",
+    "download.expanding": "Превращение средних линий в контуры: {0} / {1}",
+    "download.zipping": "Создание файла .zip…",
+    "download.done": "Скачан файл {0}.",
+    "download.report": "Предупреждения и перекручивания: {0}",
+    "download.failed": "Не удалось создать копию: {0}",
   },
 };
 

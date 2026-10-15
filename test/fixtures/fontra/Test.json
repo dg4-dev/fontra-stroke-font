@@ -1,0 +1,386 @@
+{
+  "glyphMap": {
+    "n": [110],
+    "o": [],
+    "period": []
+  },
+  "axes": {
+    "axes": [
+      {
+        "name": "Weight",
+        "label": "Weight",
+        "tag": "wght",
+        "minValue": 300,
+        "defaultValue": 300,
+        "maxValue": 700,
+        "mapping": [
+          [300, 30],
+          [700, 70]
+        ]
+      }
+    ]
+  },
+  "sources": {
+    "Light": {
+      "name": "Light",
+      "location": {
+        "Weight": 30
+      },
+      "lineMetricsHorizontalLayout": {
+        "ascender": {
+          "value": 800,
+          "zone": 16
+        },
+        "capHeight": {
+          "value": 750,
+          "zone": 16
+        },
+        "xHeight": {
+          "value": 500,
+          "zone": 16
+        },
+        "descender": {
+          "value": -200,
+          "zone": -16
+        },
+        "baseline": {
+          "value": 0,
+          "zone": -16
+        }
+      }
+    },
+    "Medium": {
+      "name": "Medium",
+      "isSparse": true,
+      "location": {
+        "Weight": 50
+      }
+    },
+    "Bold": {
+      "name": "Bold",
+      "location": {
+        "Weight": 70
+      },
+      "lineMetricsHorizontalLayout": {
+        "ascender": {
+          "value": 800,
+          "zone": 16
+        },
+        "capHeight": {
+          "value": 750,
+          "zone": 16
+        },
+        "xHeight": {
+          "value": 500,
+          "zone": 16
+        },
+        "descender": {
+          "value": -200,
+          "zone": -16
+        },
+        "baseline": {
+          "value": 0,
+          "zone": -16
+        }
+      }
+    }
+  },
+  "unitsPerEm": 1000,
+  "customData": {},
+  "fontInfo": {
+    "familyName": "Test"
+  },
+  "kerning": {
+    "kern": {
+      "groupsSide1": {},
+      "groupsSide2": {},
+      "sourceIdentifiers": ["Light", "Bold"],
+      "values": {}
+    }
+  },
+  "features": {},
+  "glyphs": {
+    "n": {
+      "name": "n",
+      "sources": [
+        {
+          "name": "",
+          "layerName": "Light",
+          "locationBase": "Light",
+          "customData": {
+            "xyz.dg4.stroke": {
+              "defaults": {
+                "cap": "round",
+                "width": 40
+              }
+            }
+          }
+        },
+        {
+          "name": "",
+          "layerName": "Medium",
+          "locationBase": "Medium",
+          "customData": {
+            "xyz.dg4.stroke": {
+              "defaults": {
+                "width": 100
+              }
+            }
+          }
+        },
+        {
+          "name": "",
+          "layerName": "Bold",
+          "locationBase": "Bold",
+          "customData": {
+            "xyz.dg4.stroke": {
+              "defaults": {
+                "cap": "square",
+                "width": 160
+              }
+            }
+          }
+        }
+      ],
+      "layers": {
+        "Bold": {
+          "glyph": {
+            "path": {
+              "coordinates": [
+                100, 0, 100, 300, 400, 300, 400, 0, 0, -20, 500, -20, 500, -10, 0, -10
+              ],
+              "pointTypes": [0, 2, 2, 0, 0, 0, 0, 0],
+              "contourInfo": [
+                {
+                  "endPoint": 3,
+                  "isClosed": false
+                },
+                {
+                  "endPoint": 7,
+                  "isClosed": true
+                }
+              ],
+              "pointAttributes": [
+                {
+                  "identifier": "p1"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "components": [
+              {
+                "name": "period",
+                "transformation": {
+                  "translateX": 250,
+                  "translateY": 400
+                }
+              }
+            ],
+            "xAdvance": 500,
+            "anchors": [
+              {
+                "name": "bottom",
+                "x": 250,
+                "y": 0
+              }
+            ]
+          }
+        },
+        "Light": {
+          "glyph": {
+            "path": {
+              "coordinates": [
+                100, 0, 100, 300, 400, 300, 400, 0, 0, -20, 500, -20, 500, -10, 0, -10
+              ],
+              "pointTypes": [0, 2, 2, 0, 0, 0, 0, 0],
+              "contourInfo": [
+                {
+                  "endPoint": 3,
+                  "isClosed": false
+                },
+                {
+                  "endPoint": 7,
+                  "isClosed": true
+                }
+              ],
+              "pointAttributes": [
+                {
+                  "identifier": "p1"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "components": [
+              {
+                "name": "period",
+                "transformation": {
+                  "translateX": 250,
+                  "translateY": 400
+                }
+              }
+            ],
+            "xAdvance": 500,
+            "anchors": [
+              {
+                "name": "bottom",
+                "x": 250,
+                "y": 0
+              }
+            ]
+          }
+        },
+        "Medium": {
+          "glyph": {
+            "path": {
+              "coordinates": [
+                100, 0, 100, 300, 400, 300, 400, 0, 0, -20, 500, -20, 500, -10, 0, -10
+              ],
+              "pointTypes": [0, 2, 2, 0, 0, 0, 0, 0],
+              "contourInfo": [
+                {
+                  "endPoint": 3,
+                  "isClosed": false
+                },
+                {
+                  "endPoint": 7,
+                  "isClosed": true
+                }
+              ],
+              "pointAttributes": [
+                {
+                  "identifier": "p1"
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+              ]
+            },
+            "components": [
+              {
+                "name": "period",
+                "transformation": {
+                  "translateX": 250,
+                  "translateY": 400
+                }
+              }
+            ],
+            "xAdvance": 500
+          }
+        }
+      },
+      "customData": {
+        "fontra.glyph.locked": true
+      }
+    },
+    "o": {
+      "name": "o",
+      "sources": [
+        {
+          "name": "",
+          "layerName": "Light",
+          "locationBase": "Light"
+        },
+        {
+          "name": "",
+          "layerName": "Bold",
+          "locationBase": "Bold"
+        }
+      ],
+      "layers": {
+        "Bold": {
+          "glyph": {
+            "path": {
+              "coordinates": [100, 0, 400, 0, 400, 300, 100, 300],
+              "pointTypes": [0, 0, 0, 0],
+              "contourInfo": [
+                {
+                  "endPoint": 3,
+                  "isClosed": true
+                }
+              ]
+            },
+            "xAdvance": 500
+          }
+        },
+        "Light": {
+          "glyph": {
+            "path": {
+              "coordinates": [100, 0, 400, 0, 400, 300, 100, 300],
+              "pointTypes": [0, 0, 0, 0],
+              "contourInfo": [
+                {
+                  "endPoint": 3,
+                  "isClosed": true
+                }
+              ]
+            },
+            "xAdvance": 500
+          }
+        }
+      }
+    },
+    "period": {
+      "name": "period",
+      "sources": [
+        {
+          "name": "",
+          "layerName": "Light",
+          "locationBase": "Light"
+        },
+        {
+          "name": "",
+          "layerName": "Bold",
+          "locationBase": "Bold"
+        }
+      ],
+      "layers": {
+        "Bold": {
+          "glyph": {
+            "path": {
+              "coordinates": [100, 0],
+              "pointTypes": [0],
+              "contourInfo": [
+                {
+                  "endPoint": 0,
+                  "isClosed": false
+                }
+              ]
+            },
+            "xAdvance": 200
+          }
+        },
+        "Light": {
+          "glyph": {
+            "path": {
+              "coordinates": [100, 0],
+              "pointTypes": [0],
+              "contourInfo": [
+                {
+                  "endPoint": 0,
+                  "isClosed": false
+                }
+              ]
+            },
+            "xAdvance": 200
+          }
+        }
+      }
+    }
+  }
+}

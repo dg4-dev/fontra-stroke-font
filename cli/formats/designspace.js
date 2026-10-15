@@ -103,6 +103,9 @@ export function mapValue(value, maps) {
  * @param {{filename: string, name: string, familyname?: string,
  *   stylename?: string, layer?: string, location: object}[]} document.sources
  *   locations in design coordinates
+ * @param {{filename?: string, name: string, familyname?: string,
+ *   stylename?: string, location: object}[]} [document.instances]
+ *   locations in design coordinates
  * @param {object} [document.lib]
  */
 export function designspaceXML({
@@ -111,6 +114,7 @@ export function designspaceXML({
   rules = [],
   rulesProcessingLast = false,
   sources = [],
+  instances = [],
   lib = {},
 }) {
   const lines = [
@@ -197,6 +201,22 @@ export function designspaceXML({
     );
   }
   lines.push("  </sources>");
+  if (instances.length) {
+    lines.push("  <instances>");
+    for (const instance of instances) {
+      lines.push(
+        `    <instance${attributes({
+          name: instance.name,
+          familyname: instance.familyname,
+          stylename: instance.stylename,
+          filename: instance.filename,
+        })}>`,
+        ...locationLines("location", instance.location, "      "),
+        "    </instance>"
+      );
+    }
+    lines.push("  </instances>");
+  }
   if (Object.values(lib).some((value) => value !== undefined && value !== null)) {
     lines.push("  <lib>", plistValueXML(lib, "    "), "  </lib>");
   }
