@@ -1,7 +1,8 @@
 // XML property lists (UFO's .plist files and glif libs). Adapted from
 // fontra-source-control (src/formats/plist.js), same author and license.
+// Writing (plistXML() and plistValueXML() at the end) is added here.
 
-import { parseXML } from "./xml.js";
+import { escapeText, parseXML } from "./xml.js";
 
 export class PlistParseError extends Error {
   constructor(message) {
@@ -47,4 +48,61 @@ export function plistValue(element) {
     default:
       throw new PlistParseError(`unknown plist element <${element.name}>`);
   }
+}
+
+/**
+ * A whole .plist file holding value.
+ * @param {*} value an object, array, string, number or boolean
+ */
+export function plistXML(value) {
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" ' +
+    '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+    `<plist version="1.0">\n${plistValueXML(value)}\n</plist>\n`
+  );
+}
+
+/**
+ * One plist value as XML, one element per line, starting at indent. Keys of
+ * objects keep their order; keys whose value is undefined or null are left
+ * out, as are such items of arrays.
+ */
+export function plistValueXML(value, indent = "", step = "  ") {
+  if (value === true || value === false) {
+    return `${indent}<${value}/>`;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error(`a plist cannot hold the number ${value}`);
+    }
+    return Number.isInteger(value)
+      ? `${indent}<integer>${value}</integer>`
+      : `${indent}<real>${value}</real>`;
+  }
+  if (typeof value === "string") {
+    return `${indent}<string>${escapeText(value)}</string>`;
+  }
+  if (Array.isArray(value)) {
+    const items = value.filter((item) => item !== undefined && item !== null);
+    if (!items.length) {
+      return `${indent}<array/>`;
+    }
+    const lines = items.map((item) => plistValueXML(item, indent + step, step));
+    return `${indent}<array>\n${lines.join("\n")}\n${indent}</array>`;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value).filter(
+      ([, item]) => item !== undefined && item !== null
+    );
+    if (!entries.length) {
+      return `${indent}<dict/>`;
+    }
+    const lines = entries.flatMap(([key, item]) => [
+      `${indent}${step}<key>${escapeText(key)}</key>`,
+      plistValueXML(item, indent + step, step),
+    ]);
+    return `${indent}<dict>\n${lines.join("\n")}\n${indent}</dict>`;
+  }
+  throw new Error(`a plist cannot hold ${value}`);
 }

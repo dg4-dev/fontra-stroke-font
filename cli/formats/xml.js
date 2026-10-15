@@ -1,5 +1,6 @@
 // From fontra-source-control (src/formats/xml.js), same author and license.
-// escapeAttribute() and serializeElement() at the end are added here.
+// escapeAttribute(), escapeText() and serializeElement() at the end are added
+// here.
 //
 // A small non-validating XML parser, enough for .glif files and XML property
 // lists. Works without a DOM so it also runs under Node for tests.
@@ -162,6 +163,10 @@ const attributeEscapes = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"
 
 export function escapeAttribute(value) {
   return String(value).replace(/[&<>"]/g, (c) => attributeEscapes[c]);
+}
+
+export function escapeText(value) {
+  return String(value).replace(/[&<>]/g, (c) => attributeEscapes[c]);
 }
 
 /**
