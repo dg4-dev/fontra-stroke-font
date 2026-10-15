@@ -29,6 +29,7 @@ jsDelivr caches branch contents for a while, so updates may not show up right aw
 ```plaintext
 src/
   start.js            Entry point (init / function in plugin.json)
+  api.js              Stroked shapes for other plugins (globalThis.fontraStrokeFont, see docs/api.md)
   geometry/           Stroke calculations (no Fontra or DOM dependencies; shared with the CLI)
     bezier.js           Vector and Bézier helpers
     centerline.js       Splitting a centerline into segments

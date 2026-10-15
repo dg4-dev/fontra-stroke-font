@@ -1,6 +1,7 @@
 // Fontra plugin entry point. Fontra imports this module and calls
 // start(editor, pluginPath) once the glyph editor has been set up.
 
+import { registerApi } from "./api.js";
 import { wrapCopyPaste } from "./clipboard.js";
 import { ComponentGlyphs, strokeGlyph } from "./glyph-strokes.js";
 import {
@@ -35,6 +36,8 @@ export function start(editor, pluginPath) {
     widenAll();
     editor.canvasController.requestUpdate();
   });
+  // Other plugins of the editor can stroke glyphs too (see api.js)
+  registerApi(componentGlyphs);
   insertLayerDefinition(
     visualizationLayers.definitions,
     makeStrokeLayerDefinition({ settings, componentGlyphs })

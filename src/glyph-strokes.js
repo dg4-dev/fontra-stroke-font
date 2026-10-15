@@ -66,11 +66,14 @@ export class ComponentGlyphs {
  * @param {ComponentGlyphs} [componentGlyphs]
  * @returns {{outlines: object[], twists: object[], strokedClosed: {own:
  *   Set<number>, components: Map<number, Set<number>>},
- *   componentOutlines: Map<number, object[]>}} outlines in glyph
+ *   componentOutlines: Map<number, object[]>, edges: object[],
+ *   componentEdges: Map<number, object[]>}} outlines in glyph
  *   coordinates; twists of the glyph's own contours only; the closed contours
  *   that were stroked as centerlines (by contour index, of the glyph's own
  *   path and of each component's path, by component index); the outlines of
- *   each component with centerlines, by component index
+ *   each component with centerlines, by component index; the edges of the
+ *   bands of the glyph's own centerlines, and of each component's, by
+ *   component index (see strokeOpenContours())
  */
 export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
   const glyph = positionedGlyph?.glyph;
@@ -78,12 +81,15 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
   let twists = [];
   const strokedClosed = { own: new Set(), components: new Map() };
   const componentOutlines = new Map();
+  let edges = [];
+  const componentEdges = new Map();
   if (glyph?.path?.numContours) {
     const style = strokeStyleForGlyph(positionedGlyph, location);
     if (style) {
       const own = strokeOpenContours(glyph.path, style);
       outlines.push(...own.outlines);
       twists = own.twists;
+      edges = own.edges;
       strokedClosed.own = new Set(own.strokedClosed);
     }
   }
@@ -122,13 +128,14 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
       outlines.push(...stroked.outlines);
       if (stroked.outlines.length) {
         componentOutlines.set(componentIndex, stroked.outlines);
+        componentEdges.set(componentIndex, stroked.edges);
       }
       if (stroked.strokedClosed.length) {
         strokedClosed.components.set(componentIndex, new Set(stroked.strokedClosed));
       }
     }
   }
-  return { outlines, twists, strokedClosed, componentOutlines };
+  return { outlines, twists, strokedClosed, componentOutlines, edges, componentEdges };
 }
 
 /**
@@ -203,8 +210,9 @@ const cache = new WeakMap();
 /**
  * Stroked outlines of the centerlines of a Fontra path (its open contours,
  * and the closed contours marked as centerlines in style.points), the places
- * where the strokes twist, and the indices of the closed contours stroked.
- * Reused while the points and the style stay the same.
+ * where the strokes twist, the indices of the closed contours stroked, and
+ * the edges of the bands ({side, points, isClosed, contourIndex}, see
+ * geometry/sweep.js). Reused while the points and the style stay the same.
  */
 export function strokeOpenContours(path, style) {
   const key = cacheKey(path, style);
@@ -221,6 +229,7 @@ function strokeOpenContoursUncached(path, style) {
   const outlines = [];
   const twists = [];
   const strokedClosed = [];
+  const edges = [];
   for (let contourIndex = 0; contourIndex < path.numContours; contourIndex++) {
     const isClosed = path.contourInfo[contourIndex].isClosed;
     if (!isCenterlineContour(isClosed, style.points?.[contourIndex])) {
@@ -245,11 +254,12 @@ function strokeOpenContoursUncached(path, style) {
     });
     outlines.push(...stroked.contours);
     twists.push(...stroked.twists.map((twist) => ({ ...twist, contourIndex })));
+    edges.push(...stroked.edges.map((edge) => ({ ...edge, contourIndex })));
     if (isClosed) {
       strokedClosed.push(contourIndex);
     }
   }
-  return { outlines, twists, strokedClosed };
+  return { outlines, twists, strokedClosed, edges };
 }
 
 // Fontra may change a path in place while points are dragged, so the key

@@ -328,6 +328,29 @@ export function isCenterlineContour(isClosed, values) {
 }
 
 /**
+ * The values of a point, with those that must be the same in all sources
+ * (SHARED_POINT_KEYS) taken from the same point in the default source.
+ * @param {object|undefined} own the point's values in its source
+ * @param {object|undefined} shared the point's values in the default source
+ * @returns {object|undefined} own itself when they agree already; undefined
+ *   when no values are left
+ */
+export function withSharedPointValues(own, shared) {
+  if (SHARED_POINT_KEYS.every((key) => own?.[key] === shared?.[key])) {
+    return own;
+  }
+  const next = { ...own };
+  for (const key of SHARED_POINT_KEYS) {
+    if (shared?.[key] === undefined) {
+      delete next[key];
+    } else {
+      next[key] = shared[key];
+    }
+  }
+  return Object.keys(next).length ? next : undefined;
+}
+
+/**
  * The half widths a point sets on its left and right, each undefined when
  * the point does not set it. left / right win over width.
  */

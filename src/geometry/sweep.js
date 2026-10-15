@@ -26,6 +26,11 @@
 // where the next band starts. The nib method does that where the corner of a
 // rectangular nib that draws an edge changes.
 //
+// The edges: besides the contours, the left and right edges of each band are
+// returned on their own, with the same points as in the band, both running
+// in the direction of the centerline (another plugin draws curvature combs
+// on them, see src/api.js). Corners and ends have no edges.
+//
 // The layout: per segment and side, the parameters where an edge is split and
 // the number of pieces each part is fitted with. sweepContour() returns the
 // layout used and can be given one; stroking every source of a glyph with the
@@ -62,12 +67,16 @@ export const SAME_PARAMETER = 1e-9;
  * @param {(pointIndex: number) => object[]} method.dotShapes the shapes of a
  *   lone point
  * @param {object} [layout] see the top of this file
- * @returns {{contours: {points: object[], isClosed: true}[], layout: object,
- *   twists: object[], layoutMismatch: boolean}}
+ * @returns {{contours: {points: object[], isClosed: true}[], edges: {side:
+ *   "left"|"right", points: object[], isClosed: boolean}[], layout: object,
+ *   twists: object[], layoutMismatch: boolean}} edges: the left and right
+ *   edge of each band, in the order of the bands along the centerline (see
+ *   the top of this file); closed for a loop without corners
  */
 export function sweepContour(contour, segments, method, layout) {
   const result = {
     contours: [],
+    edges: [],
     layout: { segments: segments.map(() => null) },
     twists: [],
     layoutMismatch: false,
@@ -132,7 +141,7 @@ export function sweepContour(contour, segments, method, layout) {
     // Start the runs at a corner, so that no run is cut at the contour's start
     const k = usable.findIndex((item, i) => !continues(usable.at(i - 1), item));
     if (k < 0) {
-      result.contours.push(...ringContours(usable));
+      result.contours.push(...ringContours(usable, result.edges));
       return result;
     }
     ordered = [...usable.slice(k), ...usable.slice(0, k)];
@@ -147,11 +156,11 @@ export function sweepContour(contour, segments, method, layout) {
       run.push(current);
       continue;
     }
-    result.contours.push(runContour(run));
+    result.contours.push(runContour(run, result.edges));
     result.contours.push(method.cornerShape(previous, current));
     run = [current];
   }
-  result.contours.push(runContour(run));
+  result.contours.push(runContour(run, result.edges));
 
   if (contour.isClosed) {
     // The corner where the loop comes back to its first run
@@ -187,8 +196,8 @@ export function innerBreaks(breaks) {
 
 // --- Assembling contours ------------------------------------------------------
 
-// The band of a run of parts joined by smooth points
-function runContour(run) {
+// The band of a run of parts joined by smooth points; its edges go to edges
+function runContour(run, edges) {
   const right = [];
   const left = [];
   const joints = [];
@@ -200,12 +209,12 @@ function runContour(run) {
     right.push(...item.right.map(copyPiece));
     left.push(...item.left.map(copyPiece));
   }
-  return bandContour(right, left, joints);
+  return bandContour(right, left, joints, edges);
 }
 
 // A loop without corners: the right edge forwards and the left edge backwards,
-// each closed on its own
-function ringContours(items) {
+// each closed on its own; its edges go to edges
+function ringContours(items, edges) {
   const right = items.flatMap((item) => item.right.map(copyPiece));
   const left = items.flatMap((item) => item.left.map(copyPiece));
   const meetAll = (pieces, starts) => {
@@ -224,24 +233,17 @@ function ringContours(items) {
   };
   meetAll(right, starts("right"));
   meetAll(left, starts("left"));
-  const outline = (pieces) => {
-    const points = [onCurve(pieces[0].points[0])];
-    for (const piece of pieces) {
-      appendPiece(points, piece.points);
-    }
-    // The last point is the first one again; the contour closes by itself
-    points.pop();
-    return { points, isClosed: true };
-  };
+  const outline = (pieces) => ({ points: edgePoints(pieces, true), isClosed: true });
   const reversed = left.toReversed().map((piece) => ({
     type: piece.type,
     points: piece.points.toReversed(),
   }));
+  edges.push({ side: "left", ...outline(left) }, { side: "right", ...outline(right) });
   return [outline(right), outline(reversed)];
 }
 
 // Right edge forwards, then left edge backwards
-function bandContour(right, left, joints) {
+function bandContour(right, left, joints, edges) {
   // At smooth points the edges of the two segments meet only if the tangents
   // agree exactly; meet halfway so that the band stays closed.
   for (const joint of joints) {
@@ -258,7 +260,24 @@ function bandContour(right, left, joints) {
   }
   // The last point appended is the start of the left edge; the contour closes
   // with a line back to the start of the right edge.
+  edges.push(
+    { side: "left", points: edgePoints(left, false), isClosed: false },
+    { side: "right", points: edgePoints(right, false), isClosed: false }
+  );
   return { points, isClosed: true };
+}
+
+// The points of an edge, from its pieces
+function edgePoints(pieces, isClosed) {
+  const points = [onCurve(pieces[0].points[0])];
+  for (const piece of pieces) {
+    appendPiece(points, piece.points);
+  }
+  if (isClosed) {
+    // The last point is the first one again; the contour closes by itself
+    points.pop();
+  }
+  return points;
 }
 
 function copyPiece(piece) {

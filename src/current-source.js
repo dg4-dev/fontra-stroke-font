@@ -29,6 +29,7 @@ import {
   resolvePointValues,
   sanitizeNibValue,
   sanitizeOffsetValue,
+  withSharedPointValues,
 } from "./stroke-data.js";
 
 /**
@@ -265,19 +266,7 @@ function applyDefaultJoins(values, varGlyph, defaultIndex, path) {
     : undefined;
   for (const [c, contour] of values.entries()) {
     for (const [i, own] of contour.entries()) {
-      const shared = defaults?.[c]?.[i];
-      if (SHARED_POINT_KEYS.every((key) => own?.[key] === shared?.[key])) {
-        continue;
-      }
-      const next = { ...own };
-      for (const key of SHARED_POINT_KEYS) {
-        if (shared?.[key] === undefined) {
-          delete next[key];
-        } else {
-          next[key] = shared[key];
-        }
-      }
-      contour[i] = Object.keys(next).length ? next : undefined;
+      contour[i] = withSharedPointValues(own, defaults?.[c]?.[i]);
     }
   }
 }
