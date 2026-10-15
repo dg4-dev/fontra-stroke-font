@@ -19,7 +19,7 @@ import { PANEL_IDENTIFIER, definePanelElement } from "./panel.js";
 import { StrokeSettings } from "./settings.js";
 import { t } from "./strings.js";
 import { LAYER_IDENTIFIER, makeStrokeLayerDefinition } from "./stroke-layer.js";
-import { StrokeWidthTool, TOOL_IDENTIFIER } from "./width-tool.js";
+import { StrokeWidthTool, TOOL_IDENTIFIER, wrapPointerTool } from "./width-tool.js";
 
 export function start(editor, pluginPath) {
   const visualizationLayers = editor.visualizationLayers;
@@ -51,7 +51,7 @@ export function start(editor, pluginPath) {
     visualizationLayers.definitions,
     makeOutlineFiller(componentGlyphs)
   );
-  const tool = new StrokeWidthTool(editor, `${pluginPath}/tool-icon.svg`);
+  const tool = new StrokeWidthTool(editor, `${pluginPath}/tool-icon.svg`, settings);
   insertLayerDefinition(
     visualizationLayers.definitions,
     makeHandlesLayerDefinition({ tool, settings })
@@ -91,6 +91,8 @@ export function start(editor, pluginPath) {
 
   addPanel(editor, settings, pluginPath);
   addTool(editor, tool);
+  // Fontra's pointer tool grabs the handles too, when they are shown with it
+  wrapPointerTool(editor, tool);
 }
 
 // Fontra finds the component under the pointer with

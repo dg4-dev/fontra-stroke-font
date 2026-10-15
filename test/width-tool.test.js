@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import { drawHandles, makeHandlesLayerDefinition } from "../src/handles-layer.js";
 import { editPointValues } from "../src/point-edit.js";
 import { STROKE_KEY } from "../src/stroke-data.js";
 import {
@@ -9,8 +10,9 @@ import {
   draggedValues,
   handleAt,
   widthHandles,
+  wrapPointerTool,
 } from "../src/width-tool.js";
-import { fakePath, fakePositionedGlyph } from "./fakes.js";
+import { FakeContext, fakePath, fakePositionedGlyph } from "./fakes.js";
 import { on } from "./helpers.js";
 
 const withId = (point, identifier) => ({ ...point, attrs: { identifier } });
@@ -148,8 +150,13 @@ function fakeEditor(positionedGlyph, { selection = new Set() } = {}) {
     },
   };
   const pointer = {
-    activate() {},
-    deactivate() {},
+    isActive: false,
+    activate() {
+      this.isActive = true;
+    },
+    deactivate() {
+      this.isActive = false;
+    },
     handleHover: (event) => pointerCalls.push(["hover", event]),
     handleDrag: async (stream, event) => pointerCalls.push(["drag", event]),
     handleKeyDown: (event) => pointerCalls.push(["key", event]),
@@ -288,4 +295,147 @@ test("of two handles on top of each other, the drag's direction picks one", asyn
   assert.deepEqual(glyph.varGlyph.sources[0].customData[STROKE_KEY].points, {
     b: { right: 30, left: 0 },
   });
+});
+
+// The width tool and Fontra's pointer tool, wrapped, with the pointer tool
+// selected and the handles shown with other tools
+function pointerToolEditor(glyph, { handles = true, selection } = {}) {
+  const fake = fakeEditor(glyph, { selection });
+  const settings = new Map([["handles", handles]]);
+  const tool = new StrokeWidthTool(fake.editor, "icon.svg", settings);
+  const pointer = fake.editor.tools["pointer-tool"];
+  assert.equal(wrapPointerTool(fake.editor, tool), true);
+  pointer.activate();
+  return { ...fake, tool, pointer, settings };
+}
+
+test("the pointer tool grabs a handle, as one undoable change", async () => {
+  const glyph = fakePositionedGlyph({
+    contours: [{ points: [on(0, 0), on(200, 0)], isClosed: false }],
+  });
+  const { tool, pointer, pointerCalls, results, canvas } = pointerToolEditor(glyph);
+  pointer.handleHover(mouse(200, 41));
+  assert.equal(tool.hoveredHandle.pointIndex, 1);
+  assert.equal(canvas.style.cursor, "pointer");
+  // The handles layer draws the hovered handle bigger, as with the width tool
+  const { screenParameters } = makeHandlesLayerDefinition({ tool });
+  const context = new FakeContext();
+  drawHandles(context, widthHandles(glyph, {}), screenParameters, tool);
+  const radii = context.calls.filter(([name]) => name === "arc").map((call) => call[3]);
+  assert.deepEqual(radii, [3.5, 3.5, 5.5, 3.5]);
+  await pointer.handleDrag(events(mouse(200, 45), mouse(200, 60)), mouse(200, 40));
+  assert.deepEqual(pointerCalls, []);
+  const values = Object.values(glyph.varGlyph.sources[0].customData[STROKE_KEY].points);
+  assert.deepEqual(values, [{ width: 120 }]);
+  assert.equal(results.length, 1);
+  assert.equal(results[0].undoLabel, "Change point width");
+  // Away from the handles, Fontra's pointer tool as before
+  pointer.handleHover(mouse(100, 0));
+  await pointer.handleDrag(events(), mouse(100, 0));
+  assert.deepEqual(
+    pointerCalls.map(([kind]) => kind),
+    ["hover", "drag"]
+  );
+  assert.equal(tool.hoveredHandle, undefined);
+});
+
+test("the pointer tool leaves the handles alone when they are not shown with it", async () => {
+  const glyph = fakePositionedGlyph({
+    contours: [{ points: [on(0, 0), on(200, 0)], isClosed: false }],
+  });
+  const { tool, pointer, pointerCalls, results } = pointerToolEditor(glyph, {
+    handles: false,
+  });
+  pointer.handleHover(mouse(200, 40));
+  await pointer.handleDrag(events(mouse(200, 60)), mouse(200, 40));
+  assert.deepEqual(
+    pointerCalls.map(([kind]) => kind),
+    ["hover", "drag"]
+  );
+  assert.equal(tool.hoveredHandle, undefined);
+  assert.deepEqual(results, []);
+});
+
+test("the pointer tool leaves a point under its handles to the point", async () => {
+  const glyph = fakePositionedGlyph({
+    contours: [{ points: [on(0, 0), withId(on(200, 0), "b")], isClosed: false }],
+    sources: [{ customData: pointsData({ b: { width: 0 } }) }],
+  });
+  const { tool, pointer, pointerCalls, results } = pointerToolEditor(glyph);
+  pointer.handleHover(mouse(200, 0));
+  await pointer.handleDrag(events(mouse(200, -30)), mouse(200, 0));
+  assert.deepEqual(
+    pointerCalls.map(([kind]) => kind),
+    ["hover", "drag"]
+  );
+  assert.equal(tool.hoveredHandle, undefined);
+  assert.deepEqual(results, []);
+  // The width tool still grabs them
+  tool.activate();
+  await tool.handleDrag(events(mouse(200, -30)), mouse(200, 0));
+  assert.equal(results.length, 1);
+});
+
+test("near its point, the pointer tool grabs a handle when nearer to it", () => {
+  const glyph = fakePositionedGlyph({
+    contours: [{ points: [on(0, 0), withId(on(200, 0), "b")], isClosed: false }],
+    sources: [{ customData: pointsData({ b: { width: 8 } }) }],
+  });
+  const { tool, pointer, pointerCalls } = pointerToolEditor(glyph);
+  pointer.handleHover(mouse(200, 3));
+  assert.equal(tool.hoveredHandle.side, "left");
+  pointer.handleHover(mouse(200, 1));
+  assert.equal(tool.hoveredHandle, undefined);
+  assert.deepEqual(
+    pointerCalls.map(([kind]) => kind),
+    ["hover"]
+  );
+});
+
+test("through the width tool, the wrapped pointer tool is Fontra's", async () => {
+  const glyph = fakePositionedGlyph({
+    contours: [{ points: [on(0, 0), on(200, 0)], isClosed: false }],
+  });
+  const { tool, pointerCalls } = pointerToolEditor(glyph);
+  // Fontra selects the width tool, which activates the pointer tool too
+  tool.activate();
+  assert.equal(tool.pointerToolGrabs(), false);
+  tool.handleHover(mouse(100, 0));
+  await tool.handleDrag(events(), mouse(100, 0));
+  assert.deepEqual(
+    pointerCalls.map(([kind]) => kind),
+    ["hover", "drag"]
+  );
+});
+
+test("wrapping the pointer tool is safe", async () => {
+  const glyph = fakePositionedGlyph({
+    contours: [{ points: [on(0, 0), on(200, 0)], isClosed: false }],
+  });
+  const { editor, tool, pointer, pointerCalls } = pointerToolEditor(glyph);
+  // Not wrapped twice
+  const hover = pointer.handleHover;
+  assert.equal(wrapPointerTool(editor, tool), true);
+  assert.equal(pointer.handleHover, hover);
+  // Without a pointer tool, nothing is wrapped
+  const warn = console.warn;
+  const error = console.error;
+  console.warn = () => {};
+  console.error = () => {};
+  try {
+    assert.equal(wrapPointerTool({ tools: {} }, tool), false);
+    // Finding the handles fails: Fontra's pointer tool does the work
+    editor.sceneController.selectedGlyphPoint = () => {
+      throw new Error("no point");
+    };
+    pointer.handleHover(mouse(200, 40));
+    await pointer.handleDrag(events(), mouse(200, 40));
+  } finally {
+    console.warn = warn;
+    console.error = error;
+  }
+  assert.deepEqual(
+    pointerCalls.map(([kind]) => kind),
+    ["hover", "drag"]
+  );
 });

@@ -29,7 +29,7 @@ In the panel: **Width**, **Cap** (butt, round, square), **Join** (miter, round, 
 Points can have their own width, also different on each side, and corners their own join.
 
 - **In the panel**: select points, then change their values. **Clear point values** removes them.
-- **On the canvas**: choose the stroke width tool (the button with a stroke and a handle, next to Fontra's tools). Each point gets a handle on each edge.
+- **On the canvas**: choose the stroke width tool (the button with a stroke and a handle, next to Fontra's tools). Each point gets a handle on each edge. To drag the handles without switching tools, check **Show handles with other tools too** in the panel: the pointer tool then drags them as well (except a handle on top of its point, which is left to the point).
 
 | Action                | Changes                                                                       |
 | --------------------- | ----------------------------------------------------------------------------- |
@@ -51,7 +51,7 @@ Choose **Elliptical nib** or **Rectangular nib** under **Stroke with**. The stro
 | Angle      | Direction of the nib, 0–180°, counter-clockwise from horizontal                                            |
 | Angle from | Per point: **Horizontal**, or **Centerline** so that the nib turns with the centerline (0° lies across it) |
 
-Points can have their own values, as with widths. On the canvas, the stroke width tool draws the nib at each point:
+Points can have their own values, as with widths. On the canvas, the stroke width tool draws the nib at each point, with handles (the pointer tool can drag them too, as with widths):
 
 | Action                        | Changes                                                     |
 | ----------------------------- | ----------------------------------------------------------- |
@@ -63,7 +63,7 @@ Points can have their own values, as with widths. On the canvas, the stroke widt
 
 ## Display settings
 
-At the top of the panel: show the preview, draw its edge only, fill opacity, show strokes on the other glyphs, show the handles with other tools too, and show the nib at each point. They are saved in the browser, not in the font.
+At the top of the panel: show the preview, draw its edge only, fill opacity, show strokes on the other glyphs, show the handles with other tools too (then the pointer tool can drag them), and show the nib at each point. They are saved in the browser, not in the font.
 
 The plugin follows Fontra's display language (English, Chinese, Japanese, German, Dutch, French, Italian, Spanish, Portuguese and Russian).
 
@@ -81,7 +81,7 @@ For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists t
 ## Known limitations
 
 - Fontra's font overview shows the centerlines, not the strokes
-- The handles can be dragged with the stroke width tool only
+- With the pointer tool, right-click gives Fontra's menu only: the join and **Angle from** are in the stroke width tool's menu and in the panel
 - Values per point are interpolated only between sources whose glyphs have the same points
 - Between a source where a stroke twists and one where it does not, in-between weights come out a little thinner on the inside of the bend
 - A rotated or scaled component keeps its nib unchanged in the preview (in the built font it is transformed)

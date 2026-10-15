@@ -1,7 +1,8 @@
 // The visualization layer that draws the handles of the glyph being edited:
 // while the stroke width tool is selected, or with every tool when the
-// setting asks for it. In a glyph of the nib method, it also draws the nib
-// of each point, with the tool or when the setting asks for it.
+// setting asks for it (then Fontra's pointer tool can grab them too, see
+// wrapPointerTool() in width-tool.js). In a glyph of the nib method, it also
+// draws the nib of each point, with the tool or when the setting asks for it.
 
 import { KNOB_DISTANCE } from "./nib-handles.js";
 import { glyphHandles } from "./width-tool.js";
@@ -13,8 +14,8 @@ const LAYER_Z_INDEX = 600;
 
 /**
  * @param {{tool: object, settings: object}} options the width tool (for
- *   whether it is active, and the hovered and dragged handles) and the
- *   display settings
+ *   whether it or the pointer tool grabs the handles, and the hovered and
+ *   dragged handles) and the display settings
  */
 export function makeHandlesLayerDefinition({ tool, settings }) {
   return {
@@ -94,8 +95,8 @@ export function drawNibs(context, nibs, parameters) {
 }
 
 export function drawHandles(context, handles, parameters, tool) {
-  const active =
-    tool?.draggedHandle ?? (tool?.isActive ? tool.hoveredHandle : undefined);
+  const grabs = tool?.isActive || tool?.pointerToolGrabs?.();
+  const active = tool?.draggedHandle ?? (grabs ? tool.hoveredHandle : undefined);
   context.lineWidth = parameters.lineWidth;
   context.strokeStyle = parameters.lineColor;
   context.beginPath();

@@ -41,7 +41,7 @@ src/
   current-source.js   Which source's values apply to the glyph in the editor
   path-points.js      Reading the points of Fontra paths
   point-edit.js       Reading and changing the values of the selected points
-  width-tool.js       The stroke width tool (handles on the canvas)
+  width-tool.js       The stroke width tool (handles on the canvas), and Fontra's pointer tool grabbing them
   handles-layer.js    Fontra visualization layer for the handles
   hit-areas.js        Making the glyphs of the text clickable by their strokes
   glyph-strokes.js    Stroked shapes of a glyph and its components, reused while unchanged
