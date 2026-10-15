@@ -44,6 +44,7 @@ src/
   width-tool.js       The stroke width tool (handles on the canvas)
   handles-layer.js    Fontra visualization layer for the handles
   hit-areas.js        Making the glyphs of the text clickable by their strokes
+  reversed-contours.js  Keeping left and right widths on their sides when a contour is reversed
   glyph-strokes.js    Stroked shapes of a glyph and its components, reused while unchanged
   stroke-layer.js     Fontra visualization layer for the preview
   other-glyphs.js     Wrapping Fontra's layers that draw the other glyphs
