@@ -26,6 +26,15 @@
 // where the next band starts. The nib method does that where the corner of a
 // rectangular nib that draws an edge changes.
 //
+// A rounded corner (see corners.js) is an arc between smooth points, so the
+// band runs on through it. Where the bend of the arc is tighter than the
+// width (a radius smaller than half the width), the inner edge of the arc
+// stays at its center, and the inner edges of the segments on both sides go
+// on past it to where they cross: the inner side stays a corner. So where a
+// band goes into or out of an arc, its edges are joined with a line instead
+// of meeting halfway, and the twists of an arc are not reported: rounding
+// asked for them.
+//
 // The layout: per segment and side, the parameters where an edge is split and
 // the number of pieces each part is fitted with. sweepContour() returns the
 // layout used and can be given one; stroking every source of a glyph with the
@@ -38,6 +47,7 @@ import {
   startTangent,
   tangentAt,
 } from "./bezier.js";
+import { isCornerArc } from "./corners.js";
 import { offCurve, onCurve } from "./shapes.js";
 
 // Split parameters closer than this are the same
@@ -95,13 +105,17 @@ export function sweepContour(contour, segments, method, layout) {
       result.layoutMismatch = true;
     }
     result.layout.segments[index] = built.layout;
-    result.twists.push(...built.twists);
+    const arc = isCornerArc(contour, segment);
+    if (!arc) {
+      result.twists.push(...built.twists);
+    }
     for (const part of built.parts) {
       usable.push({
         index,
         segment,
         ...part,
         cut: !!part.cut,
+        arc,
         startTangent: part.t0 > 0 ? tangentAt(segment, part.t0) : startTangent(segment),
         endTangent: part.t1 < 1 ? tangentAt(segment, part.t1) : endTangent(segment),
       });
@@ -194,8 +208,13 @@ function runContour(run) {
   const joints = [];
   for (const [k, item] of run.entries()) {
     if (k > 0) {
-      // The band continues from the previous segment through a smooth point
-      joints.push({ right: right.length, left: left.length });
+      // The band continues from the previous segment through a smooth point;
+      // into or out of a rounded corner, its edges are joined with a line
+      joints.push({
+        right: right.length,
+        left: left.length,
+        line: item.arc !== run[k - 1].arc,
+      });
     }
     right.push(...item.right.map(copyPiece));
     left.push(...item.left.map(copyPiece));
@@ -208,52 +227,85 @@ function runContour(run) {
 function ringContours(items) {
   const right = items.flatMap((item) => item.right.map(copyPiece));
   const left = items.flatMap((item) => item.left.map(copyPiece));
-  const meetAll = (pieces, starts) => {
-    for (const start of starts) {
-      meetHalfway(pieces.at(start - 1), pieces[start]);
-    }
-  };
+  // Where an item starts, by the index of its first piece, whether the edges
+  // are joined there with a line (into or out of a rounded corner)
   const starts = (side) => {
-    const result = [];
+    const result = new Map();
     let count = 0;
-    for (const item of items) {
-      result.push(count);
+    for (const [i, item] of items.entries()) {
+      result.set(count, item.arc !== items.at(i - 1).arc);
       count += item[side].length;
     }
     return result;
   };
-  meetAll(right, starts("right"));
-  meetAll(left, starts("left"));
-  const outline = (pieces) => {
+  const meetAll = (pieces, starts) => {
+    for (const [start, line] of starts) {
+      if (!line) {
+        meetHalfway(pieces.at(start - 1), pieces[start]);
+      }
+    }
+  };
+  const rightStarts = starts("right");
+  const leftStarts = starts("left");
+  meetAll(right, rightStarts);
+  meetAll(left, leftStarts);
+  const lines = (starts) =>
+    new Set([...starts].filter(([start, line]) => line).map(([start]) => start));
+  const outline = (pieces, jumps) => {
     const points = [onCurve(pieces[0].points[0])];
-    for (const piece of pieces) {
+    for (const [k, piece] of pieces.entries()) {
+      if (k > 0 && jumps.has(k)) {
+        points.push(onCurve(piece.points[0]));
+      }
       appendPiece(points, piece.points);
     }
     // The last point is the first one again; the contour closes by itself
-    points.pop();
+    // (or with the line back to the first point)
+    if (!jumps.has(0)) {
+      points.pop();
+    }
     return { points, isClosed: true };
   };
   const reversed = left.toReversed().map((piece) => ({
     type: piece.type,
     points: piece.points.toReversed(),
   }));
-  return [outline(right), outline(reversed)];
+  // Reversed, the line before piece k comes before piece n − k
+  const leftLines = new Set(
+    [...lines(leftStarts)].map((start) => (left.length - start) % left.length)
+  );
+  return [outline(right, lines(rightStarts)), outline(reversed, leftLines)];
 }
 
 // Right edge forwards, then left edge backwards
 function bandContour(right, left, joints) {
   // At smooth points the edges of the two segments meet only if the tangents
   // agree exactly; meet halfway so that the band stays closed.
+  // Into or out of a rounded corner, the edges are joined with a line.
+  const rightLines = new Set();
+  const leftLines = new Set();
   for (const joint of joints) {
+    if (joint.line) {
+      rightLines.add(joint.right);
+      leftLines.add(joint.left);
+      continue;
+    }
     meetHalfway(right[joint.right - 1], right[joint.right]);
     meetHalfway(left[joint.left - 1], left[joint.left]);
   }
   const points = [onCurve(right[0].points[0])];
-  for (const piece of right) {
+  for (const [k, piece] of right.entries()) {
+    if (rightLines.has(k)) {
+      points.push(onCurve(piece.points[0]));
+    }
     appendPiece(points, piece.points);
   }
   points.push(onCurve(left.at(-1).points.at(-1)));
-  for (const piece of left.toReversed()) {
+  for (const [k, piece] of left.toReversed().entries()) {
+    // Reversed, the line before piece n − k comes before this one
+    if (k > 0 && leftLines.has(left.length - k)) {
+      points.push(onCurve(piece.points.at(-1)));
+    }
     appendPiece(points, piece.points.toReversed());
   }
   // The last point appended is the start of the left edge; the contour closes

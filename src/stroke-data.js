@@ -12,7 +12,8 @@
 //
 // Values of the offset method: width (or left / right), cap, join, miterLimit.
 // Values of the nib method: major, minor, angle; on points, also angleBase.
-// Both methods: cornerRadius.
+// Both methods, on points only: cornerRadius, the radius the corner at the
+// point is rounded with (see geometry/corners.js). 0 is the same as none.
 // Points also have centerline: true on the on-curve points of a closed
 // contour that is a centerline (stroked as a loop) rather than an outline.
 // Missing values fall back to the source defaults, then to the built-in ones.
@@ -26,9 +27,6 @@
 // measures its angle from the direction of the centerline instead (0 lays
 // the major axis across it, where the nib draws its widest), so that its nib
 // turns with the centerline.
-//
-// cornerRadius is not used yet; the format is fixed here so that later
-// phases do not need to migrate data.
 
 export const STROKE_KEY = "xyz.dg4.stroke";
 
@@ -216,6 +214,15 @@ export function sanitizeNibValue(key, value) {
 }
 
 /**
+ * A valid corner radius (0 or more), or undefined when the value is missing
+ * or cannot be used.
+ */
+export function sanitizeCornerRadius(value) {
+  const number = toNumber(value);
+  return number === undefined ? undefined : Math.max(0, number);
+}
+
+/**
  * A valid value for an offset style key, or undefined when the value is
  * missing or cannot be used.
  */
@@ -310,6 +317,11 @@ export function sanitizePointValues(stored) {
   }
   if (ANGLE_BASES.includes(stored.angleBase)) {
     values.angleBase = stored.angleBase;
+  }
+  // A radius of 0 is the same as none
+  const cornerRadius = sanitizeCornerRadius(stored.cornerRadius);
+  if (cornerRadius > 0) {
+    values.cornerRadius = cornerRadius;
   }
   if (stored.centerline === true) {
     values.centerline = true;
@@ -468,11 +480,14 @@ export function nearestNibAngle(angle, reference) {
 
 /**
  * A valid value for a key of either method, or undefined (see
- * sanitizeOffsetValue() and sanitizeNibValue()).
+ * sanitizeOffsetValue(), sanitizeNibValue() and sanitizeCornerRadius()).
  */
 export function sanitizeStrokeValue(key, value) {
   if (key === "angleBase") {
     return ANGLE_BASES.includes(value) ? value : undefined;
+  }
+  if (key === "cornerRadius") {
+    return sanitizeCornerRadius(value);
   }
   return NIB_KEYS.includes(key)
     ? sanitizeNibValue(key, value)

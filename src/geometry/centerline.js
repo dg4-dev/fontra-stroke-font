@@ -14,6 +14,9 @@
 //
 // Quadratic segments are returned as their exact cubic equivalent, so the
 // result only has "line" and "cubic" segments.
+//
+// An on-curve point with implied: true stands for an implied one (a rounded
+// centerline writes them out, see corners.js): it has no index either.
 
 import { quadToCubic } from "./bezier.js";
 
@@ -60,9 +63,10 @@ export function centerlineSegments(contour) {
 
 function decompose(type, indices, points) {
   const coords = indices.map((index) => ({ x: points[index].x, y: points[index].y }));
-  const startIndex = indices[0];
-  const endIndex = indices.at(-1);
-  const endSmooth = !!points[endIndex].smooth;
+  const own = (index) => (points[index].implied ? undefined : index);
+  const startIndex = own(indices[0]);
+  const endIndex = own(indices.at(-1));
+  const endSmooth = !!points[indices.at(-1)].smooth;
   if (type === "line" || coords.length === 2) {
     return [{ type: "line", points: coords, startIndex, endIndex, endSmooth }];
   }

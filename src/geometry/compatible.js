@@ -9,7 +9,12 @@
 // then stroked again with the merged layout. Since the edges are split at the
 // same parameters in all sources, the points of different sources lie on the
 // same normals of the centerline, and the outlines interpolate well.
+//
+// A corner rounded in some sources (see corners.js) is rounded in all of
+// them, with a radius of 0 where it has none, so that the rounded
+// centerlines have the same points.
 
+import { matchRoundedCorners } from "./corners.js";
 import { nibAngleReference } from "./nib.js";
 import { strokeContour } from "./stroke.js";
 import { mergeBreaks } from "./sweep.js";
@@ -21,11 +26,14 @@ import { mergeBreaks } from "./sweep.js";
  * @param {object} [options] tolerance / maxSubdivisions, see offset.js, and
  *   referenceIndex: the input of the default source (0 by default), whose
  *   nib angles the others turn like (see nibAngleReference() in nib.js)
- * @returns {{results: {contours: object[], twists: object[]}[],
- *   compatible: boolean, problems: string[]}}
+ * @returns {{results: {contours: object[], twists: object[], corners:
+ *   object[]}[], compatible: boolean, problems: string[]}} corners: the
+ *   rounded corners of each source (see roundCorners() in corners.js)
  */
-export function strokeCompatibly(inputs, options = {}) {
+export function strokeCompatibly(sourceInputs, options = {}) {
   const { referenceIndex = 0, ...strokeOptions } = options;
+  const contours = matchRoundedCorners(sourceInputs.map((input) => input.contour));
+  const inputs = sourceInputs.map((input, i) => ({ ...input, contour: contours[i] }));
   const reference = inputs[referenceIndex] ?? inputs[0];
   const angleReference =
     reference?.style?.type === "nib"
@@ -57,7 +65,11 @@ export function strokeCompatibly(inputs, options = {}) {
     problems.push("the stroked outlines have different points in some sources");
   }
   return {
-    results: final.map(({ contours, twists }) => ({ contours, twists })),
+    results: final.map(({ contours, twists, corners }) => ({
+      contours,
+      twists,
+      corners,
+    })),
     compatible,
     problems,
   };

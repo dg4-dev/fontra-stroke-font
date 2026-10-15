@@ -471,3 +471,78 @@ test("glyphs of the nib method are stroked with each source's nib", () => {
     assert.ok(top(outlines[0]) < 225 + 31 + 1 && top(outlines[2]) > 225 + 31);
   }
 });
+
+test("corners are rounded in every source, and those made smaller are listed", () => {
+  const folder = tempFolder();
+  const out = tempFolder();
+  // The square of o as a centerline: in Light, the corner at (100, 0) has a
+  // radius of 40; in Bold, the one at (400, 300) has 500, too large for the
+  // sides of 300
+  const lib = (points) => `<lib><dict><key>xyz.fontra.glyph.source.customData</key>
+      <dict><key>xyz.dg4.stroke</key><dict><key>points</key><dict>${points}
+      </dict></dict></dict></dict></lib>`;
+  for (const [path, text] of Object.entries(snapshot(fixtures))) {
+    const target = join(folder, path);
+    mkdirSync(dirname(target), { recursive: true });
+    let written = text;
+    if (path.endsWith(join("Test-Light.ufo", "glyphs", "o.glif"))) {
+      written = text
+        .replace(
+          '<point x="100" y="0" type="line"/>',
+          '<point x="100" y="0" type="line" identifier="s1"/>'
+        )
+        .replace(
+          "</outline>",
+          "</outline>" +
+            lib(
+              `<key>s1</key><dict><key>centerline</key><true/>` +
+                `<key>cornerRadius</key><integer>40</integer></dict>`
+            )
+        );
+    } else if (path.endsWith(join("Test-Bold.ufo", "glyphs", "o.glif"))) {
+      written = text
+        .replace(
+          '<point x="400" y="300" type="line"/>',
+          '<point x="400" y="300" type="line" identifier="s3"/>'
+        )
+        .replace(
+          "</outline>",
+          "</outline>" +
+            lib(
+              `<key>s3</key><dict><key>cornerRadius</key><integer>500</integer></dict>`
+            )
+        );
+    }
+    writeFileSync(target, written);
+  }
+  const report = expandDesignspace(
+    join(folder, "designspace", "Test.designspace"),
+    out
+  );
+  assert.deepEqual(report.warnings, []);
+  assert.deepEqual(report.corners, [
+    "o (Bold), contour 1: the corner at (400, 300) is rounded with radius 300 " +
+      "instead of 500, to fit",
+  ]);
+  const outlines = ["Test-Light.ufo", "Test-Bold.ufo"].map(
+    (ufo) => readGlif(readFileSync(join(out, ufo, "glyphs", "o.glif"), "utf-8")).outline
+  );
+  // The rounded corners are no joins: 2 bands and 2 joins
+  for (const outline of outlines) {
+    assert.equal(outline.length, 4);
+  }
+  assert.equal(
+    outlineSignature(outlines[0].map((item) => item.contour)),
+    outlineSignature(outlines[1].map((item) => item.contour))
+  );
+  const run = spawnSync(
+    process.execPath,
+    [cli, "expand", join(folder, "designspace", "Test.designspace"), "-o", out],
+    { encoding: "utf-8" }
+  );
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(
+    run.stdout,
+    /^corner: o \(Bold\), contour 1: the corner at \(400, 300\)/m
+  );
+});
