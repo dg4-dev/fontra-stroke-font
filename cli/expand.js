@@ -13,12 +13,12 @@ import { basename, dirname, join, resolve } from "node:path";
 
 import { strokeCompatibly } from "../src/geometry/compatible.js";
 import {
-  SHARED_POINT_KEYS,
   getGlyphStroke,
   isCenterlineContour,
   nibStyleInGlyph,
   offsetStyleInGlyph,
   resolvePointValues,
+  withSharedPointValues,
 } from "../src/stroke-data.js";
 import { parseDesignspace } from "./formats/designspace.js";
 import { addOverlapFlag, readGlif, rewriteGlif } from "./formats/glif.js";
@@ -169,19 +169,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
     for (const values of pointValues) {
       for (const [index, contourValues] of values) {
         for (const [i, own] of contourValues.entries()) {
-          const shared = defaultValues.get(index)?.[i];
-          if (SHARED_POINT_KEYS.every((key) => own?.[key] === shared?.[key])) {
-            continue;
-          }
-          const next = { ...own };
-          for (const key of SHARED_POINT_KEYS) {
-            if (shared?.[key] === undefined) {
-              delete next[key];
-            } else {
-              next[key] = shared[key];
-            }
-          }
-          contourValues[i] = Object.keys(next).length ? next : undefined;
+          contourValues[i] = withSharedPointValues(own, defaultValues.get(index)?.[i]);
         }
       }
     }

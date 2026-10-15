@@ -94,6 +94,7 @@ For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists t
 - [docs/building-fonts.md](docs/building-fonts.md): options of the command-line tool, overlaps, fontra-workflow
 - [docs/data-format.md](docs/data-format.md): how the values are saved in the font
 - [docs/how-it-works.md](docs/how-it-works.md): how the strokes are computed
+- [docs/api.md](docs/api.md): the stroked shapes for other plugins
 - [CONTRIBUTING.md](CONTRIBUTING.md): development
 
 ## License

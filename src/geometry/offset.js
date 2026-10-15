@@ -65,11 +65,12 @@ export const MAX_SUBDIVISIONS = 16;
  * @param {object} [options.layout] a layout returned by an earlier call (or
  *   merged from several, see compatible.js) to follow instead of choosing one.
  *   Piece counts left undefined in it are chosen by the tolerance.
- * @returns {{contours: {points: object[], isClosed: true}[], layout: object,
- *   twists: object[], layoutMismatch: boolean}}
+ * @returns {{contours: {points: object[], isClosed: true}[], edges: object[],
+ *   layout: object, twists: object[], layoutMismatch: boolean}}
  *   contours in the same unpacked form (off-curve points have type "cubic");
- *   the layout used; the twist zones found ({segmentIndex, side, t0, t1,
- *   point}); and whether a given layout could not be followed
+ *   the edges of the bands among them ({side, points, isClosed}, see
+ *   sweep.js); the layout used; the twist zones found ({segmentIndex, side,
+ *   t0, t1, point}); and whether a given layout could not be followed
  */
 export function strokeOffsetContour(contour, style, options = {}) {
   const fitOptions = {

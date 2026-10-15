@@ -106,8 +106,8 @@ const SAME_SIGN = 1e-9;
  *   angle: number}} style the glyph's nib shape and the source's numbers
  * @param {object} [options] tolerance, maxSubdivisions and layout, as for
  *   strokeOffsetContour() in offset.js, and angleReference (see nibAlong())
- * @returns {{contours: object[], layout: object, twists: object[],
- *   layoutMismatch: boolean}} as strokeOffsetContour() does
+ * @returns {{contours: object[], edges: object[], layout: object,
+ *   twists: object[], layoutMismatch: boolean}} as strokeOffsetContour() does
  */
 export function strokeNibContour(contour, style, options = {}) {
   const fitOptions = {
