@@ -21,7 +21,7 @@ import {
   resolvePointValues,
 } from "../src/stroke-data.js";
 import { parseDesignspace } from "./formats/designspace.js";
-import { readGlif, rewriteGlif } from "./formats/glif.js";
+import { addOverlapFlag, readGlif, rewriteGlif } from "./formats/glif.js";
 import { layerGlyphFiles } from "./formats/ufo.js";
 import { escapeAttribute } from "./formats/xml.js";
 
@@ -96,10 +96,52 @@ export function expandDesignspace(designspacePath, outDir, options = {}) {
     twists: [],
   };
   const glyphNames = new Set(layers.flatMap((layer) => [...layer.glyphFiles.keys()]));
+  const expanded = new Set();
   for (const glyphName of [...glyphNames].sort()) {
-    expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, report);
+    if (expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, report)) {
+      expanded.add(glyphName);
+    }
   }
+  flagGlyphsUsingExpanded(layers, expanded);
   return report;
+}
+
+// A glyph with an expanded glyph as a component, directly or through other
+// components, has overlapping contours too once it is built. ufo2ft sets the
+// overlap flag of a composite glyph (OVERLAP_COMPOUND), and of a glyph whose
+// components it decomposes (one with contours as well), from that glyph's own
+// lib only, so such glyphs get public.truetype.overlap as well.
+function flagGlyphsUsingExpanded(layers, expanded) {
+  const files = layers.flatMap((layer) =>
+    [...layer.glyphFiles].map(([glyphName, path]) => {
+      const text = readFileSync(path, "utf-8");
+      const bases = readGlif(text)
+        .outline.filter((item) => item.element.name === "component")
+        .map((item) => item.element.attributes.base);
+      return { glyphName, path, text, bases };
+    })
+  );
+  const overlapping = new Set(expanded);
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const file of files) {
+      if (
+        !overlapping.has(file.glyphName) &&
+        file.bases.some((base) => overlapping.has(base))
+      ) {
+        overlapping.add(file.glyphName);
+        changed = true;
+      }
+    }
+  }
+  for (const file of files) {
+    if (file.bases.some((base) => overlapping.has(base))) {
+      const text = addOverlapFlag(file.text);
+      if (text !== file.text) {
+        writeFileSync(file.path, text);
+      }
+    }
+  }
 }
 
 function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, report) {
@@ -255,6 +297,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
     }
   }
   report.glyphs++;
+  return true;
 }
 
 // The values of the points of a glif's contours: outline index → values per

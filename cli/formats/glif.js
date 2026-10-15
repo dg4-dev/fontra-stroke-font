@@ -117,6 +117,16 @@ export function rewriteGlif(text, replacements, { overlapFlag = false } = {}) {
   return result;
 }
 
+/**
+ * Set the lib key "public.truetype.overlap" to true, leaving the rest of the
+ * .glif as it is.
+ * @param {string} text the original .glif XML
+ */
+export function addOverlapFlag(text) {
+  const { lib } = readGlif(text);
+  return lib["public.truetype.overlap"] === true ? text : setOverlapFlag(text, lib);
+}
+
 function contourXML(contour, indent, step) {
   const points = contour.points;
   const lines = points.map((point, i) => {
