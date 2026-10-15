@@ -50,11 +50,15 @@ src/
   panel.js            Sidebar panel
   settings.js         Display settings, saved to localStorage
   strings.js          UI strings for each of Fontra's display languages
+  font-files.js       The font as a designspace and UFOs in memory, read through Fontra's font controller
+  download.js         Downloading the font with its centerlines as outlines (the panel's button)
+  zip.js              Writing .zip files (stored, without compression)
 cli/                  The command-line tool (npx … expand)
   index.js            Command line
-  expand.js           Copying the font and expanding its centerlines
-  formats/            Reading designspace, UFO layer, plist and glif files
-test/                 Unit tests with node:test (fixtures/: a small designspace)
+  expand.js           Copying the font on disk, then expanding the copy
+  expand-font.js      Expanding the centerlines of a font held as files (no node:fs; shared with download.js)
+  formats/            Reading and writing designspace, UFO layer, plist and glif files (no node:fs; shared with font-files.js)
+test/                 Unit tests with node:test (fixtures/: a small designspace, and the same font as Fontra's backend serves it)
 ```
 
 Run the tests (Node.js 22 or later, no dependencies):
