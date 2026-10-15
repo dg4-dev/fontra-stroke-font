@@ -1,4 +1,5 @@
-// Expanding the centerlines of a font into outlines, in a copy of the font.
+// Expanding the centerlines of a designspace font into outlines, in a copy of
+// the font.
 
 import {
   cpSync,
@@ -11,19 +12,17 @@ import {
 } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
-import { strokeCompatibly } from "../src/geometry/compatible.js";
-import {
-  SHARED_POINT_KEYS,
-  getGlyphStroke,
-  isCenterlineContour,
-  nibStyleInGlyph,
-  offsetStyleInGlyph,
-  resolvePointValues,
-} from "../src/stroke-data.js";
+import { STROKE_KEY } from "../src/stroke-data.js";
 import { parseDesignspace } from "./formats/designspace.js";
-import { addOverlapFlag, readGlif, rewriteGlif } from "./formats/glif.js";
+import {
+  addOverlapFlag,
+  readGlif,
+  removeLibEntry,
+  rewriteGlif,
+} from "./formats/glif.js";
 import { layerGlyphFiles } from "./formats/ufo.js";
 import { escapeAttribute } from "./formats/xml.js";
+import { strokeGlyph } from "./stroke-glyph.js";
 
 const GLYPH_CUSTOM_DATA_KEY = "xyz.fontra.customData";
 const SOURCE_CUSTOM_DATA_KEY = "xyz.fontra.glyph.source.customData";
@@ -35,12 +34,15 @@ const GLYPH_DESIGNSPACE_KEY = "com.black-foundry.glyph-designspace";
  *
  * @param {string} designspacePath the .designspace file
  * @param {string} outDir the folder to write the copy to
- * @param {{tolerance?: number}} [options]
- * @returns {{designspace: string, glyphs: number, warnings: string[],
- *   twists: string[]}} the path of the copy, the number of glyphs expanded,
- *   problems found, and where strokes twist
+ * @param {{tolerance?: number, removeStrokeData?: boolean}} [options]
+ *   removeStrokeData: also remove the stroke settings from the glyphs of the
+ *   copy
+ * @returns {{output: string, glyphs: number, warnings: string[],
+ *   twists: string[]}} the path of the copied designspace, the number of
+ *   glyphs expanded, problems found, and where strokes twist
  */
 export function expandDesignspace(designspacePath, outDir, options = {}) {
+  const { removeStrokeData: removeData = false, ...strokeOptions } = options;
   const inputPath = resolve(designspacePath);
   const outputDir = resolve(outDir);
   const inputDir = dirname(inputPath);
@@ -84,13 +86,10 @@ export function expandDesignspace(designspacePath, outDir, options = {}) {
       source.layer
     ),
   }));
-  // Fontra keeps glyph-wide data (such as the stroke method) in the glyph of
-  // the default source
   const defaultLayer = layers.find((layer) => layer.source.isDefault) ?? layers[0];
-  const glyphDataFiles = defaultLayer.glyphFiles;
 
   const report = {
-    designspace: outputDesignspace,
+    output: outputDesignspace,
     glyphs: 0,
     warnings: [],
     twists: [],
@@ -98,11 +97,14 @@ export function expandDesignspace(designspacePath, outDir, options = {}) {
   const glyphNames = new Set(layers.flatMap((layer) => [...layer.glyphFiles.keys()]));
   const expanded = new Set();
   for (const glyphName of [...glyphNames].sort()) {
-    if (expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, report)) {
+    if (expandGlyph(glyphName, layers, defaultLayer, strokeOptions, report)) {
       expanded.add(glyphName);
     }
   }
   flagGlyphsUsingExpanded(layers, expanded);
+  if (removeData) {
+    removeStrokeData(layers);
+  }
   return report;
 }
 
@@ -144,7 +146,7 @@ function flagGlyphsUsingExpanded(layers, expanded) {
   }
 }
 
-function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, report) {
+function expandGlyph(glyphName, layers, defaultLayer, options, report) {
   const members = layers
     .filter((layer) => layer.glyphFiles.has(glyphName))
     .map((layer) => {
@@ -154,140 +156,29 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
     });
   const defaultMember =
     members.find((member) => member.layer === defaultLayer) ?? members[0];
-  const shapes = members.map((member) =>
-    member.glif.outline.map((item) =>
-      item.contour ? (item.contour.isClosed ? "closed" : "open") : item.element.name
-    )
+  // Fontra keeps glyph-wide data (such as the stroke method) in the glyph of
+  // the default source
+  const glyphLib = defaultMember.layer === defaultLayer ? defaultMember.glif.lib : {};
+  const replacements = strokeGlyph(
+    glyphName,
+    members.map((member) => ({
+      name: member.layer.source.name,
+      outline: member.glif.outline,
+      customData: member.glif.lib[SOURCE_CUSTOM_DATA_KEY] ?? {},
+    })),
+    members.indexOf(defaultMember),
+    glyphLib[GLYPH_CUSTOM_DATA_KEY],
+    options,
+    report
   );
-  const sameShape = shapes.every((shape) => shape.join() === shapes[0].join());
-
-  // The values of the points, with the joins of the default source's points
-  // and its marks of closed contours as centerlines
-  const pointValues = members.map((member) => outlinePointValues(member));
-  if (sameShape) {
-    const defaultValues = pointValues[members.indexOf(defaultMember)];
-    for (const values of pointValues) {
-      for (const [index, contourValues] of values) {
-        for (const [i, own] of contourValues.entries()) {
-          const shared = defaultValues.get(index)?.[i];
-          if (SHARED_POINT_KEYS.every((key) => own?.[key] === shared?.[key])) {
-            continue;
-          }
-          const next = { ...own };
-          for (const key of SHARED_POINT_KEYS) {
-            if (shared?.[key] === undefined) {
-              delete next[key];
-            } else {
-              next[key] = shared[key];
-            }
-          }
-          contourValues[i] = Object.keys(next).length ? next : undefined;
-        }
-      }
-    }
+  if (!replacements) {
+    return false;
   }
-  // Open contours, and closed ones marked as centerlines
-  const isCenterlineAt = (memberIndex, index) => {
-    const item = members[memberIndex].glif.outline[index];
-    return (
-      !!item.contour &&
-      isCenterlineContour(item.contour.isClosed, pointValues[memberIndex].get(index))
-    );
-  };
-  if (
-    !members.some((member, i) =>
-      member.glif.outline.some((item, index) => isCenterlineAt(i, index))
-    )
-  ) {
-    return;
-  }
-
-  const glyphDataPath = glyphDataFiles.get(glyphName);
-  const glyphLib = glyphDataPath
-    ? readGlif(readFileSync(glyphDataPath, "utf-8")).lib
-    : {};
   if (glyphLib[GLYPH_DESIGNSPACE_KEY]) {
     report.warnings.push(
       `${glyphName}: the glyph has axes or sources of its own, which are not expanded`
     );
   }
-  const method = getGlyphStroke(glyphLib[GLYPH_CUSTOM_DATA_KEY]).type;
-  const sourceData = (member) => member.glif.lib[SOURCE_CUSTOM_DATA_KEY] ?? {};
-  const styles = members.map((member) =>
-    method === "nib"
-      ? nibStyleInGlyph(sourceData(member), glyphLib[GLYPH_CUSTOM_DATA_KEY])
-      : offsetStyleInGlyph(sourceData(member), sourceData(defaultMember))
-  );
-
-  if (!sameShape) {
-    report.warnings.push(
-      `${glyphName}: the sources have different contours; the outlines will not interpolate`
-    );
-  }
-
-  const withValues = (member, i, index) => {
-    const contour = member.glif.outline[index].contour;
-    const values = pointValues[i].get(index);
-    return {
-      ...contour,
-      points: contour.points.map((point, k) =>
-        values?.[k] ? { ...point, values: values[k] } : point
-      ),
-    };
-  };
-
-  const replacements = members.map(() => new Map());
-  if (sameShape) {
-    for (const [index, item] of members[0].glif.outline.entries()) {
-      if (!isCenterlineAt(0, index)) {
-        continue;
-      }
-      const { results, compatible, problems } = strokeCompatibly(
-        members.map((member, i) => ({
-          contour: withValues(member, i, index),
-          style: styles[i],
-        })),
-        { ...options, referenceIndex: members.indexOf(defaultMember) }
-      );
-      if (!compatible) {
-        report.warnings.push(
-          `${glyphName}, contour ${contourNumber(members[0], index)}: ${problems.join("; ")}`
-        );
-      }
-      const twisting = results.filter((result) => result.twists.length).length;
-      if (twisting && twisting < results.length) {
-        report.warnings.push(
-          `${glyphName}, contour ${contourNumber(members[0], index)}: twists in some ` +
-            `sources only, so between those and the others the inside of the ` +
-            `bend comes out thinner than the stroke would be`
-        );
-      }
-      for (const [i, result] of results.entries()) {
-        replacements[i].set(index, result.contours);
-        for (const twist of result.twists) {
-          report.twists.push(
-            `${glyphName} (${members[i].layer.source.name}), contour ` +
-              `${contourNumber(members[i], index)}: twists around ` +
-              `(${Math.round(twist.point.x)}, ${Math.round(twist.point.y)})`
-          );
-        }
-      }
-    }
-  } else {
-    // Stroke each source on its own
-    for (const [i, member] of members.entries()) {
-      for (const [index, item] of member.glif.outline.entries()) {
-        if (isCenterlineAt(i, index)) {
-          const { results } = strokeCompatibly(
-            [{ contour: withValues(member, i, index), style: styles[i] }],
-            options
-          );
-          replacements[i].set(index, results[0].contours);
-        }
-      }
-    }
-  }
-
   for (const [i, member] of members.entries()) {
     if (replacements[i].size) {
       writeFileSync(
@@ -300,28 +191,23 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
   return true;
 }
 
-// The values of the points of a glif's contours: outline index → values per
-// point of that contour. Identifiers are looked up across the whole glyph,
-// as Fontra does.
-function outlinePointValues(member) {
-  const items = member.glif.outline.filter((item) => item.contour);
-  const values = resolvePointValues(
-    items.map((item) =>
-      item.contour.points.map((point) => ({
-        identifier: point.attrs?.identifier,
-        onCurve: !point.type,
-      }))
-    ),
-    member.glif.lib[SOURCE_CUSTOM_DATA_KEY] ?? {}
-  );
-  return new Map(
-    items.map((item, k) => [member.glif.outline.indexOf(item), values[k]])
-  );
-}
-
-// 1-based number of a contour among the contours (not components) of a glyph
-function contourNumber(member, index) {
-  return member.glif.outline.slice(0, index + 1).filter((item) => item.contour).length;
+// Remove the stroke settings from the glyph and source customData that
+// Fontra keeps in the libs of the glyphs
+function removeStrokeData(layers) {
+  const paths = new Set(layers.flatMap((layer) => [...layer.glyphFiles.values()]));
+  for (const path of paths) {
+    const text = readFileSync(path, "utf-8");
+    if (!text.includes(STROKE_KEY)) {
+      continue;
+    }
+    let result = text;
+    for (const key of [GLYPH_CUSTOM_DATA_KEY, SOURCE_CUSTOM_DATA_KEY]) {
+      result = removeLibEntry(result, [key, STROKE_KEY]);
+    }
+    if (result !== text) {
+      writeFileSync(path, result);
+    }
+  }
 }
 
 // Point the sources' filename attributes at the copies

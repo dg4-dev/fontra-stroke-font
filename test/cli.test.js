@@ -13,15 +13,18 @@ import { dirname, join, relative } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { expandFontra } from "../cli/expand-fontra.js";
 import { expandDesignspace } from "../cli/expand.js";
 import { mapValue, parseDesignspace } from "../cli/formats/designspace.js";
-import { readGlif, rewriteGlif } from "../cli/formats/glif.js";
+import { defaultSourceIndex, serializeFontraJSON } from "../cli/formats/fontra.js";
+import { readGlif, removeLibEntry, rewriteGlif } from "../cli/formats/glif.js";
 import { outlineSignature } from "../src/geometry/compatible.js";
 import { signedArea } from "../src/geometry/offset.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = join(here, "fixtures", "expand");
 const designspace = join(fixtures, "designspace", "Test.designspace");
+const fontra = join(fixtures, "fontra", "Test.fontra");
 const cli = join(here, "..", "cli", "index.js");
 
 function snapshot(folder) {
@@ -302,6 +305,14 @@ test("the command line tool", () => {
   const missing = run("expand", join(out, "nope.designspace"), "-o", tempFolder());
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /^error:/);
+  const fontraOut = tempFolder();
+  const ok2 = run("expand", fontra, "-o", fontraOut, "--remove-stroke-data");
+  assert.equal(ok2.status, 0, ok2.stderr);
+  assert.match(ok2.stdout, /Expanded 2 glyphs into .*Test\.fontra/);
+  assert.doesNotMatch(
+    readFileSync(join(fontraOut, "Test.fontra", "glyphs", "n.json"), "utf-8"),
+    /xyz\.dg4\.stroke/
+  );
 });
 
 test("a glyph that twists in some sources only gets a warning", () => {
@@ -470,4 +481,243 @@ test("glyphs of the nib method are stroked with each source's nib", () => {
       Math.max(...contours.flatMap((c) => c.points.map((p) => p.y)));
     assert.ok(top(outlines[0]) < 225 + 31 + 1 && top(outlines[2]) > 225 + 31);
   }
+});
+
+test("--remove-stroke-data leaves no stroke settings in the UFOs", () => {
+  const out = tempFolder();
+  const kept = tempFolder();
+  expandDesignspace(designspace, out, { removeStrokeData: true });
+  expandDesignspace(designspace, kept);
+  const files = snapshot(out);
+  for (const [path, text] of Object.entries(files)) {
+    assert.doesNotMatch(text, /xyz\.dg4\.stroke/, path);
+  }
+  // The outlines are the same as without it
+  const keptFiles = snapshot(kept);
+  for (const [path, text] of Object.entries(files)) {
+    if (path.endsWith(".glif")) {
+      assert.deepEqual(
+        readGlif(text).outline.map((item) => item.contour),
+        readGlif(keptFiles[path]).outline.map((item) => item.contour)
+      );
+    }
+  }
+  // Other customData stays; customData left empty goes, as Fontra writes it
+  const lib = readGlif(files[join("Test-Light.ufo", "glyphs", "n.glif")]).lib;
+  assert.deepEqual(lib["xyz.fontra.customData"], { "fontra.glyph.locked": true });
+  assert.equal(lib["xyz.fontra.glyph.source.customData"], undefined);
+  assert.equal(lib["public.truetype.overlap"], true);
+  // Without the option, the settings are kept
+  assert.match(
+    keptFiles[join("Test-Bold.ufo", "glyphs", "n.glif")],
+    /xyz\.dg4\.stroke/
+  );
+});
+
+test("glifs: entries are removed from the lib", () => {
+  const glif = (dict) =>
+    `<glyph name="x" format="2">\n  <outline/>\n  <lib>\n    <dict>\n${dict}    </dict>\n  </lib>\n</glyph>\n`;
+  const stroke =
+    "        <key>xyz.dg4.stroke</key>\n        <dict>\n" +
+    "          <key>points</key>\n          <dict>\n" +
+    "            <key>a</key>\n            <dict/>\n          </dict>\n        </dict>\n";
+  const other = "        <key>other</key>\n        <real>1.0</real>\n";
+  const entry = (content) =>
+    `      <key>xyz.fontra.customData</key>\n      <dict>\n${content}      </dict>\n`;
+  const keys = ["xyz.fontra.customData", "xyz.dg4.stroke"];
+  // Another entry of the same dict stays, as it was
+  assert.equal(removeLibEntry(glif(entry(stroke + other)), keys), glif(entry(other)));
+  assert.equal(removeLibEntry(glif(entry(other + stroke)), keys), glif(entry(other)));
+  // A dict left empty goes too, but not the lib's
+  const last = "      <key>last</key>\n      <true/>\n";
+  assert.equal(removeLibEntry(glif(entry(stroke) + last), keys), glif(last));
+  assert.equal(removeLibEntry(glif(entry(stroke)), keys), glif(""));
+  // Nothing to remove
+  for (const text of [glif(entry(other)), glif(""), '<glyph name="x"/>']) {
+    assert.equal(removeLibEntry(text, keys), text);
+  }
+  // A key of the same name further down is not the entry
+  const nested = glif(
+    entry("        <key>deeper</key>\n        <dict>\n" + stroke + "        </dict>\n")
+  );
+  assert.equal(removeLibEntry(nested, keys), nested);
+});
+
+// The glyph in each source, by source name, from a .fontra glyph file
+function fontraLayers(path) {
+  const glyph = JSON.parse(readFileSync(path, "utf-8"));
+  return Object.fromEntries(
+    glyph.sources.map((source) => [
+      source.name || source.locationBase,
+      glyph.layers[source.layerName].glyph,
+    ])
+  );
+}
+
+test("a .fontra font is copied with its centerlines expanded in every source", () => {
+  const before = snapshot(fixtures);
+  const out = tempFolder();
+  const report = expandFontra(fontra, out);
+  assert.deepEqual(snapshot(fixtures), before);
+  assert.equal(report.glyphs, 2); // n and period
+  assert.deepEqual(report.warnings, []);
+  assert.equal(report.output, join(out, "Test.fontra"));
+  assert.deepEqual(readdirSync(out), ["Test.fontra"]);
+  const input = snapshot(fontra);
+  const copy = snapshot(join(out, "Test.fontra"));
+  assert.deepEqual(Object.keys(copy).sort(), Object.keys(input).sort());
+  // Files without centerlines are copied as they are
+  for (const path of ["font-data.json", "glyph-info.csv", join("glyphs", "o.json")]) {
+    assert.equal(copy[path], input[path]);
+  }
+  // Glyphs are written the way Fontra writes them
+  const nText = copy[join("glyphs", "n.json")];
+  assert.equal(nText, serializeFontraJSON(JSON.parse(nText)));
+
+  const layers = fontraLayers(join(out, "Test.fontra", "glyphs", "n.json"));
+  const glyphs = [layers.light, layers.Medium, layers.bold];
+  const signatures = glyphs.map((glyph) => outlineSignature(glyph.path.contours));
+  assert.equal(new Set(signatures).size, 1);
+  for (const glyph of glyphs) {
+    // band + two caps, then the closed contour that was already there
+    assert.equal(glyph.path.contours.length, 4);
+    assert.ok(glyph.path.contours.every((contour) => contour.isClosed));
+    for (const contour of glyph.path.contours.slice(0, 3)) {
+      assert.ok(signedArea(contour) > 0);
+    }
+    assert.deepEqual(glyph.components, [
+      { name: "period", transformation: { translateX: 250, translateY: 400 } },
+    ]);
+    assert.equal(glyph.xAdvance, 500);
+  }
+  // Cap from the default source (Light, though Bold comes first): the Bold
+  // source's own "square" is ignored
+  assert.equal(layers.bold.path.contours[1].points.length, 12);
+  // Width per source: Light 40, Bold 160
+  const xs = (glyph) => glyph.path.contours[0].points.map((p) => p.x);
+  assert.equal(Math.min(...xs(layers.light)), 80);
+  assert.equal(Math.min(...xs(layers.bold)), 20);
+  // A layer that is not a source's is left as it is, and the stroke settings
+  // are kept
+  const original = JSON.parse(input[join("glyphs", "n.json")]);
+  const expanded = JSON.parse(nText);
+  assert.deepEqual(
+    expanded.layers["light^background"],
+    original.layers["light^background"]
+  );
+  assert.deepEqual(expanded.customData, original.customData);
+  assert.deepEqual(
+    expanded.sources.map((source) => source.customData),
+    original.sources.map((source) => source.customData)
+  );
+
+  const period = fontraLayers(join(out, "Test.fontra", "glyphs", "period.json"));
+  assert.equal(period.light.path.contours.length, 1);
+  assert.equal(period.light.path.contours[0].points.length, 12);
+});
+
+test("--remove-stroke-data leaves no stroke settings in the .fontra copy", () => {
+  const out = tempFolder();
+  expandFontra(fontra, out, { removeStrokeData: true });
+  const glyph = JSON.parse(
+    readFileSync(join(out, "Test.fontra", "glyphs", "n.json"), "utf-8")
+  );
+  assert.doesNotMatch(JSON.stringify(glyph), /xyz\.dg4\.stroke/);
+  assert.deepEqual(glyph.customData, { "fontra.glyph.locked": true });
+  assert.ok(glyph.sources.every((source) => !("customData" in source)));
+  assert.equal(glyph.layers.light.glyph.path.contours.length, 4);
+});
+
+test("an inactive .fontra source is stroked on its own", () => {
+  const folder = join(tempFolder(), "Test.fontra");
+  const out = tempFolder();
+  for (const [path, text] of Object.entries(snapshot(fontra))) {
+    const target = join(folder, path);
+    mkdirSync(dirname(target), { recursive: true });
+    let written = text;
+    if (path === join("glyphs", "n.json")) {
+      // Medium is inactive, and has lost the closed contour
+      const glyph = JSON.parse(text);
+      glyph.sources[2].inactive = true;
+      glyph.layers.medium.glyph.path.contours.pop();
+      written = JSON.stringify(glyph);
+    }
+    writeFileSync(target, written);
+  }
+  const report = expandFontra(folder, out);
+  assert.deepEqual(report.warnings, []);
+  const layers = fontraLayers(join(out, "Test.fontra", "glyphs", "n.json"));
+  assert.equal(layers.Medium.path.contours.length, 3);
+  assert.ok(layers.Medium.path.contours.every((contour) => contour.isClosed));
+  assert.equal(
+    outlineSignature(layers.light.path.contours),
+    outlineSignature(layers.bold.path.contours)
+  );
+});
+
+test("the default source of a .fontra glyph", () => {
+  const fontData = {
+    axes: {
+      axes: [
+        {
+          name: "Weight",
+          defaultValue: 400,
+          mapping: [
+            [100, 10],
+            [400, 40],
+            [900, 90],
+          ],
+        },
+        { name: "Width", defaultValue: 100 },
+      ],
+    },
+    sources: { a: { location: { Weight: 10 } }, b: { location: { Weight: 40 } } },
+  };
+  const glyph = (sources, axes) => ({ sources, axes });
+  // Weight 40 in source space; Width at its default when not given
+  assert.equal(
+    defaultSourceIndex(
+      glyph([{ locationBase: "a" }, { locationBase: "b", location: { Width: 100 } }]),
+      fontData
+    ),
+    1
+  );
+  // Inactive sources are skipped
+  assert.equal(
+    defaultSourceIndex(
+      glyph([{ locationBase: "b", inactive: true }, { location: { Weight: 40 } }]),
+      fontData
+    ),
+    1
+  );
+  // A glyph axis is at its own default, also when a font axis has its name
+  assert.equal(
+    defaultSourceIndex(
+      glyph(
+        [
+          { locationBase: "b", location: { Width: 100 } },
+          { locationBase: "b", location: { Width: 0 } },
+        ],
+        [{ name: "Width", minValue: 0, defaultValue: 0, maxValue: 100 }]
+      ),
+      fontData
+    ),
+    1
+  );
+  // No source at the default location: the first
+  assert.equal(defaultSourceIndex(glyph([{ locationBase: "a" }]), fontData), 0);
+});
+
+test("JSON is written as Fontra writes it", () => {
+  // Python: json.dumps(value, indent=0, ensure_ascii=False)
+  assert.equal(
+    serializeFontraJSON({
+      a: [1, { b: "é", t: true, n: null }],
+      c: {},
+      d: [],
+      e: -0.5,
+      u: undefined,
+    }),
+    '{\n"a": [\n1,\n{\n"b": "é",\n"t": true,\n"n": null\n}\n],\n"c": {},\n"d": [],\n"e": -0.5\n}\n'
+  );
 });
