@@ -11,6 +11,7 @@ To use a released version rather than the latest code on `main`, add its tag: `g
 It prints:
 
 - `twist:` lines: where strokes twist, by glyph, source and contour
+- `corner:` lines: corners whose radius was made smaller so that the arc fits between the corner and the points next to it, by glyph, source and contour, with the radius used
 - `warning:` lines: glyphs whose outlines will not interpolate (for example when a centerline has a different number of points in some sources), glyphs that twist in some sources only (see [Twists](how-it-works.md#twists)), and glyphs it leaves as they are
 
 Then build with fontmake, for example a variable font:
