@@ -160,6 +160,69 @@ test("a lone point becomes a dot", () => {
   assert.equal(glyph.lib["public.truetype.overlap"], true);
 });
 
+test("glyphs with expanded glyphs as components get the overlap flag too", () => {
+  const folder = tempFolder();
+  const out = tempFolder();
+  const composite = (name, outline) =>
+    `<?xml version='1.0' encoding='UTF-8'?>\n<glyph name="${name}" format="2">\n` +
+    `  <advance width="500"/>\n  <outline>\n${outline}  </outline>\n</glyph>\n`;
+  const component = (base) => `    <component base="${base}"/>\n`;
+  const added = {
+    // Components only, of a glyph with a centerline
+    colon: composite("colon", component("period") + component("period")),
+    // Through another composite glyph
+    ellipsis: composite("ellipsis", component("colon")),
+    // An outline and a component, which ufo2ft decomposes
+    i: composite(
+      "i",
+      '    <contour>\n      <point x="0" y="0" type="line"/>\n' +
+        '      <point x="50" y="0" type="line"/>\n' +
+        '      <point x="50" y="300" type="line"/>\n    </contour>\n' +
+        component("period")
+    ),
+    // A component of a glyph without centerlines
+    oo: composite("oo", component("o")),
+  };
+  for (const [path, text] of Object.entries(snapshot(fixtures))) {
+    const target = join(folder, path);
+    mkdirSync(dirname(target), { recursive: true });
+    const isDefaultLayer =
+      /Test-(Light|Bold)\.ufo[\\/]glyphs[\\/]contents\.plist$/.test(path);
+    writeFileSync(
+      target,
+      isDefaultLayer
+        ? text.replace(
+            "</dict>",
+            Object.keys(added)
+              .map((name) => `  <key>${name}</key>\n  <string>${name}.glif</string>\n`)
+              .join("") + "</dict>"
+          )
+        : text
+    );
+    if (isDefaultLayer) {
+      for (const [name, glif] of Object.entries(added)) {
+        writeFileSync(join(dirname(target), `${name}.glif`), glif);
+      }
+    }
+  }
+  const report = expandDesignspace(
+    join(folder, "designspace", "Test.designspace"),
+    out
+  );
+  assert.equal(report.glyphs, 2); // n and period, as before
+  for (const ufo of ["Test-Light.ufo", "Test-Bold.ufo"]) {
+    const read = (name) =>
+      readFileSync(join(out, ufo, "glyphs", `${name}.glif`), "utf-8");
+    for (const name of ["colon", "ellipsis", "i"]) {
+      const { outline, lib } = readGlif(read(name));
+      assert.equal(lib["public.truetype.overlap"], true, `${ufo} ${name}`);
+      // The outline is left as it was
+      assert.equal(outline.length, readGlif(added[name]).outline.length);
+    }
+    assert.equal(read("oo"), added.oo);
+  }
+});
+
 test("the output folder may not be the input folder", () => {
   assert.throws(
     () => expandDesignspace(designspace, join(fixtures, "designspace")),

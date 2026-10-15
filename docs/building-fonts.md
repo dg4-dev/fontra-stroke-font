@@ -25,7 +25,7 @@ or static fonts of the instances defined in the designspace:
 fontmake -m build/expanded/MyFamily.designspace -i -o ttf otf --output-dir build/fonts
 ```
 
-The stroked outlines are separate overlapping contours (a band, plus the shapes of caps and joins). fontmake removes the overlaps of static fonts by default (add `--overlaps-backend pathops` to use skia-pathops, `pip install skia-pathops`, instead of the default booleanOperations). A variable font keeps its overlapping contours, as variable fonts usually do; the CLI sets `public.truetype.overlap` in the lib of every glyph it changes, so that the TrueType outlines are flagged as overlapping and render correctly.
+The stroked outlines are separate overlapping contours (a band, plus the shapes of caps and joins). fontmake removes the overlaps of static fonts by default (add `--overlaps-backend pathops` to use skia-pathops, `pip install skia-pathops`, instead of the default booleanOperations). A variable font keeps its overlapping contours, as variable fonts usually do; the CLI sets `public.truetype.overlap` in the lib of every glyph it changes, and of every glyph that has one of them as a component (directly or through other components), so that the TrueType outlines are flagged as overlapping and render correctly.
 
 [fontra-workflow](https://github.com/fontra/fontra) can read the copy as well (`input: fontra-read` with `source: build/expanded/MyFamily.designspace`). Its `remove-overlaps` filter works per source, so use it only for static fonts: in a variable font, removing overlaps can leave the sources with different points.
 
