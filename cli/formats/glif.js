@@ -2,10 +2,11 @@
 //
 // Only the <outline> element is rewritten; the rest of the file (advance,
 // unicodes, anchors, guidelines, note, lib) is kept as it is, character for
-// character, except for one key added to the lib.
+// character, except for one key added to the lib (and, when asked, entries
+// removed from it).
 
 import { plistValue } from "./plist.js";
-import { firstChild, parseXML, serializeElement } from "./xml.js";
+import { decodeEntities, firstChild, parseXML, serializeElement } from "./xml.js";
 
 const ON_CURVE_TYPES = new Set(["move", "line", "curve", "qcurve"]);
 
@@ -125,6 +126,92 @@ export function rewriteGlif(text, replacements, { overlapFlag = false } = {}) {
 export function addOverlapFlag(text) {
   const { lib } = readGlif(text);
   return lib["public.truetype.overlap"] === true ? text : setOverlapFlag(text, lib);
+}
+
+/**
+ * Remove an entry of a dict in the lib, leaving the rest of the .glif as it
+ * is. Dicts that it leaves empty are removed too (but not the lib's own).
+ * @param {string} text the original .glif XML
+ * @param {string[]} keys the keys from the lib down to the entry, for example
+ *   ["xyz.fontra.customData", "xyz.dg4.stroke"]
+ * @returns {string} the new .glif, or the same text without such an entry
+ */
+export function removeLibEntry(text, keys) {
+  const lib = /<lib>\s*<dict>/.exec(text);
+  if (!lib) {
+    return text;
+  }
+  // The entries down to the one to remove, each with the start of the
+  // content of its dict
+  const path = [];
+  let contentStart = lib.index + lib[0].length;
+  for (const [depth, key] of keys.entries()) {
+    const entry = dictEntries(text, contentStart).find((e) => e.key === key);
+    if (!entry) {
+      return text;
+    }
+    path.push({ ...entry, contentStart });
+    if (depth < keys.length - 1) {
+      if (!text.startsWith("<dict>", entry.valueStart)) {
+        return text;
+      }
+      contentStart = entry.valueStart + "<dict>".length;
+    }
+  }
+  let removed = path.pop();
+  while (path.length && dictEntries(text, removed.contentStart).length === 1) {
+    removed = path.pop();
+  }
+  return text.slice(0, removed.start) + text.slice(removed.end);
+}
+
+// The entries of the plist dict whose content starts at contentStart: their
+// keys, where each starts (with the white space before it), where its value
+// starts, and where it ends
+function dictEntries(text, contentStart) {
+  const tag = /<(\/?)([^\s/>]+)[^>]*?(\/?)>/g;
+  tag.lastIndex = contentStart;
+  const entries = [];
+  let depth = 0;
+  let start = contentStart;
+  let key = null;
+  let keyStart = 0;
+  let valueStart = 0;
+  for (let match; (match = tag.exec(text)); ) {
+    const [, closing, name, selfClosing] = match;
+    if (/^[!?]/.test(name)) {
+      // A comment or processing instruction
+      continue;
+    }
+    if (closing) {
+      if (depth === 0) {
+        // The end of the dict
+        break;
+      }
+      depth--;
+      if (depth > 0) {
+        continue;
+      }
+      if (name === "key") {
+        key = decodeEntities(text.slice(keyStart, match.index));
+        continue;
+      }
+    } else if (!selfClosing) {
+      if (depth === 0) {
+        keyStart = tag.lastIndex;
+        valueStart = match.index;
+      }
+      depth++;
+      continue;
+    } else if (depth > 0) {
+      continue;
+    } else {
+      valueStart = match.index;
+    }
+    entries.push({ key, start, valueStart, end: tag.lastIndex });
+    start = tag.lastIndex;
+  }
+  return entries;
 }
 
 function contourXML(contour, indent, step) {

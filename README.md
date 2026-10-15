@@ -76,7 +76,7 @@ npx --yes github:dg4-dev/fontra-stroke-font#v0.3.1 expand MyFamily.designspace -
 fontmake -m build/expanded/MyFamily.designspace -o variable --output-dir build/fonts
 ```
 
-For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists the glyphs that twist, and those whose sources will not interpolate. More: [docs/building-fonts.md](docs/building-fonts.md).
+For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists the glyphs that twist, and those whose sources will not interpolate. It also expands a font kept as a `.fontra` folder, and `--remove-stroke-data` removes the stroke settings from the copy. More: [docs/building-fonts.md](docs/building-fonts.md).
 
 ## Known limitations
 
@@ -91,7 +91,7 @@ For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists t
 ## More
 
 - [CHANGELOG.md](CHANGELOG.md): changes per version
-- [docs/building-fonts.md](docs/building-fonts.md): options of the command-line tool, overlaps, fontra-workflow
+- [docs/building-fonts.md](docs/building-fonts.md): options of the command-line tool, overlaps, fontra-workflow, .fontra fonts
 - [docs/data-format.md](docs/data-format.md): how the values are saved in the font
 - [docs/how-it-works.md](docs/how-it-works.md): how the strokes are computed
 - [CONTRIBUTING.md](CONTRIBUTING.md): development

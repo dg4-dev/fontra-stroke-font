@@ -1,0 +1,145 @@
+{
+  "name": "n",
+  "sources": [
+    {
+      "name": "",
+      "layerName": "bold",
+      "locationBase": "bold",
+      "customData": {
+        "xyz.dg4.stroke": { "defaults": { "width": 160, "cap": "square" } }
+      }
+    },
+    {
+      "name": "",
+      "layerName": "light",
+      "locationBase": "light",
+      "customData": {
+        "xyz.dg4.stroke": { "defaults": { "width": 40, "cap": "round" } }
+      }
+    },
+    {
+      "name": "Medium",
+      "layerName": "medium",
+      "location": { "Weight": 50 },
+      "customData": {
+        "xyz.dg4.stroke": { "defaults": { "width": 100 } }
+      }
+    }
+  ],
+  "layers": {
+    "bold": {
+      "glyph": {
+        "path": {
+          "contours": [
+            {
+              "points": [
+                { "x": 100, "y": 0, "attrs": { "identifier": "p1" } },
+                { "x": 100, "y": 300, "type": "cubic" },
+                { "x": 400, "y": 300, "type": "cubic" },
+                { "x": 400, "y": 0 }
+              ]
+            },
+            {
+              "points": [
+                { "x": 0, "y": -20 },
+                { "x": 500, "y": -20 },
+                { "x": 500, "y": -10 },
+                { "x": 0, "y": -10 }
+              ],
+              "isClosed": true
+            }
+          ]
+        },
+        "components": [
+          {
+            "name": "period",
+            "transformation": { "translateX": 250, "translateY": 400 }
+          }
+        ],
+        "xAdvance": 500,
+        "anchors": [{ "name": "bottom", "x": 250, "y": 0 }]
+      }
+    },
+    "light": {
+      "glyph": {
+        "path": {
+          "contours": [
+            {
+              "points": [
+                { "x": 100, "y": 0, "attrs": { "identifier": "p1" } },
+                { "x": 100, "y": 300, "type": "cubic" },
+                { "x": 400, "y": 300, "type": "cubic" },
+                { "x": 400, "y": 0 }
+              ]
+            },
+            {
+              "points": [
+                { "x": 0, "y": -20 },
+                { "x": 500, "y": -20 },
+                { "x": 500, "y": -10 },
+                { "x": 0, "y": -10 }
+              ],
+              "isClosed": true
+            }
+          ]
+        },
+        "components": [
+          {
+            "name": "period",
+            "transformation": { "translateX": 250, "translateY": 400 }
+          }
+        ],
+        "xAdvance": 500,
+        "anchors": [{ "name": "bottom", "x": 250, "y": 0 }]
+      }
+    },
+    "light^background": {
+      "glyph": {
+        "path": {
+          "contours": [
+            {
+              "points": [
+                { "x": 0, "y": 0 },
+                { "x": 0, "y": 100 }
+              ]
+            }
+          ]
+        },
+        "xAdvance": 500
+      }
+    },
+    "medium": {
+      "glyph": {
+        "path": {
+          "contours": [
+            {
+              "points": [
+                { "x": 100, "y": 0, "attrs": { "identifier": "p1" } },
+                { "x": 100, "y": 300, "type": "cubic" },
+                { "x": 400, "y": 300, "type": "cubic" },
+                { "x": 400, "y": 0 }
+              ]
+            },
+            {
+              "points": [
+                { "x": 0, "y": -20 },
+                { "x": 500, "y": -20 },
+                { "x": 500, "y": -10 },
+                { "x": 0, "y": -10 }
+              ],
+              "isClosed": true
+            }
+          ]
+        },
+        "components": [
+          {
+            "name": "period",
+            "transformation": { "translateX": 250, "translateY": 400 }
+          }
+        ],
+        "xAdvance": 500
+      }
+    }
+  },
+  "customData": { "fontra.glyph.locked": true }
+}

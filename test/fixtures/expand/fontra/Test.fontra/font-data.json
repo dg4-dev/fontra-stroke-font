@@ -1,0 +1,24 @@
+{
+  "unitsPerEm": 1000,
+  "fontInfo": { "familyName": "Test" },
+  "axes": {
+    "axes": [
+      {
+        "name": "Weight",
+        "label": "Weight",
+        "tag": "wght",
+        "minValue": 300,
+        "defaultValue": 300,
+        "maxValue": 700,
+        "mapping": [
+          [300, 30],
+          [700, 70]
+        ]
+      }
+    ]
+  },
+  "sources": {
+    "light": { "name": "Light", "location": { "Weight": 30 } },
+    "bold": { "name": "Bold", "location": { "Weight": 70 } }
+  }
+}

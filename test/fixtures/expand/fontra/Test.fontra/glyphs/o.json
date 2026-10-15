@@ -1,0 +1,45 @@
+{
+  "name": "o",
+  "sources": [
+    { "name": "", "layerName": "light", "locationBase": "light" },
+    { "name": "", "layerName": "bold", "locationBase": "bold" }
+  ],
+  "layers": {
+    "light": {
+      "glyph": {
+        "path": {
+          "contours": [
+            {
+              "points": [
+                { "x": 100, "y": 0 },
+                { "x": 400, "y": 0 },
+                { "x": 400, "y": 300 },
+                { "x": 100, "y": 300 }
+              ],
+              "isClosed": true
+            }
+          ]
+        },
+        "xAdvance": 500
+      }
+    },
+    "bold": {
+      "glyph": {
+        "path": {
+          "contours": [
+            {
+              "points": [
+                { "x": 100, "y": 0 },
+                { "x": 400, "y": 0 },
+                { "x": 400, "y": 300 },
+                { "x": 100, "y": 300 }
+              ],
+              "isClosed": true
+            }
+          ]
+        },
+        "xAdvance": 500
+      }
+    }
+  }
+}

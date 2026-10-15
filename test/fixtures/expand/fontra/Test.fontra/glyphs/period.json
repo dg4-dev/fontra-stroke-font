@@ -1,0 +1,21 @@
+{
+  "name": "period",
+  "sources": [
+    { "name": "", "layerName": "light", "locationBase": "light" },
+    { "name": "", "layerName": "bold", "locationBase": "bold" }
+  ],
+  "layers": {
+    "light": {
+      "glyph": {
+        "path": { "contours": [{ "points": [{ "x": 100, "y": 0 }] }] },
+        "xAdvance": 200
+      }
+    },
+    "bold": {
+      "glyph": {
+        "path": { "contours": [{ "points": [{ "x": 100, "y": 0 }] }] },
+        "xAdvance": 200
+      }
+    }
+  }
+}

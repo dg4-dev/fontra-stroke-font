@@ -52,9 +52,11 @@ src/
   strings.js          UI strings for each of Fontra's display languages
 cli/                  The command-line tool (npx … expand)
   index.js            Command line
-  expand.js           Copying the font and expanding its centerlines
-  formats/            Reading designspace, UFO layer, plist and glif files
-test/                 Unit tests with node:test (fixtures/: a small designspace)
+  expand.js           Copying a designspace font and expanding its centerlines
+  expand-fontra.js    The same for a .fontra font
+  stroke-glyph.js     Stroking the centerlines of a glyph in all its sources (for both)
+  formats/            Reading designspace, UFO layer, plist, glif and .fontra files
+test/                 Unit tests with node:test (fixtures/: a small designspace and .fontra font)
 ```
 
 Run the tests (Node.js 22 or later, no dependencies):
