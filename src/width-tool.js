@@ -6,6 +6,9 @@
 //
 // Fontra's edit tools are classes of its own bundle, which plugins cannot
 // import; Fontra only needs an object with the methods below.
+//
+// The other way round, Fontra's pointer tool can grab the handles too, when
+// they are shown with it: wrapPointerTool() hands the handles to this tool.
 
 import { defaultSourceIndex, findStrokeSource, layerPath } from "./current-source.js";
 import {
@@ -48,6 +51,9 @@ import {
 import { t } from "./strings.js";
 
 export const TOOL_IDENTIFIER = "fontra-plugin.stroke-font.width-tool";
+
+// Fontra's pointer tool, in editor.tools
+const POINTER_TOOL_IDENTIFIER = "pointer-tool";
 
 // Pixels the pointer must move before a press becomes a drag
 const MINIMUM_DRAG_DISTANCE = 2;
@@ -250,13 +256,16 @@ export class StrokeWidthTool {
   /**
    * @param {object} editor Fontra's editor
    * @param {string} iconPath
+   * @param {object} [settings] the display settings (whether the handles are
+   *   shown with other tools too)
    */
-  constructor(editor, iconPath) {
+  constructor(editor, iconPath, settings) {
     this.editor = editor;
     this.sceneController = editor.sceneController;
     this.canvasController = editor.canvasController;
     this.identifier = TOOL_IDENTIFIER;
     this.iconPath = iconPath;
+    this.settings = settings;
     this.isActive = false;
     // Read by the handles layer
     this.hoveredHandle = undefined;
@@ -265,7 +274,18 @@ export class StrokeWidthTool {
   }
 
   get pointerTool() {
-    return this.editor.tools?.["pointer-tool"];
+    return this.editor.tools?.[POINTER_TOOL_IDENTIFIER];
+  }
+
+  /**
+   * Whether Fontra's pointer tool grabs the handles: while it is selected
+   * (and not through this tool), when the handles are shown with other tools
+   * too. See wrapPointerTool().
+   */
+  pointerToolGrabs() {
+    return (
+      !this.isActive && !!this.settings?.get("handles") && !!this.pointerTool?.isActive
+    );
   }
 
   activate() {
@@ -304,31 +324,55 @@ export class StrokeWidthTool {
     };
   }
 
-  _handlesAtEvent(event) {
+  /**
+   * The handles under the pointer (see handlesAt()). For Fontra's pointer
+   * tool, only handles nearer to the pointer than their point are, so that a
+   * point under its handles (a width of 0, the minor axis of a flat nib) can
+   * still be clicked.
+   * @param {{pointerTool?: boolean}} [options]
+   */
+  handlesAtEvent(event, { pointerTool = false } = {}) {
     const point = this.sceneController.selectedGlyphPoint(event);
     if (!point) {
       return [];
     }
-    const { handles } = this.currentHandles();
-    return handlesAt(handles, point, this.sceneController.mouseClickMargin);
+    const margin = this.sceneController.mouseClickMargin;
+    let { handles } = this.currentHandles();
+    if (pointerTool) {
+      handles = handles.filter(
+        (item) =>
+          Math.hypot(item.handle.x - point.x, item.handle.y - point.y) <
+          Math.hypot(item.anchor.x - point.x, item.anchor.y - point.y)
+      );
+    }
+    return handlesAt(handles, point, margin);
   }
 
-  _handleAtEvent(event) {
-    return this._handlesAtEvent(event)[0];
-  }
-
-  handleHover(event) {
-    const handle = event?.x !== undefined ? this._handleAtEvent(event) : undefined;
+  /**
+   * Marks the handle under the pointer as hovered, with a cursor that shows
+   * it can be grabbed. Also used for Fontra's pointer tool.
+   * @param {{pointerTool?: boolean}} [options] see handlesAtEvent()
+   * @returns {boolean} whether the pointer is on a handle
+   */
+  hoverHandle(event, options) {
+    const handle =
+      event?.x !== undefined ? this.handlesAtEvent(event, options)[0] : undefined;
     if (!sameHandle(handle, this.hoveredHandle)) {
       this.hoveredHandle = handle;
       this.canvasController.requestUpdate();
     }
-    if (handle) {
-      this.sceneController.hoverSelection = new Set();
-      this.canvasController.canvas.style.cursor = "pointer";
-      return;
+    if (!handle) {
+      return false;
     }
-    this.pointerTool?.handleHover(event);
+    this.sceneController.hoverSelection = new Set();
+    this.canvasController.canvas.style.cursor = "pointer";
+    return true;
+  }
+
+  handleHover(event) {
+    if (!this.hoverHandle(event)) {
+      this.pointerTool?.handleHover(event);
+    }
   }
 
   handleKeyDown(event) {
@@ -336,11 +380,20 @@ export class StrokeWidthTool {
   }
 
   async handleDrag(eventStream, initialEvent) {
-    const candidates = this._handlesAtEvent(initialEvent);
+    const candidates = this.handlesAtEvent(initialEvent);
     if (!candidates.length) {
       await this.pointerTool?.handleDrag(eventStream, initialEvent);
       return;
     }
+    await this.dragHandles(candidates, eventStream, initialEvent);
+  }
+
+  /**
+   * A press on handles (from handlesAtEvent()): a drag changes the values of
+   * the points as one undoable change, a double click clears them. Also used
+   * for Fontra's pointer tool.
+   */
+  async dragHandles(candidates, eventStream, initialEvent) {
     if (initialEvent.detail === 2) {
       await this._clearValues(candidates[0]);
       return;
@@ -661,6 +714,66 @@ export class StrokeWidthTool {
       },
     ];
   }
+}
+
+/**
+ * Lets Fontra's pointer tool grab the handles, without switching to the
+ * stroke width tool: its handleHover() and handleDrag() are wrapped, in
+ * place, so that on a handle the stroke width tool hovers and drags it
+ * (while tool.pointerToolGrabs()). Anywhere else, nearer to a handle's point
+ * than to the handle, and when finding the handles fails, Fontra's pointer
+ * tool works as before. A pointer tool
+ * wrapped before (the plugin started twice) is not wrapped again.
+ * @param {object} editor Fontra's editor
+ * @param {StrokeWidthTool} tool
+ * @returns {boolean} whether the pointer tool is wrapped
+ */
+export function wrapPointerTool(editor, tool) {
+  const pointerTool = editor.tools?.[POINTER_TOOL_IDENTIFIER];
+  const originalHover = pointerTool?.handleHover;
+  const originalDrag = pointerTool?.handleDrag;
+  if (typeof originalHover !== "function" || typeof originalDrag !== "function") {
+    console.warn("[stroke-font] the pointer tool cannot grab the handles");
+    return false;
+  }
+  if (originalHover.strokeFontWrapped) {
+    return true;
+  }
+  const hover = function (event) {
+    try {
+      if (tool.pointerToolGrabs() && tool.hoverHandle(event, { pointerTool: true })) {
+        return;
+      }
+    } catch (e) {
+      console.error("[stroke-font] could not find the handle under the pointer", e);
+    }
+    return originalHover.call(this, event);
+  };
+  const drag = async function (eventStream, initialEvent) {
+    let candidates = [];
+    try {
+      if (tool.pointerToolGrabs()) {
+        candidates = tool.handlesAtEvent(initialEvent, { pointerTool: true });
+      }
+    } catch (e) {
+      console.error("[stroke-font] could not find the handle under the pointer", e);
+    }
+    if (!candidates.length) {
+      return originalDrag.call(this, eventStream, initialEvent);
+    }
+    // The press is the handle's now, so Fontra's pointer tool does not get it
+    // even when the drag fails
+    try {
+      await tool.dragHandles(candidates, eventStream, initialEvent);
+    } catch (e) {
+      console.error("[stroke-font] could not drag the handle", e);
+    }
+  };
+  hover.strokeFontWrapped = true;
+  drag.strokeFontWrapped = true;
+  pointerTool.handleHover = hover;
+  pointerTool.handleDrag = drag;
+  return true;
 }
 
 function formatNumber(value) {
