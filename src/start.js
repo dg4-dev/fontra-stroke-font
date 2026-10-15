@@ -16,6 +16,7 @@ import {
 } from "./other-glyphs.js";
 import { widenComponentHitAreas, widenHitAreas } from "./hit-areas.js";
 import { PANEL_IDENTIFIER, definePanelElement } from "./panel.js";
+import { wrapContourReversal } from "./reversed-contours.js";
 import { StrokeSettings } from "./settings.js";
 import { t } from "./strings.js";
 import { LAYER_IDENTIFIER, makeStrokeLayerDefinition } from "./stroke-layer.js";
@@ -88,6 +89,8 @@ export function start(editor, pluginPath) {
 
   // Copied points take their widths and nibs with them
   wrapCopyPaste(editor);
+  // Reversed centerlines keep their left and right widths on their sides
+  wrapContourReversal(editor.sceneController);
 
   addPanel(editor, settings, pluginPath);
   addTool(editor, tool);
