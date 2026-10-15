@@ -33,11 +33,13 @@ export function makeStrokeLayerDefinition({ settings, componentGlyphs } = {}) {
       fillColor: "hsl(0, 0%, 15%)",
       outlineColor: "hsl(0, 0%, 25%)",
       twistColor: "hsla(5, 90%, 50%, 0.9)",
+      cornerColor: "hsla(210, 90%, 45%, 0.9)",
     },
     colorsDarkMode: {
       fillColor: "hsl(0, 0%, 88%)",
       outlineColor: "hsl(0, 0%, 80%)",
       twistColor: "hsla(5, 90%, 62%, 0.9)",
+      cornerColor: "hsla(210, 90%, 65%, 0.9)",
     },
     draw: ({ context, positionedGlyph, parameters, model }) => {
       const location = model?.getLocationForGlyph?.(positionedGlyph?.glyphName);
@@ -57,7 +59,11 @@ export function drawStrokePreview(
   parameters,
   { outlineOnly = false, fillOpacity = 0.3, componentGlyphs } = {}
 ) {
-  const { outlines, twists } = strokeGlyph(positionedGlyph, location, componentGlyphs);
+  const { outlines, twists, shrunkCorners } = strokeGlyph(
+    positionedGlyph,
+    location,
+    componentGlyphs
+  );
   if (outlines.length) {
     if (outlineOnly) {
       drawOutline(context, outlines, parameters.outlineColor, parameters.outlineWidth);
@@ -76,6 +82,21 @@ export function drawStrokePreview(
     for (const { point } of twists) {
       context.beginPath();
       context.arc(point.x, point.y, parameters.markerRadius, 0, 2 * Math.PI);
+      context.stroke();
+    }
+  }
+  // Diamonds on the corners whose radius was made smaller to fit
+  if (shrunkCorners?.length) {
+    context.strokeStyle = parameters.cornerColor;
+    context.lineWidth = parameters.markerWidth;
+    const size = parameters.markerRadius;
+    for (const { point } of shrunkCorners) {
+      context.beginPath();
+      context.moveTo(point.x, point.y - size);
+      context.lineTo(point.x + size, point.y);
+      context.lineTo(point.x, point.y + size);
+      context.lineTo(point.x - size, point.y);
+      context.closePath();
       context.stroke();
     }
   }

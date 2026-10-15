@@ -64,10 +64,12 @@ export class ComponentGlyphs {
  * @param {object} positionedGlyph an entry of Fontra's positioned lines
  * @param {object} [location] the glyph's source location
  * @param {ComponentGlyphs} [componentGlyphs]
- * @returns {{outlines: object[], twists: object[], strokedClosed: {own:
- *   Set<number>, components: Map<number, Set<number>>},
+ * @returns {{outlines: object[], twists: object[], shrunkCorners: object[],
+ *   strokedClosed: {own: Set<number>, components: Map<number, Set<number>>},
  *   componentOutlines: Map<number, object[]>}} outlines in glyph
- *   coordinates; twists of the glyph's own contours only; the closed contours
+ *   coordinates; twists of the glyph's own contours only; the corners of
+ *   the glyph's own contours whose radius was made smaller to fit (see
+ *   roundCorners() in geometry/corners.js); the closed contours
  *   that were stroked as centerlines (by contour index, of the glyph's own
  *   path and of each component's path, by component index); the outlines of
  *   each component with centerlines, by component index
@@ -76,6 +78,7 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
   const glyph = positionedGlyph?.glyph;
   const outlines = [];
   let twists = [];
+  let shrunkCorners = [];
   const strokedClosed = { own: new Set(), components: new Map() };
   const componentOutlines = new Map();
   if (glyph?.path?.numContours) {
@@ -84,6 +87,7 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
       const own = strokeOpenContours(glyph.path, style);
       outlines.push(...own.outlines);
       twists = own.twists;
+      shrunkCorners = own.shrunkCorners;
       strokedClosed.own = new Set(own.strokedClosed);
     }
   }
@@ -128,7 +132,7 @@ export function strokeGlyph(positionedGlyph, location, componentGlyphs) {
       }
     }
   }
-  return { outlines, twists, strokedClosed, componentOutlines };
+  return { outlines, twists, shrunkCorners, strokedClosed, componentOutlines };
 }
 
 /**
@@ -203,8 +207,9 @@ const cache = new WeakMap();
 /**
  * Stroked outlines of the centerlines of a Fontra path (its open contours,
  * and the closed contours marked as centerlines in style.points), the places
- * where the strokes twist, and the indices of the closed contours stroked.
- * Reused while the points and the style stay the same.
+ * where the strokes twist, the corners whose radius was made smaller, and
+ * the indices of the closed contours stroked. Reused while the points and
+ * the style stay the same.
  */
 export function strokeOpenContours(path, style) {
   const key = cacheKey(path, style);
@@ -220,6 +225,7 @@ export function strokeOpenContours(path, style) {
 function strokeOpenContoursUncached(path, style) {
   const outlines = [];
   const twists = [];
+  const shrunkCorners = [];
   const strokedClosed = [];
   for (let contourIndex = 0; contourIndex < path.numContours; contourIndex++) {
     const isClosed = path.contourInfo[contourIndex].isClosed;
@@ -245,11 +251,16 @@ function strokeOpenContoursUncached(path, style) {
     });
     outlines.push(...stroked.contours);
     twists.push(...stroked.twists.map((twist) => ({ ...twist, contourIndex })));
+    shrunkCorners.push(
+      ...stroked.corners
+        .filter((corner) => corner.shrunk)
+        .map((corner) => ({ ...corner, contourIndex }))
+    );
     if (isClosed) {
       strokedClosed.push(contourIndex);
     }
   }
-  return { outlines, twists, strokedClosed };
+  return { outlines, twists, shrunkCorners, strokedClosed };
 }
 
 // Fontra may change a path in place while points are dragged, so the key

@@ -1,12 +1,19 @@
 // The stroke width tool: handles on the edges of the points of centerlines,
 // dragged to change the widths of the points; in a glyph of the nib method,
-// handles on the ends of the nib's axes (see nib-handles.js). Everything else
+// handles on the ends of the nib's axes (see nib-handles.js); with both
+// methods, a knob inside each corner for its radius (see corner-handles.js).
+// Everything else
 // (clicking and dragging points, keys) goes to Fontra's pointer tool, so
 // points can be moved without switching tools.
 //
 // Fontra's edit tools are classes of its own bundle, which plugins cannot
 // import; Fontra only needs an object with the methods below.
 
+import {
+  CORNER_KNOB_DISTANCE,
+  cornerHandles,
+  draggedCornerRadius,
+} from "./corner-handles.js";
 import { defaultSourceIndex, findStrokeSource, layerPath } from "./current-source.js";
 import {
   add,
@@ -169,20 +176,24 @@ export function handleAt(handles, point, margin) {
 
 /**
  * The handles of a glyph: width handles, or for a glyph of the nib method,
- * the handles and the nibs of its points (see nib-handles.js).
- * @param {number} [onePixelUnit] glyph units per pixel, for placing the knob
- *   that turns a nib
+ * the handles and the nibs of its points (see nib-handles.js); then the
+ * knobs of its corners (see corner-handles.js).
+ * @param {number} [onePixelUnit] glyph units per pixel, for placing the
+ *   knobs that turn a nib and that round a corner
  * @returns {{handles: object[], nibs?: object[]}}
  */
 export function glyphHandles(positionedGlyph, location, onePixelUnit = 1) {
   const varGlyph = positionedGlyph?.varGlyph ?? positionedGlyph?.glyph?.varGlyph;
+  const corners = cornerHandles(positionedGlyph, location, {
+    knobDistance: CORNER_KNOB_DISTANCE * onePixelUnit,
+  });
   if (getGlyphStroke(varGlyph?.glyph?.customData).type === "nib") {
     const nib = nibHandles(positionedGlyph, location, {
       knobDistance: KNOB_DISTANCE * onePixelUnit,
     });
-    return { handles: nib?.handles ?? [], nibs: nib?.nibs ?? [] };
+    return { handles: [...(nib?.handles ?? []), ...corners], nibs: nib?.nibs ?? [] };
   }
-  return { handles: widthHandles(positionedGlyph, location) };
+  return { handles: [...widthHandles(positionedGlyph, location), ...corners] };
 }
 
 /**
@@ -341,6 +352,14 @@ export class StrokeWidthTool {
       await this.pointerTool?.handleDrag(eventStream, initialEvent);
       return;
     }
+    if (candidates[0].axis === "corner") {
+      if (initialEvent.detail === 2) {
+        await this._setCornerRadius(candidates[0], undefined);
+      } else {
+        await this._dragCornerHandle(candidates[0], eventStream, initialEvent);
+      }
+      return;
+    }
     if (initialEvent.detail === 2) {
       await this._clearValues(candidates[0]);
       return;
@@ -356,6 +375,17 @@ export class StrokeWidthTool {
   _draggedPoints(handle) {
     const selected = selectedPointIndices(this.sceneController.selection);
     return selected.includes(handle.pointIndex) ? selected : [handle.pointIndex];
+  }
+
+  // The corners a corner knob changes: the selected corners when its corner
+  // is one of them, else its corner
+  _draggedCorners(handle) {
+    const corners = new Set(
+      this.currentHandles()
+        .handles.filter((other) => other.axis === "corner")
+        .map((other) => other.pointIndex)
+    );
+    return this._draggedPoints(handle).filter((pointIndex) => corners.has(pointIndex));
   }
 
   _editTarget() {
@@ -464,6 +494,91 @@ export class StrokeWidthTool {
         return {
           changes: recorder.changes(),
           undoLabel: t("undo.pointWidth"),
+        };
+      });
+    } finally {
+      this.draggedHandle = undefined;
+      this.dragLabel = undefined;
+      this.canvasController.requestUpdate();
+    }
+  }
+
+  // One radius for the corners of a knob (undefined: back to 0)
+  async _setCornerRadius(handle, radius) {
+    const { varGlyph, sourceIndex } = this._editTarget();
+    const pointIndices = this._draggedCorners(handle);
+    const sourceIndices = editingSourceIndices(
+      varGlyph,
+      sourceIndex,
+      this.sceneController.editingLayerNames ?? []
+    );
+    const defaultIndex = defaultSourceIndex(varGlyph);
+    await this._edit(sourceIndices, defaultIndex, (glyph) => {
+      editPointValues(
+        glyph,
+        sourceIndices,
+        pointIndices,
+        () => pointValuesForField(undefined, "cornerRadius", radius),
+        { defaultIndex }
+      );
+      return t("undo.pointCornerRadius");
+    });
+  }
+
+  async _dragCornerHandle(handle, eventStream, initialEvent) {
+    const { varGlyph, sourceIndex } = this._editTarget();
+    const pointIndices = this._draggedCorners(handle);
+    const sourceIndices = editingSourceIndices(
+      varGlyph,
+      sourceIndex,
+      this.sceneController.editingLayerNames ?? []
+    );
+    const defaultIndex = defaultSourceIndex(varGlyph);
+    const startPoint = this.sceneController.selectedGlyphPoint(initialEvent);
+
+    this.draggedHandle = handle;
+    try {
+      await this.sceneController.editGlyph(async (sendIncrementalChange, glyph) => {
+        const recorder = new StrokeDataRecorder(glyph, sourceIndices, defaultIndex);
+        let moved = false;
+        for await (const event of eventStream) {
+          if (event.x === undefined) {
+            continue;
+          }
+          if (
+            !moved &&
+            Math.hypot(
+              event.pageX - initialEvent.pageX,
+              event.pageY - initialEvent.pageY
+            ) <= MINIMUM_DRAG_DISTANCE
+          ) {
+            continue;
+          }
+          moved = true;
+          const radius = draggedCornerRadius(
+            handle,
+            sub(this.sceneController.selectedGlyphPoint(event), startPoint),
+            { shiftKey: event.shiftKey }
+          );
+          recorder.restore();
+          // All the corners get the same radius
+          editPointValues(
+            glyph,
+            sourceIndices,
+            pointIndices,
+            () => pointValuesForField(undefined, "cornerRadius", radius),
+            { defaultIndex }
+          );
+          this.dragLabel = formatNumber(radius);
+          await sendIncrementalChange(recorder.change(), true);
+        }
+        if (!moved) {
+          return {};
+        }
+        await sendIncrementalChange(recorder.change());
+        return {
+          changes: recorder.changes(),
+          undoLabel: t("undo.pointCornerRadius"),
         };
       });
     } finally {

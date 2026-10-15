@@ -1,8 +1,11 @@
 // The visualization layer that draws the handles of the glyph being edited:
 // while the stroke width tool is selected, or with every tool when the
 // setting asks for it. In a glyph of the nib method, it also draws the nib
-// of each point, with the tool or when the setting asks for it.
+// of each point, with the tool or when the setting asks for it. While the
+// knob of a corner is dragged, it draws the centerlines with their corners
+// rounded.
 
+import { roundedCenterlines } from "./corner-handles.js";
 import { KNOB_DISTANCE } from "./nib-handles.js";
 import { glyphHandles } from "./width-tool.js";
 
@@ -27,6 +30,7 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
     screenParameters: {
       handleRadius: 3.5,
       hoverRadius: 5.5,
+      cornerKnobRadius: 2.5,
       lineWidth: 1,
       fontSize: 11,
       labelOffset: 10,
@@ -62,6 +66,13 @@ export function makeHandlesLayerDefinition({ tool, settings }) {
       if (nibs && showNibs) {
         drawNibs(context, nibs, parameters);
       }
+      if (showHandles && tool?.draggedHandle?.axis === "corner") {
+        drawCenterlines(
+          context,
+          roundedCenterlines(positionedGlyph, location),
+          parameters
+        );
+      }
       if (showHandles) {
         drawHandles(context, handles, parameters, tool);
       }
@@ -93,6 +104,34 @@ export function drawNibs(context, nibs, parameters) {
   context.stroke();
 }
 
+/** Unpacked contours (lines and cubics) as lines, open or closed. */
+export function drawCenterlines(context, contours, parameters) {
+  context.lineWidth = parameters.lineWidth;
+  context.strokeStyle = parameters.handleColor;
+  context.beginPath();
+  for (const { points, isClosed } of contours) {
+    const count = points.length;
+    context.moveTo(points[0].x, points[0].y);
+    const last = isClosed ? count : count - 1;
+    for (let i = 1; i <= last; ) {
+      const point = points[i % count];
+      if (point.type) {
+        const next = points[(i + 1) % count];
+        const end = points[(i + 2) % count];
+        context.bezierCurveTo(point.x, point.y, next.x, next.y, end.x, end.y);
+        i += 3;
+      } else {
+        context.lineTo(point.x, point.y);
+        i += 1;
+      }
+    }
+    if (isClosed) {
+      context.closePath();
+    }
+  }
+  context.stroke();
+}
+
 export function drawHandles(context, handles, parameters, tool) {
   const active =
     tool?.draggedHandle ?? (tool?.isActive ? tool.hoveredHandle : undefined);
@@ -108,7 +147,11 @@ export function drawHandles(context, handles, parameters, tool) {
     const isActive =
       item.pointIndex === active?.pointIndex && item.side === active?.side;
     const color = isActive ? parameters.hoverColor : parameters.handleColor;
-    const radius = isActive ? parameters.hoverRadius : parameters.handleRadius;
+    const radius = isActive
+      ? parameters.hoverRadius
+      : item.axis === "corner"
+        ? (parameters.cornerKnobRadius ?? parameters.handleRadius)
+        : parameters.handleRadius;
     context.beginPath();
     context.arc(item.handle.x, item.handle.y, radius, 0, 2 * Math.PI);
     if (item.axis === "rotate") {
