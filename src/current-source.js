@@ -9,6 +9,10 @@
 // may differ between sources), so the sources need the same points. The path
 // may have more contours after the glyph's own: those of nested components,
 // in the flattened path of a component.
+//
+// A corner rounded in some sources is rounded in all of them, with a radius
+// of 0 where it has none (as geometry/compatible.js does for the CLI), so
+// that the preview of a source is what the CLI makes of it.
 
 import { centerlineSegments } from "./geometry/centerline.js";
 import { nibAngleReference, nibAngleShifts } from "./geometry/nib.js";
@@ -27,6 +31,7 @@ import {
   resolveNibStyle,
   resolveOffsetStyle,
   resolvePointValues,
+  sanitizeCornerRadius,
   sanitizeNibValue,
   sanitizeOffsetValue,
 } from "./stroke-data.js";
@@ -234,7 +239,13 @@ export function sourcePointValues(varGlyph, sourceIndex, defaultIndex, path) {
   const usesDefaultJoins =
     sourceIndex !== defaultIndex &&
     hasPointValues(varGlyph?.sources?.[defaultIndex]?.customData);
-  if (!source || (!hasPointValues(source.customData) && !usesDefaultJoins)) {
+  const roundsCorners = varGlyph?.sources?.some((other) =>
+    hasCornerRadii(other.customData)
+  );
+  if (
+    !source ||
+    (!hasPointValues(source.customData) && !usesDefaultJoins && !roundsCorners)
+  ) {
     return undefined;
   }
   const ownPath = path ?? layerPath(varGlyph, source);
@@ -245,7 +256,32 @@ export function sourcePointValues(varGlyph, sourceIndex, defaultIndex, path) {
   if (sourceIndex !== defaultIndex) {
     applyDefaultJoins(values, varGlyph, defaultIndex, ownPath);
   }
+  if (roundsCorners) {
+    applyRoundedCorners(values, varGlyph, ownPath);
+  }
   return values.some((contour) => contour.some(Boolean)) ? values : undefined;
+}
+
+// The corners rounded in any source with the same points get a radius of 0
+// where they have none (see matchRoundedCorners() in geometry/corners.js)
+function applyRoundedCorners(values, varGlyph, path) {
+  for (const source of varGlyph?.sources ?? []) {
+    if (source.inactive || !hasCornerRadii(source.customData)) {
+      continue;
+    }
+    const sourcePath = layerPath(varGlyph, source);
+    if (!sourcePath || !startsWithPointStructure(path, sourcePath)) {
+      continue;
+    }
+    const own = resolvePointValues(pathPoints(sourcePath), source.customData);
+    for (const [c, contour] of own.entries()) {
+      for (const [i, pointValues] of contour.entries()) {
+        if (pointValues?.cornerRadius > 0 && !(values[c][i]?.cornerRadius >= 0)) {
+          values[c][i] = { ...values[c][i], cornerRadius: 0 };
+        }
+      }
+    }
+  }
 }
 
 // The joins of points, and which closed contours are centerlines, come from
@@ -386,6 +422,9 @@ function pointVectors(varGlyph, sources, styles, path) {
       if (set.some((v) => v?.miterLimit !== undefined)) {
         entries.push({ c, i, key: "miterLimit" });
       }
+      if (set.some((v) => v?.cornerRadius !== undefined)) {
+        entries.push({ c, i, key: "cornerRadius" });
+      }
     }
   }
   if (!entries.length) {
@@ -411,7 +450,9 @@ function pointVectors(varGlyph, sources, styles, path) {
     return entries.map(({ c, i, key }) =>
       key === "miterLimit"
         ? (values[c][i]?.miterLimit ?? style.miterLimit)
-        : (profile(c).atPoint(i)?.[key] ?? style.width / 2)
+        : key === "cornerRadius"
+          ? (values[c][i]?.cornerRadius ?? 0)
+          : (profile(c).atPoint(i)?.[key] ?? style.width / 2)
     );
   });
   const build = (numbers) => {
@@ -421,7 +462,11 @@ function pointVectors(varGlyph, sources, styles, path) {
       ).fill(undefined)
     );
     for (const [k, { c, i, key }] of entries.entries()) {
-      const value = sanitizeOffsetValue(key, numbers[k]);
+      // A corner radius of 0 stays: the corner is rounded in some source
+      const value =
+        key === "cornerRadius"
+          ? sanitizeCornerRadius(numbers[k])
+          : sanitizeOffsetValue(key, numbers[k]);
       points[c][i] = { ...points[c][i], [key]: value };
     }
     return points;
@@ -522,7 +567,7 @@ function nibPointVectors(varGlyph, sources, styles, path, defaultPosition) {
         continue;
       }
       const set = perSource.map(({ values }) => values[c][i]);
-      for (const key of NIB_KEYS) {
+      for (const key of [...NIB_KEYS, "cornerRadius"]) {
         if (set.some((v) => v?.[key] !== undefined)) {
           entries.push({ c, i, key });
         }
@@ -544,7 +589,11 @@ function nibPointVectors(varGlyph, sources, styles, path, defaultPosition) {
       }
       return profiles.get(c);
     };
-    return entries.map(({ c, i, key }) => profile(c).atPoint(i)?.[key] ?? style[key]);
+    return entries.map(({ c, i, key }) =>
+      key === "cornerRadius"
+        ? (values[c][i]?.cornerRadius ?? 0)
+        : (profile(c).atPoint(i)?.[key] ?? style[key])
+    );
   });
   const references = atPoints[defaultPosition] ?? atPoints[0];
   const vectors = atPoints.map((numbers) =>
@@ -559,7 +608,13 @@ function nibPointVectors(varGlyph, sources, styles, path, defaultPosition) {
       ).fill(undefined)
     );
     for (const [k, { c, i, key }] of entries.entries()) {
-      points[c][i] = { ...points[c][i], [key]: sanitizeNibValue(key, numbers[k]) };
+      points[c][i] = {
+        ...points[c][i],
+        [key]:
+          key === "cornerRadius"
+            ? sanitizeCornerRadius(numbers[k])
+            : sanitizeNibValue(key, numbers[k]),
+      };
     }
     return points;
   };
@@ -596,6 +651,13 @@ export function hasClosedCenterlines(varGlyph) {
 
 function hasPointValues(customData) {
   return Object.keys(getSourceStroke(customData).points).length > 0;
+}
+
+// Whether any point of a source has a corner radius
+function hasCornerRadii(customData) {
+  return Object.values(getSourceStroke(customData).points).some(
+    (values) => sanitizeCornerRadius(values?.cornerRadius) > 0
+  );
 }
 
 /** The path of a source's layer. */

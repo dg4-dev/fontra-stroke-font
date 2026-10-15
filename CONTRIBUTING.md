@@ -32,6 +32,7 @@ src/
   geometry/           Stroke calculations (no Fontra or DOM dependencies; shared with the CLI)
     bezier.js           Vector and Bézier helpers
     centerline.js       Splitting a centerline into segments
+    corners.js          Rounding the corners of a centerline (live corners)
     fit.js              Cubic pieces in Hermite form
     widths.js           The width along a centerline, from the widths of its points
     offset.js           The width method
@@ -42,6 +43,7 @@ src/
   path-points.js      Reading the points of Fontra paths
   point-edit.js       Reading and changing the values of the selected points
   width-tool.js       The stroke width tool (handles on the canvas)
+  corner-handles.js   The knobs of the corners in the stroke width tool
   handles-layer.js    Fontra visualization layer for the handles
   hit-areas.js        Making the glyphs of the text clickable by their strokes
   glyph-strokes.js    Stroked shapes of a glyph and its components, reused while unchanged

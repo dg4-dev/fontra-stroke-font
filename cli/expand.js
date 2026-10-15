@@ -37,8 +37,9 @@ const GLYPH_DESIGNSPACE_KEY = "com.black-foundry.glyph-designspace";
  * @param {string} outDir the folder to write the copy to
  * @param {{tolerance?: number}} [options]
  * @returns {{designspace: string, glyphs: number, warnings: string[],
- *   twists: string[]}} the path of the copy, the number of glyphs expanded,
- *   problems found, and where strokes twist
+ *   twists: string[], corners: string[]}} the path of the copy, the number
+ *   of glyphs expanded, problems found, where strokes twist, and the corners
+ *   whose radius was made smaller to fit
  */
 export function expandDesignspace(designspacePath, outDir, options = {}) {
   const inputPath = resolve(designspacePath);
@@ -94,6 +95,7 @@ export function expandDesignspace(designspacePath, outDir, options = {}) {
     glyphs: 0,
     warnings: [],
     twists: [],
+    corners: [],
   };
   const glyphNames = new Set(layers.flatMap((layer) => [...layer.glyphFiles.keys()]));
   const expanded = new Set();
@@ -271,6 +273,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
               `(${Math.round(twist.point.x)}, ${Math.round(twist.point.y)})`
           );
         }
+        reportCorners(report, glyphName, members[i], index, result.corners);
       }
     }
   } else {
@@ -283,6 +286,7 @@ function expandGlyph(glyphName, layers, defaultLayer, glyphDataFiles, options, r
             options
           );
           replacements[i].set(index, results[0].contours);
+          reportCorners(report, glyphName, member, index, results[0].corners);
         }
       }
     }
@@ -317,6 +321,23 @@ function outlinePointValues(member) {
   return new Map(
     items.map((item, k) => [member.glif.outline.indexOf(item), values[k]])
   );
+}
+
+// The corners of a contour whose radius was made smaller to fit
+function reportCorners(report, glyphName, member, index, corners) {
+  for (const corner of corners.filter((corner) => corner.shrunk)) {
+    report.corners.push(
+      `${glyphName} (${member.layer.source.name}), contour ` +
+        `${contourNumber(member, index)}: the corner at ` +
+        `(${Math.round(corner.point.x)}, ${Math.round(corner.point.y)}) is rounded ` +
+        `with radius ${roundNumber(corner.radius)} instead of ` +
+        `${roundNumber(corner.wanted)}, to fit`
+    );
+  }
+}
+
+function roundNumber(value) {
+  return Math.round(value * 10) / 10;
 }
 
 // 1-based number of a contour among the contours (not components) of a glyph

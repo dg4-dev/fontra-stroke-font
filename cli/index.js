@@ -71,6 +71,9 @@ function main(argv) {
     for (const twist of report.twists) {
       process.stdout.write(`twist: ${twist}\n`);
     }
+    for (const corner of report.corners) {
+      process.stdout.write(`corner: ${corner}\n`);
+    }
     process.stdout.write(
       `Expanded ${report.glyphs} glyph${report.glyphs === 1 ? "" : "s"} into ${report.designspace}\n`
     );

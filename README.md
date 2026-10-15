@@ -61,6 +61,24 @@ Points can have their own values, as with widths. On the canvas, the stroke widt
 | Double-click a handle         | Removes the point's own values                              |
 | Right-click                   | **Angle from** of the selected points                       |
 
+## Round corners
+
+A corner of a centerline can be rounded without changing the centerline: give its point a corner radius. The stroke follows an arc of that radius instead of the corner, with a width or with a nib, and the radius can be changed at any time; at 0 the corner is sharp again. Like the other values, it belongs to the source being edited.
+
+- **In the panel**: select corner points, then set **Corner radius**.
+- **On the canvas**: the stroke width tool draws a small knob inside each corner.
+
+| Action                | Changes                                                                          |
+| --------------------- | -------------------------------------------------------------------------------- |
+| Drag the knob         | The radius: dragging it away from the corner makes it larger (Shift: steps of 5) |
+| Double-click the knob | Sets the radius back to 0                                                        |
+
+While a knob is dragged, the rounded centerline is drawn and the radius is shown. Selected corners all get the same radius.
+
+- With a width, the outer edge of the corner is rounded with the radius plus half the width, the inner edge with the radius minus half the width. With a radius smaller than half the width, the inner side stays a corner
+- Where the arc does not fit between the corner and the points next to it, the radius is made smaller until it does, and a blue diamond marks the corner
+- A corner rounded in some sources only gets radius 0 in the others, so that the sources keep the same points. There its outer side is round, as with a round join
+
 ## Display settings
 
 At the top of the panel: show the preview, draw its edge only, fill opacity, show strokes on the other glyphs, show the handles with other tools too, and show the nib at each point. They are saved in the browser, not in the font.
@@ -76,7 +94,7 @@ npx --yes github:dg4-dev/fontra-stroke-font#v0.3.1 expand MyFamily.designspace -
 fontmake -m build/expanded/MyFamily.designspace -o variable --output-dir build/fonts
 ```
 
-For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists the glyphs that twist, and those whose sources will not interpolate. More: [docs/building-fonts.md](docs/building-fonts.md).
+For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists the glyphs that twist, the corners whose radius was made smaller to fit, and the glyphs whose sources will not interpolate. More: [docs/building-fonts.md](docs/building-fonts.md).
 
 ## Known limitations
 
@@ -85,7 +103,6 @@ For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists t
 - Values per point are interpolated only between sources whose glyphs have the same points
 - Between a source where a stroke twists and one where it does not, in-between weights come out a little thinner on the inside of the bend
 - A rotated or scaled component keeps its nib unchanged in the preview (in the built font it is transformed)
-- Live corners come in a later version
 - The plugin uses internal parts of Fontra's editor, so a Fontra update can break it
 
 ## More

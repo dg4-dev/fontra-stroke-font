@@ -268,6 +268,12 @@ export function definePanelElement() {
         ...this._selectField("join", t("field.join"), ["", ...JOINS], "join", "point"),
         ...this._numberField("miterLimit", t("field.miterLimit"), "point")
       );
+      // Both methods
+      this._cornerFields = el(
+        "div",
+        { class: "fields" },
+        ...this._numberField("cornerRadius", t("field.cornerRadius"), "point")
+      );
       this._clearButton = el(
         "button",
         { type: "button", onclick: () => this._clearPointValues() },
@@ -317,6 +323,7 @@ export function definePanelElement() {
         this._closedRow,
         this._pointFields,
         this._nibPointFields,
+        this._cornerFields,
         this._clearButton,
         el("hr"),
         el("div", { class: "hint" }, t("panel.hint"))
@@ -500,6 +507,7 @@ export function definePanelElement() {
           : "";
       this._pointFields.hidden = !state || isNib;
       this._nibPointFields.hidden = !state || !isNib;
+      this._cornerFields.hidden = !state;
       this._clearButton.hidden = !state;
       // Only for points on closed contours; mixed when some of those contours
       // are centerlines and some are not
@@ -508,25 +516,29 @@ export function definePanelElement() {
       this._closedCheckbox.indeterminate = state?.closedCenterline === null;
       this._closedCheckbox.disabled = !editable;
       this._clearButton.disabled = !editable || !state.stored;
-      const pointFields = isNib ? this._nibPointFields : this._pointFields;
-      pointFields.setAttribute("aria-disabled", String(!editable));
-      for (const input of pointFields.querySelectorAll("[data-key]")) {
-        const key = input.dataset.key;
-        const value = state?.fields[key];
-        const text = value === undefined ? "" : formatValue(value);
-        if (!input.dataset.typing && input.value !== text) {
-          input.value = text;
+      for (const [pointFields, fields] of [
+        [isNib ? this._nibPointFields : this._pointFields, state?.fields],
+        [this._cornerFields, state?.cornerFields],
+      ]) {
+        pointFields.setAttribute("aria-disabled", String(!editable));
+        for (const input of pointFields.querySelectorAll("[data-key]")) {
+          const key = input.dataset.key;
+          const value = fields?.[key];
+          const text = value === undefined ? "" : formatValue(value);
+          if (!input.dataset.typing && input.value !== text) {
+            input.value = text;
+          }
+          if (input.tagName === "INPUT") {
+            // Several points with different values, or the source's miter limit
+            input.placeholder =
+              value === undefined
+                ? "—"
+                : key === "miterLimit" && state
+                  ? formatValue(state.sourceStyle.miterLimit)
+                  : "";
+          }
+          input.disabled = !editable;
         }
-        if (input.tagName === "INPUT") {
-          // Several points with different values, or the source's miter limit
-          input.placeholder =
-            value === undefined
-              ? "—"
-              : key === "miterLimit" && state
-                ? formatValue(state.sourceStyle.miterLimit)
-                : "";
-        }
-        input.disabled = !editable;
       }
     }
 
@@ -548,7 +560,8 @@ export function definePanelElement() {
         value === undefined &&
         key !== "join" &&
         key !== "miterLimit" &&
-        key !== "angleBase"
+        key !== "angleBase" &&
+        key !== "cornerRadius"
       ) {
         // An emptied width or nib field: nothing to change
         this._syncPointValues();
@@ -560,7 +573,9 @@ export function definePanelElement() {
           ? "undo.pointJoin"
           : key === "miterLimit"
             ? "undo.pointMiterLimit"
-            : "undo.pointWidth";
+            : key === "cornerRadius"
+              ? "undo.pointCornerRadius"
+              : "undo.pointWidth";
       if (key === "angleBase") {
         // Keep the nibs where they are, in every source
         const sceneModel = this.sceneController.sceneModel;

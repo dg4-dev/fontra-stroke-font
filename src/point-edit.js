@@ -145,8 +145,10 @@ export function measurePoints(positionedGlyph, location, pointIndices) {
  * What the panel shows for the selected points, or null when no point of a
  * centerline is selected.
  * @returns {null | {count: number, atSource: boolean, editable: boolean,
- *   stored: boolean, fields: object}} fields: per key, the value of all the
- *   points (undefined when they differ), whether the points set it themselves
+ *   stored: boolean, fields: object, cornerFields: object}} fields: per key
+ *   of the glyph's method, the value of all the points (undefined when they
+ *   differ), whether the points set it themselves; cornerFields: the same
+ *   for the corner radius, of both methods
  */
 export function describeSelectedPoints(positionedGlyph, location, selection) {
   const measured = measurePoints(
@@ -183,9 +185,12 @@ export function describeSelectedPoints(positionedGlyph, location, selection) {
     atSource,
     editable: atSource,
     method: isNib ? "nib" : "offset",
-    // Values of the glyph's method only: those of the other one do nothing
+    // Values of the glyph's method only: those of the other one do nothing.
+    // A corner radius of 0 is one rounded in another source only.
     stored: points.some((point) =>
-      Object.keys(point.values ?? {}).some((key) => NIB_KEYS.includes(key) === isNib)
+      Object.entries(point.values ?? {}).some(([key, value]) =>
+        key === "cornerRadius" ? value > 0 : NIB_KEYS.includes(key) === isNib
+      )
     ),
     fields: isNib
       ? {
@@ -201,6 +206,9 @@ export function describeSelectedPoints(positionedGlyph, location, selection) {
           join: common((point) => point.values?.join ?? ""),
           miterLimit: common((point) => point.values?.miterLimit ?? ""),
         },
+    cornerFields: {
+      cornerRadius: common((point) => round(point.values?.cornerRadius ?? 0)),
+    },
     closedCenterline,
     sourceStyle: style,
   };
@@ -209,8 +217,10 @@ export function describeSelectedPoints(positionedGlyph, location, selection) {
 /**
  * The new values of a point when one field is changed.
  * @param {object|undefined} stored what the point has now
- * @param {string} key width, left, right, join or miterLimit
- * @param {*} value the new value; undefined (or "") removes it
+ * @param {string} key width, left, right, join, miterLimit or cornerRadius
+ *   (or a key of the nib)
+ * @param {*} value the new value; undefined (or "") removes it, as does a
+ *   corner radius of 0
  * @returns {object} the keys to set (undefined to remove)
  */
 export function pointValuesForField(stored, key, value) {
@@ -218,6 +228,8 @@ export function pointValuesForField(stored, key, value) {
     value = undefined;
   }
   switch (key) {
+    case "cornerRadius":
+      return { cornerRadius: value > 0 ? value : undefined };
     case "width":
       return { width: value, left: undefined, right: undefined };
     case "left":
@@ -246,6 +258,7 @@ export const CLEARED_POINT_VALUES = Object.freeze({
   minor: undefined,
   angle: undefined,
   angleBase: undefined,
+  cornerRadius: undefined,
 });
 
 /**
