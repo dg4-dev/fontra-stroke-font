@@ -1,11 +1,18 @@
-// Reading the outline and lib of a .glif file, and rewriting its outline.
+// Reading the outline and lib of a .glif file, rewriting its outline, and
+// writing a whole .glif file.
 //
 // Only the <outline> element is rewritten; the rest of the file (advance,
 // unicodes, anchors, guidelines, note, lib) is kept as it is, character for
 // character, except for one key added to the lib.
 
-import { plistValue } from "./plist.js";
-import { firstChild, parseXML, serializeElement } from "./xml.js";
+import { plistValue, plistValueXML } from "./plist.js";
+import {
+  escapeAttribute,
+  escapeText,
+  firstChild,
+  parseXML,
+  serializeElement,
+} from "./xml.js";
 
 const ON_CURVE_TYPES = new Set(["move", "line", "curve", "qcurve"]);
 
@@ -127,16 +134,119 @@ export function addOverlapFlag(text) {
   return lib["public.truetype.overlap"] === true ? text : setOverlapFlag(text, lib);
 }
 
+/**
+ * A whole .glif file (format 2).
+ * @param {{name: string, unicodes?: number[], width?: number, height?: number,
+ *   note?: string, guidelines?: {x: number, y: number, angle: number,
+ *   name?: string}[], anchors?: {x: number, y: number, name?: string}[],
+ *   contours?: object[], components?: {base: string, transform?: number[]}[],
+ *   lib?: object}} glyph contours in Fontra's unpacked form (identifiers in
+ *   point.attrs), transforms as [xx, xy, yx, yy, dx, dy]
+ */
+export function glifXML(glyph) {
+  const step = "  ";
+  const lines = [
+    "<?xml version='1.0' encoding='UTF-8'?>",
+    `<glyph name="${escapeAttribute(glyph.name)}" format="2">`,
+  ];
+  const advance = [];
+  if (glyph.width) {
+    advance.push(`width="${formatNumber(glyph.width)}"`);
+  }
+  if (glyph.height) {
+    advance.push(`height="${formatNumber(glyph.height)}"`);
+  }
+  if (advance.length) {
+    lines.push(`${step}<advance ${advance.join(" ")}/>`);
+  }
+  for (const codePoint of glyph.unicodes ?? []) {
+    const hex = codePoint.toString(16).toUpperCase().padStart(4, "0");
+    lines.push(`${step}<unicode hex="${hex}"/>`);
+  }
+  if (glyph.note) {
+    lines.push(`${step}<note>${escapeText(glyph.note)}</note>`);
+  }
+  for (const { x, y, angle, name } of glyph.guidelines ?? []) {
+    const named = name ? ` name="${escapeAttribute(name)}"` : "";
+    lines.push(
+      `${step}<guideline x="${formatNumber(x)}" y="${formatNumber(y)}" ` +
+        `angle="${formatNumber(angle)}"${named}/>`
+    );
+  }
+  for (const { x, y, name } of glyph.anchors ?? []) {
+    const named = name ? ` name="${escapeAttribute(name)}"` : "";
+    lines.push(
+      `${step}<anchor x="${formatNumber(x)}" y="${formatNumber(y)}"${named}/>`
+    );
+  }
+  const outline = [
+    ...(glyph.contours ?? []).map((contour) => contourXML(contour, step + step, step)),
+    ...(glyph.components ?? []).map((component) =>
+      componentXML(component, step + step)
+    ),
+  ];
+  lines.push(
+    outline.length
+      ? `${step}<outline>\n${outline.join("\n")}\n${step}</outline>`
+      : `${step}<outline/>`
+  );
+  const lib = glyph.lib ?? {};
+  if (Object.values(lib).some((value) => value !== undefined && value !== null)) {
+    lines.push(`${step}<lib>`, plistValueXML(lib, step + step, step), `${step}</lib>`);
+  }
+  lines.push("</glyph>", "");
+  return lines.join("\n");
+}
+
+const TRANSFORM_ATTRIBUTES = [
+  ["xScale", 1],
+  ["xyScale", 0],
+  ["yxScale", 0],
+  ["yScale", 1],
+  ["xOffset", 0],
+  ["yOffset", 0],
+];
+
+function componentXML({ base, transform = [1, 0, 0, 1, 0, 0] }, indent) {
+  const attributes = [`base="${escapeAttribute(base)}"`];
+  for (const [i, [name, identity]] of TRANSFORM_ATTRIBUTES.entries()) {
+    // Like ufoLib, written to at most 10 decimals, and only when not the
+    // identity's
+    const value = Math.round(transform[i] * 1e10) / 1e10;
+    if (value !== identity) {
+      attributes.push(`${name}="${value === 0 ? 0 : value}"`);
+    }
+  }
+  return `${indent}<component ${attributes.join(" ")}/>`;
+}
+
+// The segment type of an on-curve point comes from the off-curve points
+// before it: "curve" after cubic ones, "qcurve" after quadratic ones. The
+// first point of an open contour is a "move".
 function contourXML(contour, indent, step) {
   const points = contour.points;
   const lines = points.map((point, i) => {
-    const attributes = `x="${formatNumber(point.x)}" y="${formatNumber(point.y)}"`;
-    if (point.type) {
-      return `${indent}${step}<point ${attributes}/>`;
+    let attributes = `x="${formatNumber(point.x)}" y="${formatNumber(point.y)}"`;
+    if (!point.type) {
+      const previous = points[(i - 1 + points.length) % points.length];
+      const type =
+        !contour.isClosed && i === 0
+          ? "move"
+          : previous.type === "quad"
+            ? "qcurve"
+            : previous.type
+              ? "curve"
+              : "line";
+      attributes += ` type="${type}"`;
+      if (point.smooth) {
+        attributes += ' smooth="yes"';
+      }
     }
-    const previous = points[(i - 1 + points.length) % points.length];
-    const type = previous.type ? "curve" : "line";
-    return `${indent}${step}<point ${attributes} type="${type}"/>`;
+    const identifier = point.attrs?.identifier;
+    if (typeof identifier === "string") {
+      attributes += ` identifier="${escapeAttribute(identifier)}"`;
+    }
+    return `${indent}${step}<point ${attributes}/>`;
   });
   return `${indent}<contour>\n${lines.join("\n")}\n${indent}</contour>`;
 }

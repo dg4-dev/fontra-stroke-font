@@ -1,6 +1,6 @@
 # Fontra Stroke Font
 
-A [Fontra](https://github.com/fontra/fontra) plugin for stroke fonts. Draw centerlines, stroke them with a width or a pen nib, and see the stroked shape while you edit. When the font is done, a command-line tool turns the centerlines into outlines for building it.
+A [Fontra](https://github.com/fontra/fontra) plugin for stroke fonts. Draw centerlines, stroke them with a width or a pen nib, and see the stroked shape while you edit. When the font is done, download a copy with the centerlines turned into outlines (or make it with a command-line tool) and build the font from it.
 
 ## Install
 
@@ -69,14 +69,22 @@ The plugin follows Fontra's display language (English, Chinese, Japanese, German
 
 ## Build fonts
 
-The font keeps its centerlines. Make a copy with the centerlines turned into outlines, then build from the copy. This needs [Node.js](https://nodejs.org/) 22 or later; the input files are not changed.
+The font keeps its centerlines. Make a copy with the centerlines turned into outlines, then build from the copy with [fontmake](https://github.com/googlefonts/fontmake). The font itself is not changed.
+
+**From the editor**: at the bottom of the **Stroke font** panel, press **Download with outlines**. You get `MyFamily-expanded.zip`, with a designspace and its UFOs. Unzip it, then build:
+
+```plaintext
+fontmake -m MyFamily-expanded/MyFamily.designspace -o variable --output-dir build/fonts
+```
+
+**From the command line**, on the designspace and UFOs, with [Node.js](https://nodejs.org/) 22 or later:
 
 ```plaintext
 npx --yes github:dg4-dev/fontra-stroke-font#v0.3.1 expand MyFamily.designspace -o build/expanded
 fontmake -m build/expanded/MyFamily.designspace -o variable --output-dir build/fonts
 ```
 
-For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists the glyphs that twist, and those whose sources will not interpolate. More: [docs/building-fonts.md](docs/building-fonts.md).
+For static fonts, use `-i -o ttf otf` instead of `-o variable`. Both ways stroke the glyphs with the same code, and list the glyphs that twist and those whose sources will not interpolate. The download works for a font in any format Fontra opens, but holds only what Fontra reads of it; the command line keeps everything in the designspace and UFOs. More: [docs/building-fonts.md](docs/building-fonts.md).
 
 ## Known limitations
 
@@ -91,7 +99,7 @@ For static fonts, use `-i -o ttf otf` instead of `-o variable`. The tool lists t
 ## More
 
 - [CHANGELOG.md](CHANGELOG.md): changes per version
-- [docs/building-fonts.md](docs/building-fonts.md): options of the command-line tool, overlaps, fontra-workflow
+- [docs/building-fonts.md](docs/building-fonts.md): the download from the editor, options of the command-line tool, overlaps, fontra-workflow
 - [docs/data-format.md](docs/data-format.md): how the values are saved in the font
 - [docs/how-it-works.md](docs/how-it-works.md): how the strokes are computed
 - [CONTRIBUTING.md](CONTRIBUTING.md): development
