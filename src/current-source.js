@@ -172,10 +172,6 @@ function computeStrokeStyle(positionedGlyph, location) {
 }
 
 /**
- * The numeric offset values at a location between sources, interpolated with
- * the glyph's own variation model, or null when that fails.
- */
-/**
  * The angles of the default source's points as its nib takes them along each
  * contour (see nibAngleReference() in geometry/nib.js), for a path with the
  * same contours and points; undefined where the default source's contours
@@ -220,6 +216,10 @@ export function nibAngleReferences(varGlyph, defaultIndex, path) {
   return references.some(Boolean) ? references : undefined;
 }
 
+/**
+ * The numeric offset values at a location between sources, interpolated with
+ * the glyph's own variation model, or null when that fails.
+ */
 export function interpolateOffsetNumbers(varGlyph, location) {
   return interpolateStroke(varGlyph, location)?.numbers ?? null;
 }
